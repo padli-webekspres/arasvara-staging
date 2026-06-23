@@ -1,0 +1,69 @@
+services:
+  # 1. Konfigurasi MongoDB
+  mongodb:
+    image: mongo:latest
+    container_name: arasvara_mongo
+    ports:
+      - "27001:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+  # 2. Konfigurasi MinIO (S3 Lokal)
+  minio:
+    image: minio/minio:latest
+    container_name: arasvara_minio
+    ports:
+      - "9000:9000" # Port untuk API (diakses oleh kode Next.js)
+      - "9001:9001" # Port untuk Dashboard UI (diakses via Browser)
+    environment:
+      MINIO_ROOT_USER: arasvara_admin
+      MINIO_ROOT_PASSWORD: arasvara_password123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+  # 3. Next.js App
+  # app:
+  #   build: .
+  #   container_name: arasvara_app
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - mongodb
+  #     - minio
+  #   restart: unless-stopped
+  #   environment:
+  #     - NODE_ENV=development
+  #     - SCHEDULER_SECRET=${SCHEDULER_SECRET}
+  #     - MONGO_URL=mongodb://mongodb:27017
+  #     - DB_NAME=arasvara_news
+  #     - JWT_SECRET=${JWT_SECRET}
+  #     - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+  #     - NEXT_PUBLIC_BASE_URL=http://localhost:3000
+  #     - CORS_ORIGINS=http://localhost:3000
+  #     - S3_ENDPOINT=http://minio:9000
+  #     - S3_ACCESS_KEY=arasvara_admin
+  #     - S3_SECRET_KEY=arasvara_password123
+  #     - S3_REGION=us-east-1
+  #     - S3_BUCKET_NAME=arasvara-images
+  #     - S3_BUCKET_AVATAR=arasvara-avatars
+  #     - S3_FORCE_PATH_STYLE=true
+
+  # 4. Scheduler Service
+  scheduler:
+    image: curlimages/curl:latest
+    container_name: arasvara_scheduler
+    command:
+      [
+        "sh",
+        "-c",
+        'while true; do curl -X POST -H "x-scheduler-secret: ${SCHEDULER_SECRET}" http://host.docker.internal:3000/api/publish-scheduled; sleep 300; done',
+      ]
+
+# Ini untuk menyimpan data permanen (agar tidak hilang saat laptop mati)
+volumes:
+  mongo_data:
+  minio_data:
+  # logs volume tidak perlu didefinisikan di sini karena bind mount ke host

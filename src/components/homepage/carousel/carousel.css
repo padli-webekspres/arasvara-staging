@@ -1,0 +1,50 @@
+/* Swiper hijauSawah color scheme */
+.swiper-hijauSawah .swiper-button-next,
+.swiper-hijauSawah .swiper-button-prev {
+  color: var(--hijauSawah);
+}
+
+.swiper-hijauSawah .swiper-scrollbar-drag {
+  background-color: var(--hijauSawah);
+}
+/* Custom Swiper navigation dan scrollbar warna terakota */
+.swiper-terakota .swiper-button-next,
+.swiper-terakota .swiper-button-prev {
+  color: var(--terakota);
+}
+
+.swiper-background .swiper-button-next,
+.swiper-background .swiper-button-prev {
+  color: var(--background);
+}
+
+.swiper-primary .swiper-button-next,
+.swiper-primary .swiper-button-prev {
+  color: var(--primary);
+}
+
+.swiper {
+  position: relative;
+}
+.swiper .swiper-scrollbar {
+  background: var(--muted); /* warna abu-abu light dari theme */
+  position: absolute; /* Let it flow below the content */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  width: 100%;
+}
+.swiper-hijauSawah .swiper-scrollbar-drag,
+.swiper-background .swiper-scrollbar-drag {
+  background-color: var(--hijauSawah);
+}
+
+.swiper-terakota .swiper-scrollbar-drag,
+.swiper-background .swiper-scrollbar-drag {
+  background-color: var(--terakota);
+}
+
+.swiper-primary .swiper-scrollbar-drag {
+  background-color: var(--primary);
+}

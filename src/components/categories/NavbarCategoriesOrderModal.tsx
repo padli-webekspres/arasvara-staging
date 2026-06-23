@@ -1,0 +1,376 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DragDropProvider } from "@dnd-kit/react";
+import { isSortable } from "@dnd-kit/react/sortable";
+import { toast } from "sonner";
+import { Loader2, Plus } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import axios from "@/lib/axios";
+import type { CategoryWithParent } from "@/types/category";
+import { fetchAllCategoriesPages } from "@/components/categories/categoryModalFetch";
+import { SortableNavbarCategoryCard } from "./SortableNavbarCategoryCard";
+import {
+  buildNavbarBulkPayload,
+  categoryToNavbarSortItem,
+  MAX_NAVBAR_CATEGORIES,
+  type NavbarCategorySortItem,
+} from "./navbarOrderPayload";
+
+export interface NavbarCategoriesOrderModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Draf navbar disimpan di parent agar bertahan walau modal ditutup. */
+  navbarItems: NavbarCategorySortItem[];
+  onNavbarItemsChange: React.Dispatch<
+    React.SetStateAction<NavbarCategorySortItem[]>
+  >;
+  onSaveSuccess?: () => void;
+}
+
+export default function NavbarCategoriesOrderModal({
+  open,
+  onOpenChange,
+  navbarItems,
+  onNavbarItemsChange,
+  onSaveSuccess,
+}: NavbarCategoriesOrderModalProps) {
+  const [loadingNavbarSeed, setLoadingNavbarSeed] = useState(false);
+  const navbarSeedDoneRef = useRef(false);
+
+  const [picklistCats, setPicklistCats] = useState<CategoryWithParent[]>([]);
+  const [loadingPicklist, setLoadingPicklist] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const selectedIds = useMemo(
+    () => new Set(navbarItems.map((i) => i._id)),
+    [navbarItems],
+  );
+
+  useEffect(() => {
+    if (!open) {
+      navbarSeedDoneRef.current = false;
+      setSearchQuery("");
+      setDebouncedSearch("");
+      return;
+    }
+
+    if (navbarItems.length > 0 || navbarSeedDoneRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingNavbarSeed(true);
+    fetchAllCategoriesPages({ onlyShowOnNavbar: true })
+      .then((cats) => {
+        if (cancelled) return;
+        const mapped: NavbarCategorySortItem[] = [];
+        for (const c of cats) {
+          const row = categoryToNavbarSortItem(c);
+          if (row) mapped.push(row);
+        }
+        const capped = mapped.slice(0, MAX_NAVBAR_CATEGORIES);
+        if (mapped.length > MAX_NAVBAR_CATEGORIES) {
+          toast.warning(
+            `Navbar dibatasi ${MAX_NAVBAR_CATEGORIES} kategori. Hanya ${MAX_NAVBAR_CATEGORIES} pertama yang ditampilkan—sesuaikan urutan lalu simpan.`,
+          );
+        }
+        onNavbarItemsChange((prev) => {
+          if (prev.length > 0) return prev;
+          return capped;
+        });
+      })
+      .catch(() => {
+        if (!cancelled) toast.error("Gagal memuat kategori navbar.");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          navbarSeedDoneRef.current = true;
+          setLoadingNavbarSeed(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, navbarItems.length, onNavbarItemsChange]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (navbarItems.length > 0) {
+      navbarSeedDoneRef.current = true;
+    }
+  }, [open, navbarItems.length]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+    setLoadingPicklist(true);
+    fetchAllCategoriesPages({})
+      .then((cats) => {
+        if (!cancelled) setPicklistCats(cats);
+      })
+      .catch(() => {
+        if (!cancelled) toast.error("Gagal memuat daftar kategori.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPicklist(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [searchQuery, open]);
+
+  const filteredPicker = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    if (!q) return picklistCats;
+    return picklistCats.filter((c) => {
+      const name = c.name?.toLowerCase() ?? "";
+      const slug = c.slug?.toLowerCase() ?? "";
+      const nick = c.nickname?.trim().toLowerCase() ?? "";
+      return (
+        name.includes(q) ||
+        slug.includes(q) ||
+        (nick !== "" && nick.includes(q))
+      );
+    });
+  }, [picklistCats, debouncedSearch]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- event drag @dnd-kit (sama headline).
+  const handleDragEnd = useCallback((event: any) => {
+    if (event.canceled) return;
+    const { source } = event.operation;
+    if (isSortable(source)) {
+      const { initialIndex, index } = source.sortable;
+      if (initialIndex !== index) {
+        onNavbarItemsChange((items) => {
+          const next = [...items];
+          const [moved] = next.splice(initialIndex, 1);
+          next.splice(index, 0, moved);
+          return next;
+        });
+      }
+    }
+  }, [onNavbarItemsChange]);
+
+  const handleAdd = useCallback(
+    (cat: CategoryWithParent) => {
+      const item = categoryToNavbarSortItem(cat);
+      if (!item) {
+        toast.error("Kategori tidak memiliki ID valid.");
+        return;
+      }
+      onNavbarItemsChange((prev) => {
+        if (prev.some((p) => p._id === item._id)) return prev;
+        if (prev.length >= MAX_NAVBAR_CATEGORIES) {
+          queueMicrotask(() =>
+            toast.error(
+              `Maksimal ${MAX_NAVBAR_CATEGORIES} kategori di navbar. Hapus satu untuk menambah lain.`,
+            ),
+          );
+          return prev;
+        }
+        const next = [...prev, item];
+        queueMicrotask(() =>
+          toast.success("Ditambahkan ke daftar navbar (simpan untuk menerapkan)."),
+        );
+        return next;
+      });
+    },
+    [onNavbarItemsChange],
+  );
+
+  const handleRemove = useCallback(
+    (id: string) => {
+      onNavbarItemsChange((prev) => prev.filter((p) => p._id !== id));
+    },
+    [onNavbarItemsChange],
+  );
+
+  const handleSave = useCallback(async () => {
+    if (navbarItems.length > MAX_NAVBAR_CATEGORIES) {
+      toast.error(
+        `Navbar hanya boleh berisi maksimal ${MAX_NAVBAR_CATEGORIES} kategori.`,
+      );
+      return;
+    }
+    const items = buildNavbarBulkPayload(navbarItems);
+    setSaving(true);
+    try {
+      await axios.post("/categories/sort", { items });
+      toast.success("Urutan navbar tersimpan.");
+      onSaveSuccess?.();
+      onOpenChange(false);
+    } catch (err: unknown) {
+      const ax = err as {
+        response?: { data?: { error?: string; message?: string } };
+      };
+      const msg =
+        ax.response?.data?.error ||
+        ax.response?.data?.message ||
+        (err instanceof Error ? err.message : "") ||
+        "Gagal menyimpan urutan navbar.";
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  }, [navbarItems, onOpenChange, onSaveSuccess]);
+
+  const leftBusy = loadingNavbarSeed && navbarItems.length === 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[90vh] w-full lg:max-w-5xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b border-border px-6 py-4 text-left">
+          <DialogTitle>Urutan kategori navbar</DialogTitle>
+          <DialogDescription>
+            Maksimal {MAX_NAVBAR_CATEGORIES} kategori di navbar. Kiri: seret
+            untuk mengurutkan. Kanan: tambahkan dari seluruh kategori (filter
+            kotak cari). Simpan untuk menerapkan ke server.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden lg:grid-cols-3 lg:gap-4 lg:p-4">
+          <div className="order-2 flex min-h-0 flex-col border-t border-border bg-card p-4 lg:order-1 lg:col-span-2 lg:rounded-lg lg:border lg:border-border">
+            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-base font-semibold">Di navbar</h3>
+              <p className="text-sm font-normal text-muted-foreground">
+                {navbarItems.length} / {MAX_NAVBAR_CATEGORIES} kategori
+              </p>
+            </div>
+            <div className="min-h-[200px] flex-1 overflow-y-auto pr-1">
+              {leftBusy ? (
+                <div className="flex h-48 items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : navbarItems.length === 0 ? (
+                <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-border px-4 text-center text-sm text-muted-foreground">
+                  Belum ada kategori di navbar. Tambahkan dari panel kanan
+                  atau simpan kosong untuk menonaktifkan semua navbar.
+                </div>
+              ) : (
+                <DragDropProvider onDragEnd={handleDragEnd}>
+                  <div className="flex flex-col gap-2">
+                    {navbarItems.map((item, index) => (
+                      <SortableNavbarCategoryCard
+                        key={item._id}
+                        category={item}
+                        index={index}
+                        onRemove={handleRemove}
+                      />
+                    ))}
+                  </div>
+                </DragDropProvider>
+              )}
+            </div>
+          </div>
+
+          <div className="order-1 flex max-h-[40vh] min-h-0 flex-col border-b border-border bg-card p-4 lg:order-2 lg:max-h-none lg:rounded-lg lg:border lg:border-border">
+            <h3 className="mb-3 text-base font-semibold">Cari &amp; tambahkan</h3>
+            <Input
+              type="search"
+              placeholder="Saring nama, slug, atau nama panggilan…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="mb-3"
+              aria-label="Saring daftar kategori"
+            />
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+              {loadingPicklist ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+                </div>
+              ) : filteredPicker.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  {debouncedSearch.trim()
+                    ? "Tidak ada kategori yang cocok dengan saringan."
+                    : "Tidak ada kategori di sistem."}
+                </p>
+              ) : (
+                filteredPicker.map((cat) => {
+                  const id = cat._id != null ? String(cat._id) : "";
+                  const already = Boolean(id && selectedIds.has(id));
+                  return (
+                    <div
+                      key={id || cat.slug}
+                      className="rounded-lg border border-border bg-background p-3"
+                    >
+                      <p className="font-medium leading-tight">{cat.name}</p>
+                      <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                        {cat.slug}
+                      </p>
+                      <div className="mt-2 flex justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={
+                            already ||
+                            !id ||
+                            saving ||
+                            (!already &&
+                              navbarItems.length >= MAX_NAVBAR_CATEGORIES)
+                          }
+                          onClick={() => handleAdd(cat)}
+                          aria-label={
+                            already
+                              ? `${cat.name} sudah di navbar`
+                              : `Tambahkan ${cat.name} ke navbar`
+                          }
+                        >
+                          <Plus className="mr-1 h-4 w-4" />
+                          {already ? "Sudah di navbar" : "Tambah ke navbar"}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="shrink-0 flex-col gap-2 border-t border-border bg-muted/30 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-left text-xs text-muted-foreground">
+            Menghapus semua kartu dan menyimpan akan menonaktifkan navbar bagi
+            semua kategori.
+          </p>
+          <Button
+            type="button"
+            disabled={leftBusy || saving}
+            className="shrink-0"
+            onClick={() => void handleSave()}
+          >
+            {saving ? "Menyimpan…" : "Simpan perubahan"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

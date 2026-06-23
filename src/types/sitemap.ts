@@ -1,0 +1,17 @@
+export interface SitemapArticle {
+	slug: string;
+	publicPath?: string | null;
+	title: string;
+	publishedAt: string;
+	updatedAt: string;
+}
+
+export interface SitemapCategory {
+	slug: string;
+	name: string;
+}
+
+export interface SitemapResponse {
+	articles: SitemapArticle[];
+	categories: SitemapCategory[];
+}

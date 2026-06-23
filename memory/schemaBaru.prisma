@@ -1,0 +1,163 @@
+// --------------------------------------
+// ENUMS (Agar Data Konsisten)
+// --------------------------------------
+
+enum Role {
+  ADMIN             // Super Admin
+  EDITOR_IN_CHIEF   // Pemred
+  MANAGING_EDITOR   // Redpel
+  HEAD_OF           // Kepala Rubrik
+  EDITOR
+  REPORTER
+  WRITER
+  CONTRIBUTOR
+  ACCOUNT_EXECUTIVE // Role AE (Baru)
+  SUBSCRIBER
+}
+
+enum ArticleStatus {
+  DRAFT
+  PENDING_REVIEW    // Menunggu Approval Editor/Head
+  REJECTED          // Dikembalikan ke penulis
+  SCHEDULED         // Menunggu waktu tayang
+  PUBLISHED
+  ARCHIVED          // Take down soft delete
+}
+
+enum ArticleType {
+  STANDARD          // Artikel teks biasa
+  VIDEO             // Artikel video
+  GALLERY           // Artikel foto
+}
+
+// --------------------------------------
+// MODELS
+// --------------------------------------
+
+model User {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  email       String    @unique
+  password    String
+  name        String
+  role        Role      @default(SUBSCRIBER)
+  avatar      String?
+  bio         String?   // Untuk halaman profil penulis
+  isActive    Boolean   @default(true)
+  
+  // Relasi
+  articles    Article[] @relation("AuthorArticles")
+  editedArticles Article[] @relation("EditorArticles") // Track siapa editornya (KPI)
+  
+  // Khusus Head Of (Spesialisasi Kategori)
+  managedCategoryId String? @db.ObjectId 
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Article {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  title         String
+  slug          String        @unique
+  excerpt       String?
+  content       String
+  
+  // Media & Tipe
+  featuredImage String?
+  type          ArticleType   @default(STANDARD)
+  videoUrl      String?       // Untuk Modul 5 (Video)
+  
+  // Relasi Author (Wajib Relasi User agar bisa hitung KPI Modul 10)
+  author        User          @relation("AuthorArticles", fields: [authorId], references: [id])
+  authorId      String        @db.ObjectId
+  
+  // Relasi Editor (Siapa yang meloloskan berita ini?)
+  editor        User?         @relation("EditorArticles", fields: [editorId], references: [id])
+  editorId      String?       @db.ObjectId
+
+  // Relasi Kategori
+  category      Category      @relation(fields: [categoryId], references: [id])
+  categoryId    String        @db.ObjectId
+
+  // Relasi Tags
+  tagIDs        String[]      @db.ObjectId
+  tags          Tag[]         @relation(fields: [tagIDs], references: [id])
+
+  // Status & Workflow
+  status        ArticleStatus @default(DRAFT)
+  rejectionReason String?     // Jika status REJECTED, editor isi ini
+  
+  // Publishing Options (Modul 6)
+  isFeatured    Boolean       @default(false) // Pilihan Editor
+  isHeadline    Boolean       @default(false) // Slider Utama
+  isBreaking    Boolean       @default(false) // Running Text
+  
+  // SEO Fields (Modul 8)
+  metaTitle     String?
+  metaDesc      String?
+  
+  // Timestamps
+  scheduledAt   DateTime?     // PENTING: Untuk Cron Job publish otomatis
+  publishedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  // Analytics Sederhana
+  viewCount     Int           @default(0)
+  pageViews     PageView[]
+}
+
+model Category {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  slug        String     @unique
+  description String?
+  
+  // Hierarchy (Modul 3: Subkategori)
+  parentId    String?    @db.ObjectId
+  parent      Category?  @relation("SubCategories", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children    Category[] @relation("SubCategories")
+
+  articles    Article[]
+  createdAt   DateTime   @default(now())
+}
+
+model Tag {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String    @unique
+  slug        String    @unique // Tag juga butuh slug untuk URL
+  
+  articleIDs  String[]  @db.ObjectId
+  articles    Article[] @relation(fields: [articleIDs], references: [id])
+}
+
+// Model Baru: IKLAN (Untuk Role AE - Modul 6)
+model Advertisement {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  title       String    // Nama klien/kampanye
+  imageUrl    String    // Banner iklan
+  linkUrl     String    // Link tujuan saat diklik
+  position    String    // Enum: HEADER, SIDEBAR, ARTICLE_MID, POPUP
+  isActive    Boolean   @default(true)
+  
+  startDate   DateTime
+  endDate     DateTime
+  
+  // Analytics Iklan
+  impressions Int       @default(0)
+  clicks      Int       @default(0)
+  
+  createdAt   DateTime  @default(now())
+}
+
+// Analytics Detail (Hati-hati, data ini bisa bengkak sangat cepat)
+model PageView {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  article     Article   @relation(fields: [articleId], references: [id])
+  articleId   String    @db.ObjectId
+  
+  ipAddress   String?   // Untuk filter unique visitor
+  userAgent   String?
+  country     String?   // Geo Location
+  timestamp   DateTime  @default(now())
+}

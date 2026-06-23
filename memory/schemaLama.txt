@@ -1,0 +1,52 @@
+model Article {
+  id             String   @id @default(uuid())
+  title          String
+  slug           String   @unique
+  excerpt        String?
+  content        String
+  category       String
+  featuredImage  String?
+  authorId       String
+  authorName     String
+  status         String   // Enum bisa: draft, published, dsb
+  isFeatured     Boolean  @default(false)
+  isHeadline     Boolean  @default(false)
+  viewCount      Int      @default(0)
+  publishedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  tags           Tag[]
+}
+
+model Category {
+  id        String   @id
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model PageView {
+  id         String   @id @default(uuid())
+  articleId  String
+  timestamp  DateTime @default(now())
+  userAgent  String?
+  referrer   String?
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String
+  avatar    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  articles  Article[]
+}

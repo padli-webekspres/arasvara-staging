@@ -1,0 +1,559 @@
+/* HeroCard — judul melebar penuh di container 2/3, wrap normal */
+.titleHeroCard {
+  width: 100%;
+  max-width: 100%;
+}
+
+.titleHeroCard .word {
+  display: inline !important;
+  white-space: normal;
+}
+
+/* Highlight animasi HeroCard */
+.highlight-bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--terakota);
+  border-radius: 0.25em;
+  z-index: 0;
+  pointer-events: none;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
+  height: 100%;
+}
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-Black.ttf") format("truetype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-BlackItalic.ttf") format("truetype");
+  font-weight: 900;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-ExtraBold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-ExtraBoldItalic.ttf") format("truetype");
+  font-weight: 800;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-SemiBoldItalic.ttf") format("truetype");
+  font-weight: 600;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-MediumItalic.ttf") format("truetype");
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Rubik";
+  src: url("/fonts/Rubik/static/Rubik-LightItalic.ttf") format("truetype");
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-hijauSawah: var(--hijau-sawah);
+  --color-terakota: var(--terakota);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --font-heading: var(--font-sans);
+}
+
+:root {
+  --radius: 0.625rem;
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  --hijau-sawah: oklch(59.94% 0.0914 129.866);
+  --terakota: oklch(60.393% 0.11276 45.857);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Rubik", sans-serif;
+  }
+  button {
+    @apply cursor-pointer;
+  }
+
+  .bg-terakota {
+    background-color: var(--terakota);
+  }
+  .text-terakota {
+    color: var(--terakota);
+  }
+  .bg-hijauSawah {
+    background-color: var(--hijau-sawah);
+  }
+  .text-hijauSawah {
+    color: var(--hijau-sawah);
+  }
+
+  /* Taktik Sapu Jagat: Paksa SEMUA elemen webkit menghilangkan scrollbar */
+  ::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Taktik Sapu Jagat: Untuk Firefox, IE, dan Edge */
+  * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer utilities {
+  /* Custom Scrollbar */
+  /* ==========================================
+   1. Class untuk MENGHILANGKAN Scrollbar
+   ========================================== */
+  .hide-scrollbar {
+    /* Untuk Firefox */
+    scrollbar-width: none;
+    /* Untuk IE dan Edge */
+    -ms-overflow-style: none;
+  }
+
+  /* Untuk Chrome, Safari, dan Opera */
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ==========================================
+   2. Class untuk KUSTOMISASI Scrollbar
+   ========================================== */
+  .custom-scrollbar {
+    /* Untuk Firefox (standar web baru) */
+    scrollbar-width: thin; /* Opsi: auto, thin, none */
+    scrollbar-color: #52525b transparent; /* warna-thumb warna-track */
+    z-index: 9999;
+  }
+
+  /* Untuk Chrome, Safari, dan Opera */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px; /* Lebar scrollbar vertikal */
+    height: 8px; /* Lebar scrollbar horizontal */
+  }
+
+  /* Track (Jalur background scrollbar) */
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Thumb (Batang scrollbar yang bisa ditarik) */
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #52525b; /* Warna abu-abu gelap ala zinc-600 */
+    border-radius: 20px; /* Bikin ujungnya membulat */
+    border: 2px solid transparent; /* Opsional: memberi jarak (padding) efek */
+    background-clip: content-box;
+  }
+
+  /* Thumb saat di-hover */
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: #3f3f46; /* Lebih gelap saat di-hover */
+  }
+}
+
+@layer components {
+  .arasvara-logo {
+    background: url("https://www.dentika.net/assets/clients/arasvara/arasvara-main-logo.png")
+      no-repeat;
+    background-size: 200px 40px;
+    /* font-family: 'Playfair Display', serif; */
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    font-style: italic;
+    width: 200px;
+    height: 40px;
+  }
+  .arasvara-logo-white {
+    background: url("https://www.dentika.net/assets/clients/arasvara/arasvara-logo-white.png")
+      no-repeat;
+    background-size: 190px 100px;
+    /* font-family: 'Playfair Display', serif; */
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    font-style: italic;
+    width: 190px;
+    height: 100px;
+    margin: 40px auto 0 auto;
+  }
+
+  .double-line-in-header {
+    border-bottom: 1px solid #000;
+  }
+
+  .subscribe-block {
+    width: 100%;
+    display: flex;
+    border-top: 1px solid #000;
+    border-bottom: 1px solid #000;
+    padding: 20px 0;
+    text-align: center;
+    font-size: 12px;
+  }
+
+  .subscribe-block-left {
+    flex: 2; /* Takes up one portion of the available space */
+    background-image: url("https://www.dentika.net/assets/clients/arasvara/arasvara_black_circle.png"); /* Replace with your image path */
+    background-repeat: no-repeat; /* Prevents image from repeating */
+    background-position: right center; /* Positions the image on the left, vertically centered */
+    background-size: 20px;
+  }
+
+  .subscribe-block-right {
+    flex: 3; /* Takes up two portions (twice as much width as the image div) */
+    /* padding: 20px; */
+    text-align: left;
+  }
+
+  .spacer-2 {
+    padding: 2px 0;
+  }
+
+  .news-card-dark {
+    @apply bg-[#1a1a1a] text-white rounded-lg overflow-hidden;
+  }
+
+  .news-card-light {
+    @apply rounded-lg overflow-hidden;
+  }
+
+  .category-tag {
+    @apply inline-block px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded;
+  }
+
+  .category-tag-dark {
+    @apply bg-white/20 text-white;
+  }
+
+  .category-tag-light {
+    @apply bg-primary text-primary-foreground;
+  }
+
+  .quote-block {
+    @apply relative pl-8 py-4 my-8 border-l-4 border-accent italic;
+    font-family: "Playfair Display", serif;
+  }
+
+  .quote-block::before {
+    content: '"';
+    @apply absolute left-2 top-0 text-6xl text-accent opacity-30;
+    font-family: "Playfair Display", serif;
+  }
+
+  .internal-link {
+    @apply text-accent underline underline-offset-2 hover:text-accent/80 transition-colors;
+  }
+
+  .prose-arasvara {
+    @apply leading-relaxed;
+  }
+
+  .prose-arasvara p {
+    @apply mb-4;
+  }
+
+  .prose-arasvara h1 {
+    @apply text-3xl font-bold mt-8 mb-4;
+  }
+
+  .prose-arasvara h2 {
+    @apply text-2xl font-semibold mt-8 mb-4;
+  }
+
+  .prose-arasvara h3 {
+    @apply text-xl font-semibold mt-6 mb-3;
+  }
+
+  /* Hindari <strong>/<b> membuat heading terlalu tebal */
+  .prose-arasvara h1 strong,
+  .prose-arasvara h2 strong,
+  .prose-arasvara h3 strong,
+  .prose-arasvara h1 b,
+  .prose-arasvara h2 b,
+  .prose-arasvara h3 b {
+    font-weight: inherit;
+  }
+
+  .prose-arasvara ul {
+    list-style-type: disc;
+  }
+
+  .prose-arasvara ol {
+    list-style-type: decimal;
+  }
+
+  .prose-arasvara ul,
+  .prose-arasvara ol {
+    @apply mb-4 pl-6;
+  }
+
+  .prose-arasvara li {
+    @apply mb-2;
+  }
+
+  .prose-arasvara li::marker {
+    color: var(--hijau-sawah);
+  }
+
+  /* Highlight TipTap (<mark>): ganti default kuning browser → hijauSawah */
+  .prose-arasvara mark {
+    @apply rounded-sm bg-hijauSawah/25 text-inherit;
+  }
+
+  .prose-arasvara blockquote {
+    @apply relative pl-8 py-4 my-8 border-l-4 border-accent italic text-lg;
+    font-family: "Playfair Display", serif;
+  }
+
+  /**
+   * Area editor CMS (TipTap): blockquote khusus editor.
+   */
+  .article-editor-prose .prose-arasvara blockquote {
+    @apply relative rounded-md pl-4 pr-3 py-3 my-6 border-l-4 italic text-lg text-foreground;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    border-left-color: var(--hijau-sawah);
+    background-color: color-mix(in oklab, var(--hijau-sawah) 5%, transparent);
+  }
+
+  /* Grid tipikal: isi editor tidak melebar melewati kolom (read-also, embed, dll.) */
+  .article-editor-prose .ProseMirror {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .prose-arasvara img {
+    @apply rounded-lg my-6;
+  }
+
+  /* ── Gambar dengan caption (node ImageFigure dari Tiptap) ── */
+  .prose-arasvara figure[data-image-figure="true"] {
+    @apply my-6 mx-auto w-full;
+  }
+
+  /* Override my-6 dari img default agar margin dikelola oleh figure */
+  .prose-arasvara figure[data-image-figure="true"] img {
+    @apply rounded-lg w-full my-0;
+  }
+
+  .prose-arasvara figure[data-image-figure="true"] figcaption {
+    @apply text-center text-sm text-muted-foreground mt-2 italic;
+  }
+
+  /* Tampilan di area editor CMS: border subtle di sekeliling figure */
+  .article-editor-prose figure[data-image-figure="true"] {
+    @apply border border-border/40 rounded-lg p-1;
+  }
+
+  /* Custom Swiper Navigation */
+  .swiper-button-custom {
+    @apply absolute top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/80 hover:bg-white dark:bg-black/50 dark:hover:bg-black/80 text-primary dark:text-white rounded-lg shadow-md transition-all duration-300 flex items-center justify-center cursor-pointer;
+  }
+
+  .swiper-button-custom.swiper-button-disabled {
+    @apply opacity-30 cursor-not-allowed pointer-events-none;
+  }
+
+  .swiper-button-prev-custom {
+    @apply left-2;
+  }
+
+  .swiper-button-next-custom {
+    @apply right-2;
+  }
+}
+
+html,
+body {
+  /* Jika kamu ingin scrollbar hilang di SEMUA halaman, gunakan ini. 
+     Jika hanya sebagian halaman, abaikan kode di blok ini dan gunakan Solusi 1 */
+  /* scrollbar-width: none; */
+  /* -ms-overflow-style: none; */
+}

@@ -1,0 +1,11 @@
+---
+trigger: always_on
+---
+
+# Make Code Readable
+
+Buat kode nya rapi dan mudah dibaca. Gunakan indentasi yang konsisten, spasi yang cukup, dan nama variabel yang jelas. Hindari penggunaan singkatan yang tidak umum dan pastikan kode Anda mudah dipahami oleh orang lain. Utamakan performance, tetapi jangan sampai mengorbankan keterbacaan. Jika memungkinkan, tambahkan komentar yang menjelaskan bagian-bagian penting dari kode Anda. Dengan cara ini, orang lain dapat dengan mudah memahami logika dan tujuan dari kode yang Anda buat. Pastikan hingga tidak ada error sama sekali, perbaiki terus jika ada ditemukan error atau potensi kesalahan.
+
+Apa ada yang ingin kamu diskusikan dulu denganku? jika tidak, maka lanjutkan membuat implementation plan nya. lalu tinjau impleentation plan yang kamu buat apakah ada kesalahan atau ada yang bisa diperbaiki lagi atau tidak? perbaiki jika ada.
+
+Jika implementation plan nya sudah sesuai semua, maka jalankan plan tersebut dan edit code nya hingga bisa dipastikan semuanya berjalan dan tidak ada eror sama sekali.

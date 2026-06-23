@@ -1,0 +1,13 @@
+---
+alwaysApply: true
+---
+
+# Coding Standards
+Buat kode nya rapi dan mudah dibaca. Gunakan indentasi yang konsisten, spasi yang cukup, dan nama variabel yang jelas. Hindari penggunaan singkatan yang tidak umum dan pastikan kode mudah dipahami oleh orang lain. Utamakan performance, tetapi jangan sampai mengorbankan keterbacaan. Jika memungkinkan, tambahkan komentar yang menjelaskan bagian-bagian penting dari kode. Pastikan tidak ada error sama sekali, perbaiki terus jika ada ditemukan error atau potensi kesalahan.
+
+# Workflow & Implementation
+Setiap kali diberikan tugas yang cukup kompleks atau membuat fitur baru, patuhi alur berikut:
+1. Tanyakan apakah ada yang ingin didiskusikan terlebih dahulu.
+2. Jika tidak ada, buat "Implementation Plan" yang terstruktur.
+3. Tinjau kembali implementation plan tersebut secara mandiri, periksa apakah ada kesalahan atau area yang bisa diperbaiki, lalu lakukan revisi jika perlu.
+4. Jika plan sudah sesuai, jalankan plan tersebut dan edit code nya hingga bisa dipastikan semuanya berjalan dan tidak ada eror sama sekali.

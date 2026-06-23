@@ -1,0 +1,35 @@
+import * as React from "react";
+
+// Make the icon compatible with ToolbarButton's icon prop: React.FC<React.SVGProps<SVGSVGElement>>
+const TiktokFlatIcon: React.FC<React.SVGProps<SVGSVGElement>> = ({
+  width = 24,
+  height = 24,
+  fill = "none",
+  stroke = "#000000",
+  strokeWidth = 2,
+  style,
+  ...props
+}) => {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 48 48"
+      width={width}
+      height={height}
+      fill={fill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={style}
+      {...props}
+    >
+      <path
+        fill="transparent"
+        d="M25.076 1.498c-.939 0-1.74.14-2.342.297c-.977.254-1.51 1.159-1.53 2.07l-.644 29.938v.01c0 1.973-1.579 3.562-3.515 3.562s-3.515-1.59-3.515-3.562c0-1.048.376-1.837.959-2.405c.59-.576 1.42-.947 2.35-1.09c.716-.11 1.381-.68 1.42-1.497l.283-6.123c.039-.845-.642-1.594-1.533-1.532C10.321 21.631 4.5 26.42 4.5 33.813c0 7 5.611 12.685 12.545 12.685s12.546-5.684 12.546-12.685l-.327-15.206c3.134 2.061 7.633 3.28 11.79 3.49c.934.046 2.002-.382 2.266-1.486c.106-.439.18-.995.18-1.69s-.074-1.25-.18-1.69c-.265-1.104-1.337-1.49-2.181-1.588c-2.896-.337-5.736-1.87-7.956-4.053s-3.784-4.976-4.17-7.787c-.117-.847-.613-1.752-1.597-2.008a9.3 9.3 0 0 0-2.34-.297"
+      />
+    </svg>
+  );
+};
+
+export default TiktokFlatIcon;

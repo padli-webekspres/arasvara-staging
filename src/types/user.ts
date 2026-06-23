@@ -7,6 +7,10 @@ export interface User {
 	email: string;
 	password?: string;
 	name: string;
+	/** URL segment publik penulis, mis. `andi-pratama` */
+	slug?: string;
+	/** Nama dinormalisasi untuk cek unik (lowercase, tanpa tanda baca) */
+	nameNormalized?: string;
 	role: keyof typeof ROLES;
 	teamId?: string | ObjectId;
 	team?: Team;
@@ -31,6 +35,8 @@ export interface AvatarUser {
 export interface UserProfile {
 	_id: string;
 	name: string;
+	slug?: string;
+	nameNormalized?: string;
 	email: string;
 	avatar?: string | AvatarUser;
 	role: keyof typeof ROLES;

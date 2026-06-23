@@ -75,6 +75,7 @@ export interface SerializedEditorActivity {
   user: {
     _id: string;
     name: string;
+    slug?: string;
     email?: string;
     role?: UserProfile["role"];
     avatar?: UserProfile["avatar"];

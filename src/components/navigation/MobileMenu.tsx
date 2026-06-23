@@ -8,6 +8,7 @@ import { NAV_LINKS } from "@/lib/constants";
 import Image from "next/image";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { buildAuthorPublicPath } from "@/lib/author-public-path";
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -114,9 +115,9 @@ const MobileMenu = ({
 
           {/* Subscribe and Social */}
           <div>
-            {userAuthed && (
+            {userAuthed && userAuthed.slug && (
               <Link
-                href={"/author/" + userAuthed._id}
+                href={buildAuthorPublicPath(userAuthed.slug)}
                 onClick={onClose}
                 className="py-4 border-t border-border flex flex-row justify-start items-center gap-4 hover:bg-muted"
               >
@@ -128,6 +129,17 @@ const MobileMenu = ({
                 </Avatar>
                 <p className="font-semibold text-lg">{userAuthed?.name}</p>
               </Link>
+            )}
+            {userAuthed && !userAuthed.slug && (
+              <div className="py-4 border-t border-border flex flex-row justify-start items-center gap-4">
+                <Avatar className="w-8 h-8">
+                  <AvatarImage src={userAuthed?.avatar || undefined} />
+                  <AvatarFallback>
+                    {userAuthed?.name?.charAt(0).toUpperCase() || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <p className="font-semibold text-lg">{userAuthed?.name}</p>
+              </div>
             )}
 
             <div className="pt-8 border-t border-border">

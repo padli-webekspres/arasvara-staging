@@ -41,6 +41,7 @@ export function generateAccessToken(user: UserProfile) {
       _id: user._id,
       name: user.name,
       email: user.email,
+      slug: user.slug || undefined,
       avatar: user.avatar || undefined,
       role: user.role,
       ...(user.teamId && { teamId: user.teamId }),
@@ -113,6 +114,7 @@ export async function refreshAuthSession(
         isActive: 1,
         teamId: 1,
         team: 1,
+        slug: 1,
       },
     },
   );
@@ -125,6 +127,7 @@ export async function refreshAuthSession(
     email: user.email,
     role: user.role,
     avatar: user.avatar,
+    slug: user.slug ? String(user.slug) : undefined,
     teamId: user.teamId,
     team: user.team,
   };
@@ -152,6 +155,7 @@ export async function authenticateUser(email: string, password: string) {
         avatar: 1,
         teamId: 1,
         team: 1,
+        slug: 1,
       },
     },
   );
@@ -175,6 +179,7 @@ export async function authenticateUser(email: string, password: string) {
     email: user.email,
     role: user.role,
     avatar: user.avatar,
+    slug: user.slug ? String(user.slug) : undefined,
     isActive: user.isActive,
   };
 
@@ -207,6 +212,7 @@ export async function getUserFromToken(
         isActive: 1,
         teamId: 1,
         team: 1,
+        slug: 1,
       },
     },
   );
@@ -219,6 +225,7 @@ export async function getUserFromToken(
     email: user.email,
     role: user.role,
     avatar: user.avatar,
+    slug: user.slug ? String(user.slug) : undefined,
     teamId: user.teamId,
     team: user.team,
   };

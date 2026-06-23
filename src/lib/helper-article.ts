@@ -286,6 +286,7 @@ export async function mapDocToArticle(doc: any): Promise<Article> {
     author: {
       _id: doc.author?._id?.toString?.() ?? doc.author?._id ?? "",
       name: doc.author?.name ?? "",
+      slug: doc.author?.slug != null ? String(doc.author.slug) : undefined,
       email: doc.author?.email ?? "",
       avatar: doc.author?.avatar,
       role: doc.author?.role ?? "SUBSCRIBER",
@@ -297,6 +298,7 @@ export async function mapDocToArticle(doc: any): Promise<Article> {
           _id:
             c._id instanceof ObjectId ? c._id.toString() : String(c._id ?? ""),
           name: String(c.name ?? ""),
+          slug: c.slug != null ? String(c.slug) : undefined,
           email: String(c.email ?? ""),
           avatar: c.avatar as UserProfile["avatar"],
           role: (c.role ?? "SUBSCRIBER") as UserProfile["role"],

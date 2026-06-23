@@ -4,6 +4,7 @@ import { getAllUsers } from "@/services/userService";
 import { createUser } from "@/services/userService";
 import { ROLES } from "@/lib/auth-client";
 import { getUserFromRequest } from "@/lib/auth";
+import { mapUserWriteError } from "@/lib/map-user-write-error";
 
 // POST /api/users - create user with avatar upload, password hash, email unique
 export async function POST(req: NextRequest) {
@@ -75,10 +76,8 @@ export async function POST(req: NextRequest) {
 
 		return NextResponse.json({ user });
 	} catch (error) {
-		return NextResponse.json(
-			{ error: (error as Error).message || "Internal server error" },
-			{ status: 500 },
-		);
+		const { status, body } = mapUserWriteError(error);
+		return NextResponse.json(body, { status });
 	}
 }
 

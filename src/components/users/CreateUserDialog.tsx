@@ -9,6 +9,7 @@ import { get as idbGet, set as idbSet, del as idbDel } from "idb-keyval";
 import { ROLES } from "@/lib/constants";
 import { toast } from "sonner";
 import api from "@/lib/axios";
+import { getApiErrorMessage } from "@/lib/api-error";
 import { Team } from "@/types/team";
 import FormUserDialogUi from "./FormUserDialogUi";
 
@@ -199,8 +200,9 @@ export default function CreateUserDialog({
       });
 
       if (response.status >= 400) {
-        const msg = response.data?.error || "Gagal membuat user";
-        toast.error(msg);
+        toast.error(
+          getApiErrorMessage({ response }, "Gagal membuat user"),
+        );
         return;
       }
 
@@ -215,12 +217,7 @@ export default function CreateUserDialog({
       onOpenChange(false);
       onCreated?.();
     } catch (err: unknown) {
-      let msg = "Gagal membuat user";
-      if (err && typeof err === "object") {
-        // @ts-expect-error: dynamic error shape
-        msg = err?.response?.data?.error || err?.message || msg;
-      }
-      toast.error(msg);
+      toast.error(getApiErrorMessage(err, "Gagal membuat user"));
     } finally {
       setSubmitting(false);
     }

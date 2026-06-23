@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db/db";
 import { getArticleRevalidateSeconds } from "@/lib/cache/article-cache-config";
+import { isValidArticlePublicPath } from "@/lib/article-public-path";
 import { splitContentByPageBreak } from "@/lib/utils";
 import {
   getPublishedArticleByPublicPath,
@@ -11,7 +12,7 @@ import type { ArticleListResponse } from "@/types/article";
 export async function GET(req: NextRequest) {
   try {
     const publicPath = req.nextUrl.searchParams.get("publicPath")?.trim();
-    if (!publicPath || !publicPath.startsWith("/news/")) {
+    if (!publicPath || !isValidArticlePublicPath(publicPath)) {
       return NextResponse.json(
         { error: "Invalid or missing publicPath" },
         { status: 400 },

@@ -7,6 +7,7 @@ import { getCollection } from "@/lib/db/db";
  * Endpoint one-time refactoring untuk men-denormalisasi data pada collection `articles`:
  * - author.name  — diambil dari collection `users` berdasarkan authorId
  * - author.role  — diambil dari collection `users` berdasarkan authorId
+ * - author.slug  — diambil dari collection `users` berdasarkan authorId
  * - category.name — diambil dari collection `categories` berdasarkan categoryId
  * - category.slug — diambil dari collection `categories` berdasarkan categoryId (DITAMBAHKAN)
  *
@@ -23,17 +24,18 @@ export async function GET() {
     const categoriesCollection = await getCollection("categories");
 
     // ── 1. Buat lookup Map untuk users ──
-    // Hanya ambil field yang dibutuhkan (_id, name, role) untuk hemat memori
+    // Hanya ambil field yang dibutuhkan (_id, name, role, slug) untuk hemat memori
     const users = await usersCollection
-      .find({}, { projection: { _id: 1, name: 1, role: 1 } })
+      .find({}, { projection: { _id: 1, name: 1, role: 1, slug: 1 } })
       .toArray();
 
-    const userMap = new Map<string, { name: string; role: string }>();
+    const userMap = new Map<string, { name: string; role: string; slug: string }>();
     for (const user of users) {
       if (user._id) {
         userMap.set(user._id.toString(), {
           name: user.name || "",
           role: user.role || "writer",
+          slug: user.slug ? String(user.slug) : "",
         });
       }
     }
@@ -65,6 +67,7 @@ export async function GET() {
           categoryId: 1,
           "author.name": 1,
           "author.role": 1,
+          "author.slug": 1,
           "category.name": 1,
           "category.slug": 1,
         },
@@ -93,6 +96,9 @@ export async function GET() {
           }
           if (article.author?.role !== authorData.role) {
             updateFields["author.role"] = authorData.role;
+          }
+          if (authorData.slug && article.author?.slug !== authorData.slug) {
+            updateFields["author.slug"] = authorData.slug;
           }
         }
       }
@@ -152,7 +158,7 @@ export async function GET() {
       totalProcessed: processedCount,
       totalModified: modifiedCountTotal,
       totalSkipped: skippedCount,
-      fields: ["author.name", "author.role", "category.name", "category.slug"],
+      fields: ["author.name", "author.role", "author.slug", "category.name", "category.slug"],
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

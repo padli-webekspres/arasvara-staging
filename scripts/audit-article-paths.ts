@@ -10,6 +10,8 @@ import { bootstrapEnv } from "./bootstrap-env";
 import {
   buildArticlePublicPath,
   buildLegacyArticlePath,
+  isReservedRootSegment,
+  pathsEqual,
 } from "../src/lib/article-public-path";
 import { ArticleStatus } from "../src/types/article";
 
@@ -25,6 +27,8 @@ type AuditRow = {
   computedLegacy: string | null;
   computedStructured: string | null;
   issues: string[];
+  staleNewsPrefix: boolean;
+  pathMismatch: boolean;
 };
 
 function coerceDate(value: unknown): Date | null {
@@ -103,6 +107,11 @@ async function main() {
       if (!slug) issues.push("slug kosong");
       if (!publishedAt) issues.push("publishedAt null pada PUBLISHED");
       if (!categorySlug) issues.push("categorySlug tidak ditemukan");
+      if (categorySlug && isReservedRootSegment(categorySlug)) {
+        issues.push(
+          `categorySlug "${categorySlug}" reserved untuk route root — rename kategori atau legacy`,
+        );
+      }
 
       let computedLegacy: string | null = null;
       let computedStructured: string | null = null;
@@ -125,18 +134,47 @@ async function main() {
         issues.push("gagal build structured path");
       }
 
+      const publicPath = doc.publicPath ? String(doc.publicPath) : null;
+      const urlFormat = doc.urlFormat ? String(doc.urlFormat) : null;
+
+      const staleNewsPrefix =
+        urlFormat === "structured" &&
+        Boolean(publicPath?.match(/^\/news\/[^/]+\/\d{4}\//));
+
+      if (staleNewsPrefix) {
+        issues.push("structured masih berprefix /news/ (perlu migrasi Fase C)");
+      }
+
+      const pathMismatch =
+        urlFormat === "structured" &&
+        Boolean(computedStructured) &&
+        Boolean(publicPath) &&
+        !pathsEqual(publicPath, computedStructured);
+
+      if (pathMismatch) {
+        issues.push("publicPath DB tidak sama dengan computed structured");
+      }
+
       return {
         _id: (doc._id as ObjectId).toHexString(),
         slug,
         status: String(doc.status ?? ""),
-        urlFormat: doc.urlFormat ? String(doc.urlFormat) : null,
-        publicPath: doc.publicPath ? String(doc.publicPath) : null,
+        urlFormat,
+        publicPath,
         categorySlug,
         computedLegacy,
         computedStructured,
         issues,
+        staleNewsPrefix,
+        pathMismatch,
       };
     });
+
+    const stalePrefixRows = rows.filter((row) => row.staleNewsPrefix);
+    const reservedCategoryRows = rows.filter((row) =>
+      row.issues.some((issue) => issue.includes("reserved untuk route root")),
+    );
+    const mismatchRows = rows.filter((row) => row.pathMismatch);
 
     const pathCounts = new Map<string, string[]>();
     for (const row of rows) {
@@ -156,7 +194,22 @@ async function main() {
 
     console.log(`Total artikel PUBLISHED: ${rows.length}`);
     console.log(`Dengan anomali: ${withIssues.length}`);
+    console.log(`Structured stale /news/ prefix: ${stalePrefixRows.length}`);
+    console.log(`Structured path mismatch: ${mismatchRows.length}`);
     console.log(`Duplikat computed path: ${duplicatePaths.length}\n`);
+
+    if (stalePrefixRows.length > 0) {
+      console.log("--- Structured masih /news/{cat}/... (max 20) ---");
+      for (const row of stalePrefixRows.slice(0, 20)) {
+        console.log(
+          `${row._id} | slug=${row.slug} | dbPath=${row.publicPath} | expected=${row.computedStructured ?? "-"}`,
+        );
+      }
+      if (stalePrefixRows.length > 20) {
+        console.log(`... dan ${stalePrefixRows.length - 20} lainnya`);
+      }
+      console.log("");
+    }
 
     if (withIssues.length > 0) {
       console.log("--- Artikel bermasalah (max 20) ---");

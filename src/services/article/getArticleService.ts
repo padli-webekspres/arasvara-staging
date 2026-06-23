@@ -17,6 +17,7 @@ import {
   normalizeContentMediaItem,
 } from "@/lib/helper-article";
 import { rewriteArticleContentMediaUrls } from "@/lib/media/public-media-url";
+import { isValidArticlePublicPath } from "@/lib/article-public-path";
 
 /** Antrian editorial: baru + dokumen yang masih berstatus APPROVED di DB. */
 const APPROVAL_QUEUE_STATUSES: (ArticleStatus | "APPROVED")[] = [
@@ -36,6 +37,11 @@ const ARTICLE_DETAIL_JOIN_STAGES = [
   {
     $addFields: {
       category: { $arrayElemAt: ["$categoryObj", 0] },
+    },
+  },
+  {
+    $addFields: {
+      authorDenorm: "$author",
     },
   },
   {
@@ -130,6 +136,10 @@ async function hydrateArticleAggregateDoc(
 ): Promise<Article> {
   const category = doc.category ?? null;
   const author = (doc.author as Record<string, unknown> | null | undefined) ?? null;
+  const authorDenorm = doc.authorDenorm as
+    | Record<string, unknown>
+    | null
+    | undefined;
   const editorDoc = (doc.editor as Record<string, unknown> | null | undefined) ?? null;
   const createdByDoc = (doc.createdBy as Record<string, unknown> | null | undefined) ?? null;
   const contributorsArr = Array.isArray(doc.contributors) ? doc.contributors : [];
@@ -232,6 +242,28 @@ async function hydrateArticleAggregateDoc(
     typeof doc.content === "string" ? doc.content : "",
   );
 
+  let authorSlug: string | undefined;
+  if (author?.slug != null && String(author.slug).trim()) {
+    authorSlug = String(author.slug).trim().toLowerCase();
+  } else if (authorDenorm?.slug != null && String(authorDenorm.slug).trim()) {
+    authorSlug = String(authorDenorm.slug).trim().toLowerCase();
+  } else if (doc.authorId) {
+    const authorOid =
+      doc.authorId instanceof ObjectId
+        ? doc.authorId
+        : ObjectId.isValid(String(doc.authorId))
+          ? new ObjectId(String(doc.authorId))
+          : null;
+    if (authorOid) {
+      const slugDoc = await db
+        .collection("users")
+        .findOne({ _id: authorOid }, { projection: { slug: 1 } });
+      if (slugDoc?.slug) {
+        authorSlug = String(slugDoc.slug).trim().toLowerCase();
+      }
+    }
+  }
+
   return {
     _id: doc._id?.toString(),
     title: doc.title,
@@ -247,6 +279,7 @@ async function hydrateArticleAggregateDoc(
       ? {
           _id: author._id?.toString?.() ?? author._id ?? "",
           name: author.name ?? "",
+          slug: authorSlug,
           email: author.email ?? "",
           avatar: author.avatar,
           role: author.role ?? "SUBSCRIBER",
@@ -263,6 +296,7 @@ async function hydrateArticleAggregateDoc(
       ? {
           _id: editorDoc._id?.toString?.() ?? editorDoc._id ?? "",
           name: editorDoc.name ?? "",
+          slug: editorDoc.slug ? String(editorDoc.slug) : undefined,
           email: editorDoc.email ?? "",
           avatar: editorDoc.avatar,
           role: editorDoc.role ?? "SUBSCRIBER",
@@ -271,6 +305,7 @@ async function hydrateArticleAggregateDoc(
     contributors: contributorsArr.map((c: Record<string, unknown>) => ({
       _id: (c._id as { toString?: () => string })?.toString?.() ?? String(c._id ?? ""),
       name: String(c.name ?? ""),
+      slug: c.slug ? String(c.slug) : undefined,
       email: String(c.email ?? ""),
       avatar: c.avatar as UserProfile["avatar"],
       role: (c.role ?? "SUBSCRIBER") as UserProfile["role"],
@@ -360,7 +395,7 @@ export async function getPublishedArticleByPublicPath(
   publicPath: string,
 ): Promise<Article | null> {
   const normalized = publicPath.trim();
-  if (!normalized.startsWith("/news/")) {
+  if (!normalized || !isValidArticlePublicPath(normalized)) {
     return null;
   }
   return getArticleDetailByMatch(
@@ -908,6 +943,7 @@ export async function getRelatedArticles(
         ? {
             _id: doc.author._id?.toString?.() ?? doc.author._id ?? "",
             name: doc.author.name ?? "",
+            slug: doc.author.slug ? String(doc.author.slug) : undefined,
             email: doc.author.email ?? "",
             avatar: doc.author.avatar,
             role: doc.author.role ?? "SUBSCRIBER",
@@ -923,6 +959,7 @@ export async function getRelatedArticles(
         ? {
             _id: doc.editor._id?.toString?.() ?? doc.editor._id ?? "",
             name: doc.editor.name ?? "",
+            slug: doc.editor.slug ? String(doc.editor.slug) : undefined,
             email: doc.editor.email ?? "",
             avatar: doc.editor.avatar,
             role: doc.editor.role ?? "SUBSCRIBER",

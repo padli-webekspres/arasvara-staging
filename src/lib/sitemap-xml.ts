@@ -1,5 +1,5 @@
 import type { SitemapArticle, SitemapCategory } from "@/types/sitemap";
-import { parseNewsArticlePath } from "@/lib/article-public-path";
+import { isStructuredPublicPath } from "@/lib/article-public-path";
 
 /** Basis URL publik dari NEXT_PUBLIC_BASE_URL (tanpa trailing slash). */
 export function getSitemapBaseUrl(): string {
@@ -67,14 +67,7 @@ function articleUrlXml(baseUrl: string, articles: SitemapArticle[]): string {
 	return articles
 		.flatMap((article) => {
 			const path = article.publicPath?.trim();
-			if (!path) return [];
-
-			const segments = path
-				.replace(/^\/news\/?/, "")
-				.split("/")
-				.filter(Boolean);
-			const parsed = parseNewsArticlePath(segments);
-			if (!parsed || parsed.kind !== "structured") return [];
+			if (!path || !isStructuredPublicPath(path)) return [];
 
 			const lastmod = escapeXml(article.updatedAt);
 			const newsBlock = isRecentNewsArticle(article.publishedAt)
@@ -91,7 +84,7 @@ function articleUrlXml(baseUrl: string, articles: SitemapArticle[]): string {
 
 			return `
   <url>
-    <loc>${buildLoc(baseUrl, parsed.publicPath)}</loc>
+    <loc>${buildLoc(baseUrl, path)}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>${newsBlock}

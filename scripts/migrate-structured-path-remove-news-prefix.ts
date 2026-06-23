@@ -1,37 +1,43 @@
 /**
- * Upgrade artikel PUBLISHED dari urlFormat "legacy" ke "structured".
+ * Migrasi publicPath structured dari format lama (/news/{cat}/...) ke root (/{cat}/...).
  *
- * Script ini me-recompute publicPath seluruh artikel PUBLISHED menggunakan
- * format hierarkis WIB: /{categorySlug}/{yyyy}/{mm}/{dd}/{articleSlug}
+ * Target: artikel dengan urlFormat "structured" yang publicPath masih berprefix /news/.
+ * Recompute via buildStructuredArticlePath — bukan string-replace naif.
  *
  * Default: dry-run — tidak menulis ke DB.
  *
  * Penggunaan:
- *   Lokal: npm run upgrade:article-paths              # dry-run
- *   Prod:  npm run upgrade:article-paths:prod         # dry-run
+ *   Lokal: npm run migrate:structured-path-prefix
+ *   Prod:  npm run migrate:structured-path-prefix:prod
  *   Execute: tambahkan -- --execute
  *
  * Flags opsional:
  *   --skip-no-category   Lewati artikel tanpa kategori valid (default: error)
+ *   --skip-reserved-category  Lewati kategori reserved (default: skip + laporan)
+ *   --fail-on-reserved-category  Hentikan script jika ada kategori reserved
  *   --verbose            Print setiap artikel yang akan diubah
+ *   --write-manifest     Tulis scripts/.migration-revalidate-paths.json (otomatis saat --execute)
  */
 import { MongoClient, ObjectId } from "mongodb";
+import { writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { bootstrapEnv, scriptArgsWithoutEnvFile } from "./bootstrap-env";
 import {
   buildStructuredArticlePath,
   isReservedRootSegment,
   pathsEqual,
 } from "../src/lib/article-public-path";
-import { ArticleStatus } from "../src/types/article";
 
 const loadedEnvFile = bootstrapEnv();
 
 const args = new Set(scriptArgsWithoutEnvFile());
 const isExecute = args.has("--execute") && !args.has("--dry-run");
 const skipNoCategory = args.has("--skip-no-category");
+const failOnReservedCategory = args.has("--fail-on-reserved-category");
 const verbose = args.has("--verbose");
+const writeManifest = args.has("--write-manifest") || isExecute;
 
-// ──────────────────────────────────────────────────────────────────────────────
+const OLD_STRUCTURED_PREFIX_REGEX = /^\/news\/[^/]+\/\d{4}\//;
 
 interface ArticleRow {
   _id: ObjectId;
@@ -42,15 +48,10 @@ interface ArticleRow {
   urlFormat: string | null;
 }
 
-interface CategoryRow {
-  _id: ObjectId;
-  slug: string;
-}
-
-interface UpgradeResult {
+interface MigrateResult {
   articleId: string;
   slug: string;
-  oldPath: string | null;
+  oldPath: string;
   newPath: string;
 }
 
@@ -60,21 +61,45 @@ interface SkipResult {
   reason: string;
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
+function writeRevalidateManifest(
+  dbName: string,
+  toMigrate: MigrateResult[],
+): void {
+  const manifest = {
+    migratedAt: new Date().toISOString(),
+    database: dbName,
+    paths: toMigrate.flatMap((row) => [row.oldPath, row.newPath]),
+    entries: toMigrate.map((row) => ({
+      articleId: row.articleId,
+      slug: row.slug,
+      oldPath: row.oldPath,
+      newPath: row.newPath,
+    })),
+  };
+  const manifestPath = resolve(
+    process.cwd(),
+    "scripts/.migration-revalidate-paths.json",
+  );
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
+  console.log(`\nManifest revalidate ditulis ke: ${manifestPath}`);
+  console.log(
+    "Jalankan: npm run warm:article-paths (atau :prod) untuk prefetch cache.",
+  );
+}
 
 async function main() {
   const mongoUrl = process.env.MONGO_URL;
   const dbName = process.env.DB_NAME || "arasvara_news";
 
   if (!mongoUrl) {
-    console.error("❌  MONGO_URL tidak ditemukan di .env");
+    console.error("MONGO_URL tidak ditemukan di .env");
     process.exit(1);
   }
 
-  console.log("=== Upgrade artikel → structured publicPath ===");
+  console.log("=== Migrasi structured publicPath: hapus prefix /news/ ===");
   console.log(`Env file  : ${loadedEnvFile}`);
   console.log(`Database  : ${dbName}`);
-  console.log(`Mode      : ${isExecute ? "EXECUTE ⚠️" : "DRY-RUN (aman)"}`);
+  console.log(`Mode      : ${isExecute ? "EXECUTE" : "DRY-RUN (aman)"}`);
   console.log(
     `No-category: ${skipNoCategory ? "lewati (--skip-no-category)" : "hentikan script (default)"}`,
   );
@@ -87,10 +112,11 @@ async function main() {
   const categoriesCol = db.collection("categories");
 
   try {
-    // ── 1. Ambil semua artikel PUBLISHED (termasuk yang sudah structured) ─────
     const articleDocs = await articlesCol
       .find({
-        status: ArticleStatus.PUBLISHED,
+        urlFormat: "structured",
+        publicPath: { $regex: OLD_STRUCTURED_PREFIX_REGEX },
+        status: "PUBLISHED",
         $or: [{ deletedAt: { $exists: false } }, { deletedAt: null }],
       })
       .project({
@@ -130,7 +156,6 @@ async function main() {
       urlFormat: doc.urlFormat ? String(doc.urlFormat) : null,
     }));
 
-    // ── 2. Ambil semua kategori yang dibutuhkan (batch) ───────────────────────
     const categoryIds = [
       ...new Set(
         articles
@@ -148,9 +173,8 @@ async function main() {
       categoryDocs.map((c) => [c._id.toString(), String(c.slug ?? "").trim()]),
     );
 
-    // ── 3. Hitung path baru untuk setiap artikel ──────────────────────────────
-    const toUpgrade: UpgradeResult[] = [];
-    const alreadyStructured: number[] = [];
+    const toMigrate: MigrateResult[] = [];
+    const alreadyCurrent: number[] = [];
     const skipped: SkipResult[] = [];
 
     for (const article of articles) {
@@ -184,21 +208,27 @@ async function main() {
         if (skipNoCategory) {
           skipped.push({ articleId: article._id.toString(), slug: article.slug, reason });
           continue;
-        } else {
-          console.error(
-            `\n❌  Artikel "${article.slug}" (${article._id}) tidak punya kategori valid.\n` +
-              `    Tambahkan --skip-no-category untuk melewatinya, atau perbaiki data dulu.\n`,
-          );
-          process.exit(1);
         }
+
+        console.error(
+          `\nArtikel "${article.slug}" (${article._id}) tidak punya kategori valid.\n` +
+            `Tambahkan --skip-no-category untuk melewatinya, atau perbaiki data dulu.\n`,
+        );
+        process.exit(1);
       }
 
       if (isReservedRootSegment(categorySlug)) {
-        skipped.push({
-          articleId: article._id.toString(),
-          slug: article.slug,
-          reason: `categorySlug "${categorySlug}" reserved untuk route root`,
-        });
+        const reason = `categorySlug "${categorySlug}" reserved untuk route root — rename kategori atau ubah urlFormat ke legacy`;
+
+        if (failOnReservedCategory) {
+          console.error(
+            `\nArtikel "${article.slug}" (${article._id}): ${reason}\n` +
+              `Gunakan --skip-reserved-category (default) untuk melewati, atau perbaiki data kategori.\n`,
+          );
+          process.exit(1);
+        }
+
+        skipped.push({ articleId: article._id.toString(), slug: article.slug, reason });
         continue;
       }
 
@@ -210,106 +240,108 @@ async function main() {
           articleSlug: article.slug,
         });
       } catch (err) {
-        skipped.push({
-          articleId: article._id.toString(),
-          slug: article.slug,
-          reason: err instanceof Error ? err.message : "gagal build structured path",
-        });
+        const reason =
+          err instanceof Error ? err.message : "gagal build structured path";
+        skipped.push({ articleId: article._id.toString(), slug: article.slug, reason });
         continue;
       }
 
-      // Sudah structured dan path-nya identik → skip
-      if (
-        article.urlFormat === "structured" &&
-        article.publicPath &&
-        pathsEqual(article.publicPath, newPath)
-      ) {
-        alreadyStructured.push(1);
+      const oldPath = article.publicPath ?? "";
+      if (pathsEqual(oldPath, newPath)) {
+        alreadyCurrent.push(1);
         continue;
       }
 
-      toUpgrade.push({
+      toMigrate.push({
         articleId: article._id.toString(),
         slug: article.slug,
-        oldPath: article.publicPath,
+        oldPath,
         newPath,
       });
     }
 
-    // ── 4. Tampilkan ringkasan ────────────────────────────────────────────────
-    console.log(`Total PUBLISHED         : ${articles.length}`);
-    console.log(`Sudah structured (skip) : ${alreadyStructured.length}`);
-    console.log(`Akan di-upgrade         : ${toUpgrade.length}`);
-    console.log(`Dilewati (error/data)   : ${skipped.length}`);
+    console.log(`Kandidat query           : ${articles.length}`);
+    console.log(`Sudah format baru (skip) : ${alreadyCurrent.length}`);
+    console.log(`Akan dimigrasi           : ${toMigrate.length}`);
+    console.log(`Dilewati (error/data)    : ${skipped.length}`);
 
     if (skipped.length > 0) {
-      console.log("\n⚠️  Artikel dilewati:");
+      console.log("\nArtikel dilewati:");
       for (const s of skipped) {
         console.log(`   [${s.articleId}] "${s.slug}" — ${s.reason}`);
       }
     }
 
-    if (verbose && toUpgrade.length > 0) {
-      console.log("\n📋  Preview perubahan:");
-      for (const u of toUpgrade) {
-        console.log(`   [${u.articleId}] "${u.slug}"`);
-        console.log(`     lama : ${u.oldPath ?? "(null)"}`);
-        console.log(`     baru : ${u.newPath}`);
+    const reservedSkipped = skipped.filter((s) =>
+      s.reason.includes("reserved untuk route root"),
+    );
+    if (reservedSkipped.length > 0) {
+      console.log(
+        `\nCatatan: ${reservedSkipped.length} artikel punya kategori reserved (mis. "search").` +
+          ` Rename slug kategori di admin, atau set urlFormat ke legacy.`,
+      );
+    }
+
+    if (verbose && toMigrate.length > 0) {
+      console.log("\nPreview perubahan:");
+      for (const row of toMigrate) {
+        console.log(`   [${row.articleId}] "${row.slug}"`);
+        console.log(`     lama : ${row.oldPath}`);
+        console.log(`     baru : ${row.newPath}`);
       }
     }
 
     if (!isExecute) {
-      if (toUpgrade.length > 0) {
+      if (toMigrate.length > 0) {
         console.log(
-          `\nDry-run selesai. Jalankan dengan --execute untuk menulis ${toUpgrade.length} perubahan ke DB.`,
+          `\nDry-run selesai. Jalankan dengan --execute untuk menulis ${toMigrate.length} perubahan ke DB.`,
         );
-        console.log("Tambahkan --verbose untuk melihat preview lengkap setiap URL.");
+        if (writeManifest) {
+          writeRevalidateManifest(dbName, toMigrate);
+        }
       } else {
-        console.log("\n✅  Semua artikel sudah dalam format structured.");
+        console.log("\nTidak ada artikel structured dengan prefix /news/ yang perlu dimigrasi.");
       }
       return;
     }
 
-    // ── 5. Tulis ke DB ────────────────────────────────────────────────────────
-    if (toUpgrade.length === 0) {
-      console.log("\n✅  Tidak ada yang perlu di-upgrade.");
+    if (toMigrate.length === 0) {
+      console.log("\nTidak ada yang perlu dimigrasi.");
       return;
     }
 
-    console.log(`\nMenulis ${toUpgrade.length} update ke DB...`);
+    console.log(`\nMenulis ${toMigrate.length} update ke DB...`);
 
     let success = 0;
     let failed = 0;
 
-    for (const u of toUpgrade) {
+    for (const row of toMigrate) {
       try {
         await articlesCol.updateOne(
-          { _id: new ObjectId(u.articleId) },
-          {
-            $set: {
-              urlFormat: "structured",
-              publicPath: u.newPath,
-            },
-          },
+          { _id: new ObjectId(row.articleId) },
+          { $set: { publicPath: row.newPath } },
         );
         success += 1;
         if (verbose) {
-          console.log(`   ✓  ${u.slug} → ${u.newPath}`);
+          console.log(`   OK  ${row.slug} → ${row.newPath}`);
         }
       } catch (err) {
         failed += 1;
-        console.error(`   ✗  Gagal update "${u.slug}" (${u.articleId}): ${err}`);
+        console.error(`   FAIL "${row.slug}" (${row.articleId}): ${err}`);
       }
     }
 
-    console.log(`\n✅  Selesai: ${success} berhasil, ${failed} gagal.`);
+    console.log(`\nSelesai: ${success} berhasil, ${failed} gagal.`);
 
     if (failed > 0) {
       console.error(
-        "\n⚠️  Ada kegagalan. Kemungkinan konflik unique index publicPath " +
-          "(dua artikel dengan slug + kategori + tanggal yang sama).\n" +
-          "    Periksa log di atas dan perbaiki data secara manual.",
+        "\nAda kegagalan. Kemungkinan konflik unique index publicPath.\n" +
+          "Periksa log di atas dan perbaiki data secara manual.",
       );
+    }
+
+    if (writeManifest && toMigrate.length > 0) {
+      writeRevalidateManifest(dbName, toMigrate);
     }
   } finally {
     await client.close();

@@ -8,6 +8,7 @@ import { ImageNotFound } from "@/components/image-notfound/ImageNotFound";
 import { formatPublishedAtForUi } from "@/lib/format-published-at";
 import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { resolvePublicArticleHref } from "@/lib/article-public-path";
+import { resolveAuthorPublicHref } from "@/lib/author-public-path";
 
 interface NewsCardProps {
   article: Article | ArticleListResponse;
@@ -24,6 +25,7 @@ const NewsCard = ({
   showAuthor = true,
   showPublishedDate = false,
 }: NewsCardProps) => {
+  const authorHref = resolveAuthorPublicHref(article.author);
   const imageUrl = article.featuredImage?.url?.trim() ?? "";
   const [imageFailed, setImageFailed] = React.useState(false);
 
@@ -85,14 +87,19 @@ const NewsCard = ({
             </p>
           )}
           <div className="flex items-center gap-2 mt-1">
-            {showAuthor && (
-              <Link
-                href={`/author/${article.author._id}`}
-                className="relative z-10 text-xs text-muted-foreground hover:text-hijauSawah"
-              >
-                By {article.author.name || "ARASVARA"}
-              </Link>
-            )}
+            {showAuthor &&
+              (authorHref ? (
+                <Link
+                  href={authorHref}
+                  className="relative z-10 text-xs text-muted-foreground hover:text-hijauSawah"
+                >
+                  By {article.author.name || "ARASVARA"}
+                </Link>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  By {article.author.name || "ARASVARA"}
+                </span>
+              ))}
             {showAuthor && showPublishedDate && (
               <span className="text-muted-foreground">|</span>
             )}

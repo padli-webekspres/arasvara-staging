@@ -10,6 +10,7 @@ export default async function NewArticlePage() {
   const categoryOptions = categories.map((c) => ({
     _id: String(c._id),
     name: c.name,
+    slug: c.slug,
   }));
 
   return (

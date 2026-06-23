@@ -9,6 +9,7 @@ import { ImageNotFound } from "@/components/image-notfound/ImageNotFound";
 import { formatPublishedAtForUi } from "@/lib/format-published-at";
 import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { resolvePublicArticleHref } from "@/lib/article-public-path";
+import { resolveAuthorPublicHref } from "@/lib/author-public-path";
 
 interface SecondaryNewsCardProps {
   article: ArticleListResponse;
@@ -40,6 +41,8 @@ const SecondaryNewsCard = ({
       </div>
     );
   }
+
+  const authorHref = resolveAuthorPublicHref(article.author);
 
   return (
     <div className={cn("relative group", className)}>
@@ -98,12 +101,18 @@ const SecondaryNewsCard = ({
           )}
 
           <div className="flex flex-row justify-start lg:justify-between">
-            <Link
-              href={`/author/${article.author._id}`}
-              className="relative z-10 text-xs text-muted-foreground hover:text-hijauSawah mt-1"
-            >
-              By {(article.author && article.author.name) || "ARASVARA"}
-            </Link>
+            {authorHref ? (
+              <Link
+                href={authorHref}
+                className="relative z-10 text-xs text-muted-foreground hover:text-hijauSawah mt-1"
+              >
+                By {(article.author && article.author.name) || "ARASVARA"}
+              </Link>
+            ) : (
+              <span className="text-xs text-muted-foreground mt-1">
+                By {(article.author && article.author.name) || "ARASVARA"}
+              </span>
+            )}
             <p className="text-xs text-muted-foreground mt-1 hidden lg:inline">
               {formatPublishedAtForUi(article.publishedAt)}
             </p>

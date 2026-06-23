@@ -245,5 +245,32 @@ export async function listEditorActivities(
     if (row) data.push(row);
   }
 
+  const userIds = [
+    ...new Set(
+      data
+        .map((row) => row.user._id)
+        .filter((id) => id && ObjectId.isValid(id)),
+    ),
+  ];
+  const slugByUserId = new Map<string, string>();
+  if (userIds.length > 0) {
+    const users = await db
+      .collection("users")
+      .find(
+        { _id: { $in: userIds.map((id) => new ObjectId(id)) } },
+        { projection: { slug: 1 } },
+      )
+      .toArray();
+    for (const u of users) {
+      if (u._id && u.slug) {
+        slugByUserId.set(u._id.toString(), String(u.slug));
+      }
+    }
+  }
+  for (const row of data) {
+    const slug = slugByUserId.get(row.user._id);
+    if (slug) row.user.slug = slug;
+  }
+
   return { data, total };
 }

@@ -6,6 +6,7 @@ import { useDropzone } from "react-dropzone";
 import { get as idbGet, set as idbSet, del as idbDel } from "idb-keyval";
 import { toast } from "sonner";
 import api from "@/lib/axios";
+import { getApiErrorMessage } from "@/lib/api-error";
 import FormUserDialogUi from "./FormUserDialogUi";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 // import { ROLES } from "@/lib/constants";
@@ -192,8 +193,9 @@ export default function EditUserDialog({
       });
 
       if (response.status >= 400) {
-        const msg = response.data?.error || "Gagal mengupdate user";
-        toast.error(msg);
+        toast.error(
+          getApiErrorMessage({ response }, "Gagal mengupdate user"),
+        );
         return;
       }
 
@@ -208,12 +210,7 @@ export default function EditUserDialog({
       onOpenChange(false);
       onUpdated?.();
     } catch (err: unknown) {
-      let msg = "Gagal mengupdate user";
-      if (err && typeof err === "object") {
-        // @ts-expect-error: dynamic error shape
-        msg = err?.response?.data?.error || err?.message || msg;
-      }
-      toast.error(msg);
+      toast.error(getApiErrorMessage(err, "Gagal mengupdate user"));
     } finally {
       setSubmitting(false);
     }

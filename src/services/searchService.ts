@@ -53,6 +53,7 @@ const ARTICLE_LIST_PROJECTION = {
   "category.slug": 1,
   authorId: 1,
   "author.name": 1,
+  "author.slug": 1,
   tags: 1,
   featuredImage: 1,
   isFeatured: 1,
@@ -82,6 +83,7 @@ const USER_POPULATE_PROJECTION = {
   email: 1,
   avatar: 1,
   role: 1,
+  slug: 1,
 } as const;
 
 /** Field yang diambil dari collection `categories` saat populate */
@@ -448,6 +450,7 @@ export async function searchArticles(
           ? {
               _id: rawAuthor._id?.toString() ?? "",
               name: rawAuthor.name ?? "",
+              slug: rawAuthor.slug ?? undefined,
               email: rawAuthor.email ?? "",
               avatar: rawAuthor.avatar ?? undefined,
               role: rawAuthor.role ?? "writer",

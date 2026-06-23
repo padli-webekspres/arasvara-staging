@@ -36,6 +36,7 @@ import { Label } from "@/components/ui/label";
 
 import { ListTable, ListTableColumn } from "@/components/table/ListTable";
 import Link from "next/link";
+import { buildAuthorPublicPath } from "@/lib/author-public-path";
 import { fetcher } from "@/lib/fetcher";
 import { DateTime } from "luxon";
 import { EditorActivity } from "@/types/analytics/editorActivity";
@@ -238,9 +239,15 @@ export default function EditorActivityPage() {
       render: (row) => {
         if (!row.user)
           return <span className="italic text-muted-foreground">-</span>;
+        const authorHref = row.user.slug
+          ? buildAuthorPublicPath(row.user.slug)
+          : null;
+        if (!authorHref) {
+          return <span>{row.user.name}</span>;
+        }
         return (
           <Link
-            href={`/author/${row.user._id}`}
+            href={authorHref}
             className="text-primary underline hover:text-primary/80"
           >
             {row.user.name}

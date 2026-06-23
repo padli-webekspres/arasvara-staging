@@ -49,3 +49,4 @@ backup*
 
 # migration script reports
 scripts/output/
+scripts/.migration-revalidate-paths.json

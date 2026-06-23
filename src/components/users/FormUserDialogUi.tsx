@@ -22,6 +22,7 @@ import { Team } from "@/types/team";
 import CropImageModal from "./CropImageModal";
 import { ImageIcon, X, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { generateUserSlug } from "@/lib/user-validation";
 import Image from "next/image";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -180,6 +181,16 @@ const FormUserDialogUi: React.FC<FormUserDialogUiProps> = ({
               {errors.name && (
                 <p className="text-xs text-destructive">
                   {errors.name.message}
+                </p>
+              )}
+              {values.name.trim() && (
+                <p className="text-xs text-muted-foreground">
+                  URL penulis: /author/
+                  {generateUserSlug(values.name) || "—"}
+                  <span className="block mt-0.5">
+                    Preview; slug final bisa berbeda jika nama bentrok (mis.
+                    suffix -2).
+                  </span>
                 </p>
               )}
             </div>

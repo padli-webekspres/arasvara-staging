@@ -7,10 +7,30 @@ import { ArticleStatus, type ArticleUrlFormat } from "@/types/article";
  * MongoDB schema:
  * - `articles.publicPath`: string | null — sparse unique index
  * - `articles.urlFormat`: "legacy" | "structured"
+ *
+ * Structured: /{categorySlug}/{yyyy}/{mm}/{dd}/{articleSlug}
+ * Legacy:     /news/{articleSlug} (1 segmen setelah /news/)
+ *
+ * Kategori slug `news` diizinkan untuk structured (/news/{y}/{m}/{d}/{slug}).
+ * Legacy tetap /news/{slug} — dibedakan lewat jumlah segmen (1 vs 5).
  */
 
 const WIB_ZONE = "Asia/Jakarta";
-const NEWS_PREFIX = "/news";
+const LEGACY_NEWS_PREFIX = "/news";
+
+/** Root segments yang tidak boleh jadi category slug (bukan termasuk `news`). */
+export const RESERVED_ROOT_SEGMENTS = new Set([
+  "category",
+  "search",
+  "indeks",
+  "author",
+  "about-us",
+  "disclaimer",
+  "pedoman-media-siber",
+  "login",
+  "admin-xyz",
+  "api",
+]);
 
 export type WibDateParts = {
   year: number;
@@ -51,6 +71,11 @@ export function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+export function isReservedRootSegment(segment: string): boolean {
+  const normalized = segment.trim().toLowerCase();
+  return RESERVED_ROOT_SEGMENTS.has(normalized);
+}
+
 /**
  * Convert UTC `publishedAt` to calendar date parts in WIB (Asia/Jakarta).
  */
@@ -63,12 +88,37 @@ function encodePathSegment(value: string): string {
   return encodeURIComponent(value.trim());
 }
 
+function decodePathSegment(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function cleanSegments(segments: string[]): string[] {
+  if (!Array.isArray(segments)) return [];
+  return segments.map((segment) => segment.trim()).filter(Boolean);
+}
+
+function isValidDateSegments(year: string, month: string, day: string): boolean {
+  if (!/^\d{4}$/.test(year)) return false;
+  if (!/^\d{1,2}$/.test(month) || !/^\d{1,2}$/.test(day)) return false;
+
+  const monthNum = Number(month);
+  const dayNum = Number(day);
+  if (monthNum < 1 || monthNum > 12) return false;
+  if (dayNum < 1 || dayNum > 31) return false;
+
+  return true;
+}
+
 export function buildLegacyArticlePath(slug: string): string {
   const cleanSlug = slug.trim();
   if (!cleanSlug) {
     throw new ArticlePublicPathError("Slug artikel wajib untuk legacy publicPath");
   }
-  return `${NEWS_PREFIX}/${encodePathSegment(cleanSlug)}`;
+  return `${LEGACY_NEWS_PREFIX}/${encodePathSegment(cleanSlug)}`;
 }
 
 export function buildStructuredArticlePath(input: {
@@ -83,6 +133,11 @@ export function buildStructuredArticlePath(input: {
       "categorySlug wajib untuk structured publicPath",
     );
   }
+  if (isReservedRootSegment(categorySlug)) {
+    throw new ArticlePublicPathError(
+      `categorySlug "${categorySlug}" reserved untuk route root`,
+    );
+  }
   if (!articleSlug) {
     throw new ArticlePublicPathError(
       "articleSlug wajib untuk structured publicPath",
@@ -90,7 +145,12 @@ export function buildStructuredArticlePath(input: {
   }
 
   const { year, month, day } = publishedAtToWibDateParts(input.publishedAt);
-  return `${NEWS_PREFIX}/${encodePathSegment(categorySlug)}/${year}/${pad2(month)}/${pad2(day)}/${encodePathSegment(articleSlug)}`;
+  return `/${encodePathSegment(categorySlug)}/${year}/${pad2(month)}/${pad2(day)}/${encodePathSegment(articleSlug)}`;
+}
+
+function buildStructuredPublicPathFromSegments(segments: string[]): string {
+  const [categorySlug, year, month, day, articleSlug] = segments;
+  return `/${categorySlug}/${year}/${month}/${day}/${articleSlug}`;
 }
 
 function normalizeArticleStatus(
@@ -162,49 +222,56 @@ export function pathsEqual(a: string | null | undefined, b: string | null | unde
   return left === right;
 }
 
+/** Parse URL segments after `/news/` for legacy single-slug lookup. */
+export function parseLegacyNewsSegments(
+  segments: string[],
+): { kind: "legacy"; slug: string } | null {
+  const cleaned = cleanSegments(segments);
+  if (cleaned.length !== 1) return null;
+
+  return { kind: "legacy", slug: decodePathSegment(cleaned[0]) };
+}
+
+/** Parse root URL segments for structured article lookup (5 segments). */
+export function parseStructuredArticleSegments(
+  segments: string[],
+): { kind: "structured"; publicPath: string } | null {
+  const cleaned = cleanSegments(segments);
+  if (cleaned.length !== 5) return null;
+
+  const [categorySlug, year, month, day, articleSlug] = cleaned;
+  if (isReservedRootSegment(categorySlug)) return null;
+  if (!isValidDateSegments(year, month, day)) return null;
+
+  return {
+    kind: "structured",
+    publicPath: buildStructuredPublicPathFromSegments(cleaned),
+  };
+}
+
 /**
- * Parse URL segments after `/news/` into legacy or structured lookup shape.
+ * @deprecated Use `parseLegacyNewsSegments` or `parseStructuredArticleSegments`.
+ * Legacy wrapper — only parses single-segment paths under `/news/`.
  */
 export function parseNewsArticlePath(
   segments: string[],
 ): ParsedNewsArticlePath | null {
-  if (!Array.isArray(segments) || segments.length === 0) {
-    return null;
-  }
-
-  const cleaned = segments
-    .map((segment) => segment.trim())
-    .filter(Boolean);
-  if (cleaned.length === 0) return null;
-
-  if (cleaned.length === 1) {
-    try {
-      return { kind: "legacy", slug: decodeURIComponent(cleaned[0]) };
-    } catch {
-      return { kind: "legacy", slug: cleaned[0] };
-    }
-  }
-
-  if (cleaned.length === 5) {
-    const [categorySlug, year, month, day, articleSlug] = cleaned;
-    const publicPath = `${NEWS_PREFIX}/${categorySlug}/${year}/${month}/${day}/${articleSlug}`;
-    return { kind: "structured", publicPath };
-  }
-
-  return null;
+  return parseLegacyNewsSegments(segments);
 }
 
-/** True jika path berbentuk /news/{cat}/{y}/{m}/{d}/{slug} (5 segmen). */
+/** True jika path berbentuk /{cat}/{y}/{m}/{d}/{slug} (5 segmen + tanggal valid). */
 export function isStructuredPublicPath(
   publicPath: string | null | undefined,
 ): boolean {
   const path = publicPath?.trim();
   if (!path) return false;
-  const segments = path
-    .replace(/^\/news\/?/, "")
-    .split("/")
-    .filter(Boolean);
-  return segments.length === 5;
+
+  const segments = path.replace(/^\/+/, "").split("/").filter(Boolean);
+  if (segments.length !== 5) return false;
+
+  const [categorySlug, year, month, day] = segments;
+  if (isReservedRootSegment(categorySlug)) return false;
+  return isValidDateSegments(year, month, day);
 }
 
 /** Href internal untuk kartu artikel — prefer publicPath, fallback legacy slug. */
@@ -223,7 +290,7 @@ export function resolveArticleHref(article: {
 export function resolvePublicArticleHref(article: {
   slug?: string | null;
   publicPath?: string | null;
-  category?: { slug?: string | null } | null;
+  category?: { slug?: string | null; name?: string | null } | null;
   categorySlug?: string | null;
   publishedAt?: Date | string | null;
 }): string {
@@ -300,4 +367,22 @@ function tryBuildStructuredArticleHref(input: {
   } catch {
     return null;
   }
+}
+
+/** Validasi apakah string path adalah publicPath artikel yang dikenali. */
+export function isValidArticlePublicPath(path: string): boolean {
+  const trimmed = path.trim();
+  if (!trimmed.startsWith("/")) return false;
+
+  if (isStructuredPublicPath(trimmed)) return true;
+
+  if (trimmed.startsWith(`${LEGACY_NEWS_PREFIX}/`)) {
+    const legacySegments = trimmed
+      .slice(`${LEGACY_NEWS_PREFIX}/`.length)
+      .split("/")
+      .filter(Boolean);
+    return legacySegments.length === 1;
+  }
+
+  return false;
 }

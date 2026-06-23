@@ -37,6 +37,11 @@ import { adminPanelHref } from "@/lib/admin-panel-path";
 import type { ArticleEditorFormProps } from "@/types/article";
 import { ArticleStatus } from "@/types/article";
 import {
+  buildArticlePublicPath,
+  pathsEqual,
+  resolveUrlFormatForNewArticle,
+} from "@/lib/article-public-path";
+import {
   type ImagePickerResult,
   type MultiImagePickerResult,
 } from "@/components/ui/ImagePickerModal";
@@ -1551,13 +1556,72 @@ export default function ArticleEditorForm({
     [pickerContext, handleAddMultipleGalleryImages],
   );
 
-  // ─── URL change detection (Fase 5) ─────────────────────────────────────────
+  // ─── URL preview & change detection ───────────────────────────────────────
+  const previewPublicPath = useMemo(() => {
+    const slug = initialData?.slug?.trim();
+    if (!slug) return null;
+
+    const urlFormat = initialData?.urlFormat ?? resolveUrlFormatForNewArticle();
+    if (urlFormat !== "structured") return null;
+
+    const categorySlug = categories.find(
+      (c) => c._id === formData.categoryId,
+    )?.slug?.trim();
+    if (!categorySlug) return null;
+
+    const publishedAtRaw =
+      formData.scheduledAt ||
+      initialData?.publishedAt ||
+      initialData?.scheduledAt;
+    if (!publishedAtRaw) return null;
+
+    const publishedAt = new Date(publishedAtRaw);
+    if (Number.isNaN(publishedAt.getTime())) return null;
+
+    const isPublishedContext =
+      formData.status === ArticleStatus.PUBLISHED ||
+      formData.status === ArticleStatus.SCHEDULED ||
+      initialData?.status === ArticleStatus.PUBLISHED;
+
+    if (!isPublishedContext) return null;
+
+    try {
+      return buildArticlePublicPath({
+        slug,
+        publishedAt,
+        categorySlug,
+        urlFormat: "structured",
+        status: ArticleStatus.PUBLISHED,
+      });
+    } catch {
+      return initialData?.publicPath ?? null;
+    }
+  }, [
+    initialData?.slug,
+    initialData?.urlFormat,
+    initialData?.publishedAt,
+    initialData?.scheduledAt,
+    initialData?.status,
+    initialData?.publicPath,
+    formData.categoryId,
+    formData.scheduledAt,
+    formData.status,
+    categories,
+  ]);
+
   const urlWillChange = useMemo(() => {
     if (!isEditing) return false;
     if (initialData?.status !== ArticleStatus.PUBLISHED) return false;
     if (initialData?.urlFormat !== "structured") return false;
-    return formData.categoryId !== (initialData?.categoryId ?? "");
-  }, [isEditing, initialData?.status, initialData?.urlFormat, initialData?.categoryId, formData.categoryId]);
+    if (!previewPublicPath || !initialData?.publicPath) return false;
+    return !pathsEqual(previewPublicPath, initialData.publicPath);
+  }, [
+    isEditing,
+    initialData?.status,
+    initialData?.urlFormat,
+    initialData?.publicPath,
+    previewPublicPath,
+  ]);
 
   // ─── Status logic ─────────────────────────────────────────────────────────
   const allowedStatus = useMemo(() => {
@@ -1705,7 +1769,7 @@ export default function ArticleEditorForm({
         attributionAuthors={attributionOptions.authors}
         attributionEditors={attributionOptions.editors}
         attributionLoading={attributionOptions.loading}
-        currentPublicPath={initialData?.publicPath ?? null}
+        currentPublicPath={previewPublicPath}
         urlWillChange={urlWillChange}
       />
     </>

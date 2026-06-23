@@ -15,7 +15,114 @@ import bcrypt from "bcryptjs";
 import logger from "@/lib/logger";
 import { createAuditLog, requireAuditActor } from "@/services/auditLogService";
 import { AuditLogAction } from "@/types/auditLog";
+import {
+	buildActiveUserFilter,
+	isUserPubliclyVisible,
+	nameNormalizedForStorage,
+} from "@/lib/user-validation";
+import {
+	assertUniqueUserName,
+	resolveUniqueUserSlug,
+} from "@/lib/user-validation.server";
 const S3_BUCKET_AVATAR = process.env.S3_BUCKET_AVATAR || "arasvara-avatar";
+
+async function syncArticleAuthorDenorm(
+	db: Db,
+	authorId: ObjectId,
+	payload: { name: string; slug?: string },
+): Promise<void> {
+	const $set: Record<string, string> = {
+		"author.name": payload.name,
+	};
+	if (payload.slug) {
+		$set["author.slug"] = payload.slug;
+	}
+	await db.collection("articles").updateMany({ authorId }, { $set });
+}
+
+async function assignUserIdentityFields(
+	db: Db,
+	name: string,
+	excludeId?: string,
+): Promise<{ name: string; nameNormalized: string; slug: string }> {
+	const trimmed = name.trim();
+	if (!trimmed) {
+		throw Object.assign(new Error("Nama wajib diisi"), { status: 400 });
+	}
+	const nameNormalized = nameNormalizedForStorage(trimmed);
+	if (!nameNormalized) {
+		throw Object.assign(new Error("Nama wajib diisi"), { status: 400 });
+	}
+	await assertUniqueUserName(db, trimmed, excludeId);
+	const slug = await resolveUniqueUserSlug(db, trimmed, excludeId);
+	return { name: trimmed, nameNormalized, slug };
+}
+
+function attachTeamToUser(
+	user: User,
+	doc: Record<string, unknown>,
+): User {
+	if (doc.teamData && typeof doc.teamData === "object") {
+		const teamData = doc.teamData as Record<string, unknown>;
+		user.team = {
+			_id:
+				typeof teamData._id === "string"
+					? teamData._id
+					: (teamData._id?.toString?.() ?? ""),
+			name: String(teamData.name || ""),
+			slug: String(teamData.slug || ""),
+			description: teamData.description
+				? String(teamData.description)
+				: undefined,
+			createdAt:
+				teamData.createdAt instanceof Date
+					? teamData.createdAt
+					: new Date(String(teamData.createdAt || "")),
+			updatedAt:
+				teamData.updatedAt instanceof Date
+					? teamData.updatedAt
+					: new Date(String(teamData.updatedAt || "")),
+		};
+	} else if (doc.teamId) {
+		user.team = {
+			_id:
+				typeof doc.teamId === "string"
+					? doc.teamId
+					: (doc.teamId?.toString?.() ?? ""),
+			name: "",
+			slug: "",
+			description: undefined,
+		};
+	}
+	return user;
+}
+
+async function findUserDocWithTeam(
+	db: Db,
+	match: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
+	const doc = await db
+		.collection("users")
+		.aggregate([
+			{ $match: match },
+			{
+				$lookup: {
+					from: "teams",
+					localField: "teamId",
+					foreignField: "_id",
+					as: "teamData",
+				},
+			},
+			{
+				$unwind: {
+					path: "$teamData",
+					preserveNullAndEmptyArrays: true,
+				},
+			},
+		])
+		.next();
+	return doc ?? null;
+}
 
 function userDocAuditSnapshot(doc: Record<string, unknown>) {
 	const teamIdRaw = doc.teamId;
@@ -31,6 +138,8 @@ function userDocAuditSnapshot(doc: Record<string, unknown>) {
 		name: doc.name,
 		email: doc.email,
 		role: doc.role,
+		slug: doc.slug,
+		nameNormalized: doc.nameNormalized,
 		bio: doc.bio,
 		isActive: doc.isActive,
 		teamId: teamIdStr,
@@ -85,7 +194,14 @@ export async function createUser(
 	db: Db,
 	payload: Omit<
 		User,
-		"_id" | "createdAt" | "updatedAt" | "deletedAt" | "avatar" | "teamId"
+		| "_id"
+		| "createdAt"
+		| "updatedAt"
+		| "deletedAt"
+		| "avatar"
+		| "teamId"
+		| "slug"
+		| "nameNormalized"
 	> & { password: string; avatar?: File | null; teamId?: string },
 	actor: AuditLogActor,
 ): Promise<User> {
@@ -100,6 +216,8 @@ export async function createUser(
 
 		const hashedPassword = await bcrypt.hash(payload.password, 12);
 
+		const identity = await assignUserIdentityFields(db, payload.name);
+
 		let avatarObj: AvatarUser | undefined = undefined;
 		if (payload.avatar) {
 			const avatar = await uploadAvatar(payload.avatar);
@@ -113,7 +231,9 @@ export async function createUser(
 		const userDoc: Omit<User, "_id"> = {
 			email: payload.email,
 			password: hashedPassword,
-			name: payload.name,
+			name: identity.name,
+			nameNormalized: identity.nameNormalized,
+			slug: identity.slug,
 			role: payload.role || "subscriber",
 			avatar: avatarObj,
 			bio: payload.bio,
@@ -144,7 +264,7 @@ export async function createUser(
 				action: AuditLogAction.CREATE,
 				entity: "USER",
 				entityId,
-				details: `Membuat pengguna: ${payload.email} (${payload.name})`,
+				details: `Membuat pengguna: ${payload.email} (${identity.name})`,
 				newValue: userDocAuditSnapshot({
 					...userDoc,
 					_id: result.insertedId,
@@ -263,6 +383,16 @@ function mapDocToUser(doc: Record<string, unknown>): User {
 		_id: typeof doc._id === "string" ? doc._id : (doc._id?.toString?.() ?? ""),
 		email: String(doc.email),
 		name: String(doc.name),
+		slug:
+			doc.slug !== undefined && doc.slug !== null && doc.slug !== ""
+				? String(doc.slug)
+				: undefined,
+		nameNormalized:
+			doc.nameNormalized !== undefined &&
+			doc.nameNormalized !== null &&
+			doc.nameNormalized !== ""
+				? String(doc.nameNormalized)
+				: undefined,
 		role: doc.role as keyof typeof ROLES,
 		avatar,
 		bio: doc.bio !== undefined ? String(doc.bio) : undefined,
@@ -399,73 +529,94 @@ export async function getAllUsers(
 	return { users, nextCursor, total };
 }
 
+function escapeRegexLiteral(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function findActiveUserDocBySlug(
+	db: Db,
+	slug: string,
+): Promise<Record<string, unknown> | null> {
+	const trimmed = slug.trim().toLowerCase();
+	if (!trimmed) return null;
+
+	const exact = await db.collection("users").findOne({
+		slug: trimmed,
+		...buildActiveUserFilter(),
+	});
+	if (exact && isUserPubliclyVisible(exact as Record<string, unknown>)) {
+		return exact as Record<string, unknown>;
+	}
+
+	const insensitive = await db
+		.collection("users")
+		.findOne({
+			slug: {
+				$regex: `^${escapeRegexLiteral(trimmed)}$`,
+				$options: "i",
+			},
+			...buildActiveUserFilter(),
+		});
+	if (insensitive && isUserPubliclyVisible(insensitive as Record<string, unknown>)) {
+		return insensitive as Record<string, unknown>;
+	}
+
+	return null;
+}
+
+export async function getUserBySlug(
+	db: Db,
+	slug: string,
+): Promise<User | null> {
+	const trimmed = slug?.trim().toLowerCase();
+	if (!trimmed) return null;
+
+	const baseDoc = await findActiveUserDocBySlug(db, trimmed);
+	if (!baseDoc) return null;
+
+	const user = mapDocToUser(baseDoc);
+	if (!user.slug) {
+		user.slug = trimmed;
+	}
+	return user;
+}
+
+/** Lookup penulis untuk halaman publik /author/{slug}. */
+export async function getPublicAuthorBySlug(
+	db: Db,
+	slug: string,
+): Promise<User | null> {
+	return getUserBySlug(db, slug);
+}
+
+export async function getUserByIdEmailOrSlug(
+	db: Db,
+	key: string,
+): Promise<User | null> {
+	if (!key) return null;
+
+	let match: Record<string, unknown>;
+	if (ObjectId.isValid(key)) {
+		match = { ...buildActiveUserFilter(), _id: new ObjectId(key) };
+	} else if (key.includes("@")) {
+		match = { ...buildActiveUserFilter(), email: key };
+	} else {
+		match = { ...buildActiveUserFilter(), slug: key.trim().toLowerCase() };
+	}
+
+	const doc = await findUserDocWithTeam(db, match);
+	if (!doc) return null;
+
+	const user = mapDocToUser(doc);
+	return attachTeamToUser(user, doc);
+}
+
+/** @deprecated Gunakan getUserByIdEmailOrSlug — alias kompatibilitas */
 export async function getUserByIdOrEmail(
 	db: Db,
 	idOrEmail: string,
 ): Promise<User | null> {
-	if (!idOrEmail) return null;
-	const query: Record<string, unknown> = { deletedAt: { $in: [null, ""] } };
-	if (ObjectId.isValid(idOrEmail)) {
-		query._id = new ObjectId(idOrEmail);
-	} else {
-		query.email = idOrEmail;
-	}
-	// Selalu populate team jika ada teamId
-	const doc = await db
-		.collection("users")
-		.aggregate([
-			{ $match: query },
-			{
-				$lookup: {
-					from: "teams",
-					localField: "teamId",
-					foreignField: "_id",
-					as: "teamData",
-				},
-			},
-			{
-				$unwind: {
-					path: "$teamData",
-					preserveNullAndEmptyArrays: true,
-				},
-			},
-		])
-		.next();
-	if (!doc) return null;
-	const user = mapDocToUser(doc);
-	if (doc.teamData && typeof doc.teamData === "object") {
-		const teamData = doc.teamData as Record<string, unknown>;
-		user.team = {
-			_id:
-				typeof teamData._id === "string"
-					? teamData._id
-					: (teamData._id?.toString?.() ?? ""),
-			name: String(teamData.name || ""),
-			slug: String(teamData.slug || ""),
-			description: teamData.description
-				? String(teamData.description)
-				: undefined,
-			createdAt:
-				teamData.createdAt instanceof Date
-					? teamData.createdAt
-					: new Date(String(teamData.createdAt || "")),
-			updatedAt:
-				teamData.updatedAt instanceof Date
-					? teamData.updatedAt
-					: new Date(String(teamData.updatedAt || "")),
-		};
-	} else if (doc.teamId) {
-		user.team = {
-			_id:
-				typeof doc.teamId === "string"
-					? doc.teamId
-					: (doc.teamId?.toString?.() ?? ""),
-			name: "",
-			slug: "",
-			description: undefined,
-		};
-	}
-	return user;
+	return getUserByIdEmailOrSlug(db, idOrEmail);
 }
 
 /**
@@ -508,13 +659,15 @@ export async function editUser(
 	try {
 		const auditActor = requireAuditActor(actor);
 
-		const query: Record<string, unknown> = { deletedAt: { $in: [null, ""] } };
+		let match: Record<string, unknown>;
 		if (ObjectId.isValid(idOrEmail)) {
-			query._id = new ObjectId(idOrEmail);
+			match = { ...buildActiveUserFilter(), _id: new ObjectId(idOrEmail) };
+		} else if (idOrEmail.includes("@")) {
+			match = { ...buildActiveUserFilter(), email: idOrEmail };
 		} else {
-			query.email = idOrEmail;
+			match = { ...buildActiveUserFilter(), slug: idOrEmail.trim().toLowerCase() };
 		}
-		const user = await db.collection("users").findOne(query);
+		const user = await db.collection("users").findOne(match);
 		if (!user) throw new Error("User not found");
 
 		const oldValue = userDocAuditSnapshot(user as Record<string, unknown>);
@@ -542,7 +695,32 @@ export async function editUser(
 			updatedAt: new Date().toISOString(),
 			role: user.role,
 		};
-		if (payload.name !== undefined) updateFields.name = payload.name;
+
+		const existingName = String(user.name ?? "");
+		const nameChanged =
+			payload.name !== undefined &&
+			payload.name.trim() !== existingName.trim();
+		const needsIdentityBackfill = !user.slug || !user.nameNormalized;
+
+		if (nameChanged) {
+			const identity = await assignUserIdentityFields(
+				db,
+				payload.name!,
+				entityId,
+			);
+			updateFields.name = identity.name;
+			updateFields.nameNormalized = identity.nameNormalized;
+			updateFields.slug = identity.slug;
+		} else if (needsIdentityBackfill) {
+			const identity = await assignUserIdentityFields(
+				db,
+				existingName,
+				entityId,
+			);
+			updateFields.nameNormalized = identity.nameNormalized;
+			updateFields.slug = identity.slug;
+		}
+
 		if (payload.bio !== undefined) updateFields.bio = payload.bio;
 		if (allowIsActiveEdit && payload.isActive !== undefined) {
 			updateFields.isActive = payload.isActive;
@@ -569,6 +747,20 @@ export async function editUser(
 		if (!updated) throw new Error("Failed to fetch updated user");
 
 		const mapped = mapDocToUser(updated);
+
+		const oldSlug = user.slug ? String(user.slug) : undefined;
+		const identityChanged =
+			nameChanged ||
+			needsIdentityBackfill ||
+			mapped.name !== existingName ||
+			mapped.slug !== oldSlug;
+
+		if (identityChanged && mapped.slug) {
+			await syncArticleAuthorDenorm(db, user._id as ObjectId, {
+				name: mapped.name,
+				slug: mapped.slug,
+			});
+		}
 
 		try {
 			await createAuditLog(db, {
@@ -692,6 +884,16 @@ export async function getAllAuthors(
 			_id:
 				typeof doc._id === "string" ? doc._id : (doc._id?.toString?.() ?? ""),
 			name: String(doc.name),
+			slug:
+				doc.slug !== undefined && doc.slug !== null && doc.slug !== ""
+					? String(doc.slug)
+					: undefined,
+			nameNormalized:
+				doc.nameNormalized !== undefined &&
+				doc.nameNormalized !== null &&
+				doc.nameNormalized !== ""
+					? String(doc.nameNormalized)
+					: undefined,
 			email: String(doc.email),
 			avatar,
 			role: doc.role,

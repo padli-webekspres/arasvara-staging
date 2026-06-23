@@ -21,6 +21,7 @@ import XIcon from "../ui/XIcon";
 import WaIcon from "../ui/WaIcon";
 import TelegramIcon from "../ui/TelegramIcon";
 import { getArticleShareLinks } from "@/lib/article-share";
+import { resolveAuthorPublicHref } from "@/lib/author-public-path";
 import { useState, useCallback, useMemo } from "react";
 import Image from "next/image";
 import GalleryContent from "./GalleryContent";
@@ -142,6 +143,35 @@ const ArticleUi = ({
   const shareLinks = useMemo(
     () => (shareUrl ? getArticleShareLinks(shareUrl, article.title) : null),
     [shareUrl, article.title],
+  );
+
+  const authorHref = resolveAuthorPublicHref(article.author);
+  const authorMetaContent = (
+    <>
+      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+        {article.author.avatar ? (
+          <Avatar className="h-8 w-8">
+            <AvatarImage
+              src={
+                typeof article.author.avatar === "string"
+                  ? article.author.avatar
+                  : article.author.avatar?.url
+              }
+            />
+            <AvatarFallback>{getInitials(article.author.name)}</AvatarFallback>
+          </Avatar>
+        ) : (
+          <User className="h-8 w-8" />
+        )}
+      </div>
+      <div>
+        <p
+          className={`font-medium text-sm${authorHref ? " group-hover:text-hijauSawah transition-colors" : ""}`}
+        >
+          By {article.author.name}
+        </p>
+      </div>
+    </>
   );
 
   const shareButtonClass =
@@ -315,34 +345,16 @@ const ArticleUi = ({
 
           {/* Meta */}
           <div className="flex flex-row flex-wrap items-center gap-4 mb-8 pb-8 border-b border-border">
-            <Link
-              href={`/author/${article.author._id}`}
-              className="flex items-center gap-2 group"
-            >
-              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                {article.author.avatar ? (
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src={
-                        typeof article.author.avatar === "string"
-                          ? article.author.avatar
-                          : article.author.avatar?.url
-                      }
-                    />
-                    <AvatarFallback>
-                      {getInitials(article.author.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                ) : (
-                  <User className="h-8 w-8" />
-                )}
-              </div>
-              <div>
-                <p className="font-medium text-sm group-hover:text-hijauSawah transition-colors">
-                  By {article.author.name}
-                </p>
-              </div>
-            </Link>
+            {authorHref ? (
+              <Link
+                href={authorHref}
+                className="relative z-10 flex items-center gap-2 group"
+              >
+                {authorMetaContent}
+              </Link>
+            ) : (
+              <div className="flex items-center gap-2">{authorMetaContent}</div>
+            )}
 
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <Calendar className="h-4 w-4" />

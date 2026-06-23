@@ -7,18 +7,15 @@ import {
 function normalizePublicPath(path: string): string {
   const trimmed = path.trim();
   if (!trimmed) return "";
-  return trimmed.startsWith("/") ? trimmed : `/news/${trimmed}`;
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
 /** Ambil slug artikel dari publicPath legacy atau structured (segmen terakhir). */
 export function extractSlugFromPublicPath(publicPath: string): string | null {
   const normalized = normalizePublicPath(publicPath);
-  if (!normalized.startsWith("/news/")) return null;
+  if (!normalized) return null;
 
-  const segments = normalized
-    .slice("/news/".length)
-    .split("/")
-    .filter(Boolean);
+  const segments = normalized.replace(/^\/+/, "").split("/").filter(Boolean);
   if (segments.length === 0) return null;
 
   const last = segments[segments.length - 1];
@@ -31,7 +28,7 @@ export function extractSlugFromPublicPath(publicPath: string): string | null {
 
 /**
  * Invalidate ISR cache untuk halaman publik artikel.
- * `publicPath` adalah path penuh, mis. `/news/slug` atau `/news/cat/y/m/d/slug`.
+ * `publicPath` adalah path penuh, mis. `/news/slug` atau `/{cat}/{y}/{m}/{d}/{slug}`.
  */
 export function revalidateArticlePage(
   publicPath: string,

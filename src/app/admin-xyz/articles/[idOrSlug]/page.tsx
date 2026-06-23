@@ -103,11 +103,17 @@ export default async function EditArticlePage({
     relatedArticles,
     publicPath: articleDoc.publicPath ?? null,
     urlFormat: articleDoc.urlFormat,
+    publishedAt: articleDoc.publishedAt
+      ? articleDoc.publishedAt instanceof Date
+        ? articleDoc.publishedAt.toISOString()
+        : String(articleDoc.publishedAt)
+      : undefined,
   };
 
   const categoryOptions = categories.map((c) => ({
     _id: String(c._id),
     name: c.name,
+    slug: c.slug,
   }));
 
   return (

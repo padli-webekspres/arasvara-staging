@@ -793,7 +793,7 @@ const ArticleEditorFormUi: React.FC<ArticleEditorFormUiProps> = ({
             )}
           </div>
 
-          {/* URL Artikel (preview publicPath) */}
+          {/* URL Artikel (preview publicPath structured) */}
           {currentPublicPath && (
             <div className={cn(
               "bg-card border rounded-lg p-3 sm:p-4 space-y-2 min-w-0",
@@ -801,8 +801,11 @@ const ArticleEditorFormUi: React.FC<ArticleEditorFormUiProps> = ({
             )}>
               <div className="flex items-center gap-1.5">
                 <Link2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <Label className="text-xs text-muted-foreground font-normal">URL Artikel</Label>
+                <Label className="text-xs text-muted-foreground font-normal">URL Artikel (publik)</Label>
               </div>
+              <p className="text-xs text-muted-foreground leading-snug">
+                Format: /{"{kategori}"}/{"{tahun}"}/{"{bulan}"}/{"{tanggal}"}/{"{slug}"} — tanggal mengikuti WIB.
+              </p>
               <p className="text-xs break-all font-mono text-foreground/80 select-all bg-muted/50 rounded px-2 py-1.5">
                 {currentPublicPath}
               </p>

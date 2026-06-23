@@ -1,23 +1,40 @@
-sebelumnya mohon maaf pak atas kendala atau masalah yang ada pada project ini
-saat ini fokus saya menjadi terbagi antara revisi project ini, double checking sebelum masuk ke production dan pengembangan project lainnya. beberapa edge case atau bug dan ketidaksesuaian jadi terlewat
+List issue dari grup arasvara:
 
-mengenai bantuan developer lain, kalau boleh usul, sepertinya jauh lebih butuh bantuan di bagian 
+1. ada issue gambar upload nya lama sekali
+2. card di halaman search tidak bisa dibuka
+3. single article tidak ada `/news`, langsung ke category nya
+4. logo socmed tidak sesuai tinggi nya
+5. halaman author belum terindeks seo
+6. konten di backdate tidak muncul berita nya
+7. font cek ke core web vital google
+8. socmed di header tidak lengkap
 
-terimakasih banyak sebelumnya pak.
-pertama, mohon maaf atas banyak kendala atau issue yang lolos ke production. ini akan jadi evaluasi besar untuk saya pribadi
-untuk kondisi saat ini fokus saya sepertinya agak terpecah pak. di satu sisi harus revisi project ini secepatnya,  testing menyeluruh sistem nya dan di sisi lain masih ada timeline project lain yang perlu dikejar.
 
-perihal bantuan developer lain, kalau boleh usul, sepertinya lebih butuh bantuan di bagian testing pak untuk validasi & verifikasi nya
-1. testing & checking yang objektif, untuk mengurangi bagian atau edge case yang terlewatkan
-2. efisiensi waktu agar setelah beres mengerjakan 1 revisi, bisa langsung paralel antara testing dan revisi selanjutnya
+Silakan dicek kembali kak, terkait PRD yang sudah kami susun ulang.
+Untuk pembagian role, tidak kami cantumkan pada file PDF, namun kami pastikan role yang digunakan sudah mencakup kebutuhan berikut:
 
-Terima kasih banyak sebelumnya, Pak.
-Pertama, saya memohon maaf yang sebesar-besarnya atas beberapa kendala atau issue yang kemarin sempat lolos sampai ke production. Ini tentu menjadi bahan evaluasi besar untuk saya pribadi ke depannya.
+- Administrator (akses tertinggi)
+Penyebutan sebelumnya "Management" telah diganti menjadi Administrator. Role ini memiliki seluruh akses yang dimiliki oleh Super Admin, Store Manager, dan Marketing.
 
-Untuk kondisi saat ini, jujur fokus saya memang agak terpecah, Pak. Di satu sisi saya harus menyelesaikan revisi project ini secepatnya sambil melakukan testing menyeluruh ke sistem, dan di sisi lain saya juga harus mengejar target timeline untuk project lainnya.
-Perihal tawaran bantuan developer lain, kalau boleh saya usul, sepertinya saat ini jauh lebih krusial jika dibantu di bagian Testing untuk proses validasi & verifikasinya, Pak. Pertimbangannya:
-1. Testing & Checking yang Objektif: Untuk membantu menyisir edge cases atau bagian-bagian detail yang mungkin terlewat kalau hanya dicek oleh developernya sendiri.
-2. Efisiensi Waktu: Agar alur kerjanya bisa paralel. Begitu beres mengerjakan satu revisi/fitur, testing bisa langsung menguji fungsinya, sementara saya bisa langsung fokus beralih ke revisi atau project berikutnya tanpa terhenti untuk tes manual satu-satu.
+- Super Admin (Petugas Import Export & Operasional)
+Memiliki akses fitur yang terbatas sesuai kebutuhan operasional.
+Store Manager
+Memiliki akses fitur yang terbatas sesuai kewenangannya.
 
-Harapannya dengan bantuan testing, kualitas deliverable kita ke klien bisa lebih solid dan pengerjaannya pun bisa lebih cepat.
-Mohon arahannya ya, Pak 🙏
+- Marketing (akses terendah)
+Memiliki akses terbatas, hanya dapat melihat data dasar (basic data) dan membuat akun member.
+
+
+Terkait beberapa pertanyaan yang disampaikan, berikut jawabannya:
+
+2.1.2. Jika tidak ada event, tampilannya seperti apa?
+Akan ditampilkan keterangan bahwa tidak ada event terdekat beserta ikon pendukungnya.
+
+2.1.3. Apakah slider berjalan otomatis?
+Ya, slider akan berjalan secara otomatis.
+
+2.1.9. Apakah foto hadiah yang tersedia akan menjadi slide?
+Ya, apabila foto hadiah lebih dari satu, maka gambar akan ditampilkan dalam bentuk slider.
+
+2.2.1. Jika hadiah sudah diklaim tetapi member tidak berada di gerai sehingga klaim dibatalkan setelah 15 menit, apakah hadiah masih dapat diklaim kembali?
+Ya, poin yang telah digunakan akan dikembalikan ke saldo member, dan stok hadiah tidak akan berkurang sehingga hadiah masih dapat diklaim kembali.

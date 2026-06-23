@@ -3,13 +3,18 @@ import {
   buildArticlePublicPath,
   buildLegacyArticlePath,
   buildStructuredArticlePath,
+  isReservedRootSegment,
+  isStructuredPublicPath,
+  parseLegacyNewsSegments,
   parseNewsArticlePath,
+  parseStructuredArticleSegments,
   pathsEqual,
   publishedAtToWibDateParts,
   resolveUrlFormatForNewArticle,
   resolveArticleHref,
   resolvePublicArticleHref,
   resolveCmsArticleViewHref,
+  isValidArticlePublicPath,
 } from "@/lib/article-public-path";
 import { ArticleStatus } from "@/types/article";
 
@@ -18,9 +23,9 @@ describe("resolveArticleHref", () => {
     expect(
       resolveArticleHref({
         slug: "judul",
-        publicPath: "/news/nasional/2026/06/19/judul",
+        publicPath: "/nasional/2026/06/19/judul",
       }),
-    ).toBe("/news/nasional/2026/06/19/judul");
+    ).toBe("/nasional/2026/06/19/judul");
   });
 
   it("falls back to legacy slug path", () => {
@@ -33,9 +38,9 @@ describe("resolvePublicArticleHref", () => {
     expect(
       resolvePublicArticleHref({
         slug: "judul",
-        publicPath: "/news/nasional/2026/06/19/judul",
+        publicPath: "/nasional/2026/06/19/judul",
       }),
-    ).toBe("/news/nasional/2026/06/19/judul");
+    ).toBe("/nasional/2026/06/19/judul");
   });
 
   it("returns # when publicPath missing and no compute inputs", () => {
@@ -49,7 +54,7 @@ describe("resolvePublicArticleHref", () => {
         category: { slug: "nasional" },
         publishedAt: new Date("2026-06-18T17:00:00.000Z"),
       }),
-    ).toBe("/news/nasional/2026/06/19/judul-lama");
+    ).toBe("/nasional/2026/06/19/judul-lama");
   });
 
   it("returns # when publicPath is legacy format without compute inputs", () => {
@@ -69,7 +74,7 @@ describe("resolvePublicArticleHref", () => {
         categorySlug: "nasional",
         publishedAt: new Date("2026-06-18T17:00:00.000Z"),
       }),
-    ).toBe("/news/nasional/2026/06/19/judul-lama");
+    ).toBe("/nasional/2026/06/19/judul-lama");
   });
 });
 
@@ -79,9 +84,9 @@ describe("resolveCmsArticleViewHref", () => {
       resolveCmsArticleViewHref({
         status: ArticleStatus.PUBLISHED,
         slug: "judul",
-        publicPath: "/news/nasional/2026/06/19/judul",
+        publicPath: "/nasional/2026/06/19/judul",
       }),
-    ).toBe("/news/nasional/2026/06/19/judul");
+    ).toBe("/nasional/2026/06/19/judul");
   });
 
   it("computes structured path for PUBLISHED without publicPath", () => {
@@ -92,7 +97,7 @@ describe("resolveCmsArticleViewHref", () => {
         categorySlug: "nasional",
         publishedAt: new Date("2026-06-18T17:00:00.000Z"),
       }),
-    ).toBe("/news/nasional/2026/06/19/judul-lama");
+    ).toBe("/nasional/2026/06/19/judul-lama");
   });
 
   it("ignores legacy publicPath and computes structured for PUBLISHED", () => {
@@ -104,7 +109,7 @@ describe("resolveCmsArticleViewHref", () => {
         categorySlug: "nasional",
         publishedAt: new Date("2026-06-18T17:00:00.000Z"),
       }),
-    ).toBe("/news/nasional/2026/06/19/judul-lama");
+    ).toBe("/nasional/2026/06/19/judul-lama");
   });
 
   it("returns # for PUBLISHED without structured path inputs", () => {
@@ -121,7 +126,7 @@ describe("resolveCmsArticleViewHref", () => {
       resolveCmsArticleViewHref({
         status: ArticleStatus.DRAFT,
         slug: "draft-judul",
-        publicPath: "/news/nasional/2026/06/19/draft-judul",
+        publicPath: "/nasional/2026/06/19/draft-judul",
       }),
     ).toBe("/news/draft-judul");
   });
@@ -131,7 +136,7 @@ describe("resolveCmsArticleViewHref", () => {
       resolveCmsArticleViewHref({
         status: ArticleStatus.TAKEN_DOWN,
         slug: "taken-down",
-        publicPath: "/news/nasional/2026/06/19/taken-down",
+        publicPath: "/nasional/2026/06/19/taken-down",
       }),
     ).toBe("/news/taken-down");
   });
@@ -159,13 +164,45 @@ describe("publishedAtToWibDateParts", () => {
       publishedAt: new Date("2026-01-05T12:00:00.000Z"),
       articleSlug: "judul",
     });
-    expect(path).toBe("/news/nasional/2026/01/05/judul");
+    expect(path).toBe("/nasional/2026/01/05/judul");
   });
 });
 
 describe("buildLegacyArticlePath", () => {
   it("builds /news/{slug}", () => {
     expect(buildLegacyArticlePath("pemilu-2024")).toBe("/news/pemilu-2024");
+  });
+});
+
+describe("buildStructuredArticlePath", () => {
+  it("builds root path without /news prefix", () => {
+    expect(
+      buildStructuredArticlePath({
+        categorySlug: "business",
+        publishedAt: new Date("2026-06-18T17:00:00.000Z"),
+        articleSlug: "pemilu-2024",
+      }),
+    ).toBe("/business/2026/06/19/pemilu-2024");
+  });
+
+  it("builds structured path for category news", () => {
+    expect(
+      buildStructuredArticlePath({
+        categorySlug: "news",
+        publishedAt: new Date("2026-06-18T17:00:00.000Z"),
+        articleSlug: "judul",
+      }),
+    ).toBe("/news/2026/06/19/judul");
+  });
+
+  it("throws for reserved category slug", () => {
+    expect(() =>
+      buildStructuredArticlePath({
+        categorySlug: "search",
+        publishedAt: new Date("2026-06-18T17:00:00.000Z"),
+        articleSlug: "judul",
+      }),
+    ).toThrow(/reserved/);
   });
 });
 
@@ -203,7 +240,7 @@ describe("buildArticlePublicPath", () => {
         urlFormat: "structured",
         status: ArticleStatus.PUBLISHED,
       }),
-    ).toBe("/news/nasional/2026/06/19/pemilu-2024");
+    ).toBe("/nasional/2026/06/19/pemilu-2024");
   });
 
   it("throws when structured published article has no category slug", () => {
@@ -219,25 +256,106 @@ describe("buildArticlePublicPath", () => {
   });
 });
 
-describe("parseNewsArticlePath", () => {
+describe("parseLegacyNewsSegments", () => {
   it("parses legacy single segment", () => {
+    expect(parseLegacyNewsSegments(["pemilu-2024"])).toEqual({
+      kind: "legacy",
+      slug: "pemilu-2024",
+    });
+  });
+
+  it("returns null for multi-segment paths", () => {
+    expect(parseLegacyNewsSegments(["nasional", "2026", "06", "19", "slug"])).toBeNull();
+  });
+});
+
+describe("parseStructuredArticleSegments", () => {
+  it("parses structured five segments", () => {
+    expect(
+      parseStructuredArticleSegments(["nasional", "2026", "06", "19", "pemilu-2024"]),
+    ).toEqual({
+      kind: "structured",
+      publicPath: "/nasional/2026/06/19/pemilu-2024",
+    });
+  });
+
+  it("parses structured five segments for category news", () => {
+    expect(
+      parseStructuredArticleSegments(["news", "2026", "06", "19", "pemilu-2024"]),
+    ).toEqual({
+      kind: "structured",
+      publicPath: "/news/2026/06/19/pemilu-2024",
+    });
+  });
+
+  it("returns null for reserved category", () => {
+    expect(
+      parseStructuredArticleSegments(["search", "2026", "06", "19", "pemilu-2024"]),
+    ).toBeNull();
+  });
+
+  it("returns null for invalid segment count", () => {
+    expect(parseStructuredArticleSegments(["a", "b"])).toBeNull();
+  });
+
+  it("returns null for invalid date segments", () => {
+    expect(
+      parseStructuredArticleSegments(["nasional", "20xx", "06", "19", "slug"]),
+    ).toBeNull();
+  });
+});
+
+describe("parseNewsArticlePath (deprecated)", () => {
+  it("delegates to parseLegacyNewsSegments", () => {
     expect(parseNewsArticlePath(["pemilu-2024"])).toEqual({
       kind: "legacy",
       slug: "pemilu-2024",
     });
   });
 
-  it("parses structured five segments", () => {
+  it("does not parse structured segments", () => {
     expect(
       parseNewsArticlePath(["nasional", "2026", "06", "19", "pemilu-2024"]),
-    ).toEqual({
-      kind: "structured",
-      publicPath: "/news/nasional/2026/06/19/pemilu-2024",
-    });
+    ).toBeNull();
+  });
+});
+
+describe("isStructuredPublicPath", () => {
+  it("accepts root structured path", () => {
+    expect(isStructuredPublicPath("/nasional/2026/06/19/judul")).toBe(true);
   });
 
-  it("returns null for invalid segment count", () => {
-    expect(parseNewsArticlePath(["a", "b"])).toBeNull();
+  it("accepts structured path for category news", () => {
+    expect(isStructuredPublicPath("/news/2026/06/19/judul")).toBe(true);
+  });
+
+  it("rejects old double-prefix structured path", () => {
+    expect(isStructuredPublicPath("/news/nasional/2026/06/19/judul")).toBe(false);
+  });
+
+  it("rejects legacy single-segment path", () => {
+    expect(isStructuredPublicPath("/news/judul-lama")).toBe(false);
+  });
+});
+
+describe("isReservedRootSegment", () => {
+  it("flags reserved segments case-insensitively", () => {
+    expect(isReservedRootSegment("Search")).toBe(true);
+    expect(isReservedRootSegment("business")).toBe(false);
+    expect(isReservedRootSegment("news")).toBe(false);
+  });
+});
+
+describe("isValidArticlePublicPath", () => {
+  it("accepts legacy and structured paths", () => {
+    expect(isValidArticlePublicPath("/news/legacy-slug")).toBe(true);
+    expect(isValidArticlePublicPath("/business/2026/06/19/slug")).toBe(true);
+    expect(isValidArticlePublicPath("/news/2026/06/19/slug")).toBe(true);
+  });
+
+  it("rejects invalid paths", () => {
+    expect(isValidArticlePublicPath("/news/cat/2026/06/19/slug")).toBe(false);
+    expect(isValidArticlePublicPath("/search/2026/06/19/slug")).toBe(false);
   });
 });
 
@@ -247,7 +365,9 @@ describe("pathsEqual", () => {
   });
 
   it("ignores trailing slash", () => {
-    expect(pathsEqual("/news/slug/", "/news/slug")).toBe(true);
+    expect(pathsEqual("/nasional/2026/06/19/slug/", "/nasional/2026/06/19/slug")).toBe(
+      true,
+    );
   });
 });
 

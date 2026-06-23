@@ -175,6 +175,10 @@ function mongoUserToProfile(
     _id: id instanceof ObjectId ? id.toString() : String(id),
     name: String(doc.name ?? ""),
     email: String(doc.email ?? ""),
+    slug:
+      doc.slug !== undefined && doc.slug !== null && doc.slug !== ""
+        ? String(doc.slug)
+        : undefined,
     avatar: doc.avatar as UserProfile["avatar"],
     role: (doc.role ?? "SUBSCRIBER") as UserProfile["role"],
     teamId: doc.teamId as UserProfile["teamId"],

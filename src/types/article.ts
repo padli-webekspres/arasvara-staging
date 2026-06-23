@@ -368,6 +368,7 @@ export interface AutosavePayload {
 export interface CategoryOption {
 	_id: string;
 	name: string;
+	slug?: string;
 }
 
 export interface ArticleInitialData {
@@ -389,6 +390,7 @@ export interface ArticleInitialData {
 	relatedArticles?: SectionArticleItem[];
 	publicPath?: string | null;
 	urlFormat?: ArticleUrlFormat;
+	publishedAt?: string;
 }
 
 export interface ArticleEditorFormProps {

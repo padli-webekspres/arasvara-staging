@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db/db";
 import {
 	editUser,
-	getUserByIdOrEmail,
+	getUserByIdEmailOrSlug,
 	softDeleteUser,
 } from "@/services/userService";
 import { getUserFromRequest } from "@/lib/auth";
+import { mapUserWriteError } from "@/lib/map-user-write-error";
 
 export async function GET(
 	req: NextRequest,
@@ -21,7 +22,7 @@ export async function GET(
 	}
 	try {
 		const db = await connectToDatabase();
-		const user = await getUserByIdOrEmail(db, idOrSlug);
+		const user = await getUserByIdEmailOrSlug(db, idOrSlug);
 		if (!user) {
 			return NextResponse.json({ error: "User not found" }, { status: 404 });
 		}
@@ -95,7 +96,10 @@ export async function PATCH(
 		let isSelf = false;
 		if (!canEditAnyone) {
 			// idOrSlug bisa _id atau email
-			isSelf = idOrSlug === userLogin._id || idOrSlug === userLogin.email;
+			isSelf =
+				idOrSlug === userLogin._id ||
+				idOrSlug === userLogin.email ||
+				(!!userLogin.slug && idOrSlug === userLogin.slug);
 			if (!isSelf) {
 				return NextResponse.json(
 					{ error: "Forbidden: You can only edit your own profile" },
@@ -195,9 +199,7 @@ export async function PATCH(
 
 		return NextResponse.json({ user: updatedUser });
 	} catch (error) {
-		return NextResponse.json(
-			{ error: (error as Error).message || "Internal server error" },
-			{ status: 500 },
-		);
+		const { status, body } = mapUserWriteError(error);
+		return NextResponse.json(body, { status });
 	}
 }

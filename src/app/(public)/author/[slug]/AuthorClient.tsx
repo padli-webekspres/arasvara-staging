@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { trackAuthorProfileView } from "@/lib/ga-events";
 import LoadingOverlay from "@/components/loading/LoadingOverlay";
 import NewsCard from "@/components/news/NewsCard";
 import ArticleFeaturedHero from "@/components/news/ArticleFeaturedHero";
@@ -53,6 +54,14 @@ export default function AuthorClient({
   authorAvatar,
   initialArticleCount,
 }: AuthorClientProps) {
+
+  useEffect(() => {
+    trackAuthorProfileView({
+      author_id: authorId,
+      author_slug: authorSlug,
+      author_name: authorName,
+    });
+  }, []);
 
   const { data, isLoading, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery<ArticleSearchResult, Error>({

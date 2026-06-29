@@ -319,10 +319,12 @@ export default function HomePageClient({
 
                       {/* Kolom Kanan: Grid 3 Artikel */}
                       <div className="lg:col-span-9 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                        {articles.map((article) => (
+                        {articles.map((article, index) => (
                           <SecondaryNewsCard
                             key={article.slug}
                             article={article}
+                            gaClickLocation="homepage_card"
+                            gaPosition={index + 1}
                           />
                         ))}
                       </div>
@@ -386,6 +388,8 @@ export default function HomePageClient({
                         article={featuredArticles[0].article}
                         variant="dark"
                         size="large"
+                        gaClickLocation="homepage_card"
+                        gaPosition={1}
                       />
                     </div>
                   )}
@@ -397,6 +401,8 @@ export default function HomePageClient({
                       <div className="col-span-1">
                         <SecondaryNewsCard
                           article={featuredArticles[1].article}
+                          gaClickLocation="homepage_card"
+                          gaPosition={2}
                         />
                       </div>
                     )}
@@ -409,6 +415,8 @@ export default function HomePageClient({
                             key={idx}
                             showExcerpt={false}
                             article={featuredArticles[idx].article}
+                            gaClickLocation="homepage_card"
+                            gaPosition={idx + 1}
                           />
                         ) : null,
                       )}
@@ -558,12 +566,14 @@ export default function HomePageClient({
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-y-4 gap-x-8">
-                {latestArticles.map((article: Article) => (
+                {latestArticles.map((article: Article, index: number) => (
                   <NewsCard
                     key={article._id}
                     article={article}
                     showAuthor={false}
                     showPublishedDate={true}
+                    gaClickLocation="homepage_card"
+                    gaPosition={index + 1}
                   />
                 ))}
               </div>

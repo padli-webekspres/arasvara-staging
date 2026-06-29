@@ -24,6 +24,7 @@ import {
 import { VideoFormCard } from "@/components/admin/articles/VideoFormCard";
 import VideoCarouselItem from "@/components/homepage/carousel/VideoCarouselItem";
 import Link from "next/link";
+import { trackSearch } from "@/lib/ga-events";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -104,6 +105,7 @@ function SearchPageInner() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const currentType = searchParams.get("type") || "ARTICLES";
+  const searchTerm = searchParams.get("q") ?? "";
 
   const fetchResults = useCallback(
     async (params: URLSearchParams, page: number = 1, append = false) => {
@@ -156,6 +158,11 @@ function SearchPageInner() {
       fetchResults(searchParams, 1, false);
     }
   }, [searchParams, fetchResults]);
+
+  useEffect(() => {
+    if (!hasSearched || !searchTerm) return;
+    trackSearch({ search_term: searchTerm, results_count: total });
+  }, [hasSearched, searchTerm, total]);
 
   const handleSearch = useCallback(
     (filters: SearchFilters) => {
@@ -272,10 +279,12 @@ function SearchPageInner() {
 
           {currentType !== "VIDEO" && articles.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {articles.map((article) => (
+              {articles.map((article, index) => (
                 <SecondaryNewsCard
                   key={article._id ?? article.slug}
                   article={article}
+                  gaClickLocation="search_result"
+                  gaPosition={index + 1}
                 />
               ))}
             </div>

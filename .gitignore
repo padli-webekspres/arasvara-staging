@@ -33,6 +33,7 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 memory/arasvara-web-firebase-adminsdk-*.json
+secrets/
 
 # vercel
 .vercel

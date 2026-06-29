@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, RefObject } from "react";
+import { useEffect, useRef, RefObject, useCallback } from "react";
 import Link from "next/link";
 import { ArticleListResponse } from "@/types/article";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { resolvePublicArticleHref } from "@/lib/article-public-path";
 import { ADS_CARD_DEFAULT_BANNER } from "@/types/ads";
 import { trackAdClick } from "@/lib/trackAdClick";
+import { trackSelectContent, trackGaAdClick } from "@/lib/ga-events";
+import { useAdImpressionTracking } from "@/hooks/useAdImpressionTracking";
 import BaseAdCard from "../ads/card/BaseAdCard";
 
 // ─── Custom Hook: Bidirectional Sticky ────────────────────────────────────────
@@ -112,11 +114,25 @@ export interface SidebarVerticalArticleAd {
  * Menampilkan: kategori, judul, excerpt (terpotong), dan nama penulis.
  * Komponen ini digunakan ulang di semua section sidebar.
  */
-function SidebarArticleItem({ article }: { article: ArticleListResponse }) {
+function SidebarArticleItem({
+  article,
+  index,
+}: {
+  article: ArticleListResponse;
+  index: number;
+}) {
   return (
     <Link
       href={resolvePublicArticleHref(article)}
       className="group block py-3 border-b border-muted last:border-b-0"
+      onClick={() => trackSelectContent({
+        article_id: String(article._id ?? ""),
+        article_slug: article.slug ?? "",
+        article_title: article.title ?? "",
+        category_name: article.category?.name ?? "",
+        click_location: "sidebar",
+        position: index + 1,
+      })}
     >
       {/* Kategori */}
       {article.category?.name && (
@@ -204,10 +220,11 @@ function SidebarSection({ title, items, isLoading }: SidebarSectionProps) {
           ? Array.from({ length: skeletonCount }).map((_, i) => (
               <SidebarArticleItemSkeleton key={i} />
             ))
-          : validItems.map((item) => (
+          : validItems.map((item, index) => (
               <SidebarArticleItem
                 key={item._id ?? item.article.slug}
                 article={item.article}
+                index={index}
               />
             ))}
 
@@ -227,6 +244,57 @@ function SidebarSection({ title, items, isLoading }: SidebarSectionProps) {
  * Komponen berisi konten sidebar (populer, headline, dll).
  * Di-ekstrak agar bisa digunakan di Sidebar desktop maupun Drawer mobile (DRY).
  */
+function SidebarVerticalAd({
+  ad,
+}: {
+  ad: SidebarVerticalArticleAd;
+}) {
+  const adRef = useRef<HTMLDivElement>(null);
+
+  useAdImpressionTracking(adRef, {
+    ad_id: ad.adId,
+    ad_position: "article_vertical",
+    ad_size: "300x600",
+    ad_sponsor: ad.name,
+  });
+
+  const handleClick = useCallback(() => {
+    trackAdClick(ad.adId, "article");
+    trackGaAdClick({
+      ad_id: ad.adId,
+      ad_position: "article_vertical",
+      ad_size: "300x600",
+      ad_sponsor: ad.name,
+      ad_destination_url: ad.linkUrl,
+    });
+  }, [ad.adId, ad.linkUrl, ad.name]);
+
+  return (
+    <div
+      ref={adRef}
+      className="mx-auto aspect-300/600 w-full max-w-sm md:mx-0 md:h-full md:w-auto md:max-w-none md:min-h-0"
+    >
+      <a
+        href={ad.linkUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block h-full w-full min-h-0"
+        onClick={handleClick}
+      >
+        <BaseAdCard
+          width={300}
+          height={600}
+          defaultSrc={ADS_CARD_DEFAULT_BANNER}
+          src={ad.bannerUrl}
+          alt={ad.name}
+          fill
+          interactive
+        />
+      </a>
+    </div>
+  );
+}
+
 export function SidebarContent({
   verticalArticleAd,
 }: {
@@ -247,27 +315,7 @@ export function SidebarContent({
       />
 
       {verticalArticleAd?.linkUrl && verticalArticleAd.bannerUrl && (
-        <div className="mx-auto aspect-300/600 w-full max-w-sm md:mx-0 md:h-full md:w-auto md:max-w-none md:min-h-0">
-          <a
-            href={verticalArticleAd.linkUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block h-full w-full min-h-0"
-            onClick={() =>
-              trackAdClick(verticalArticleAd.adId, "article")
-            }
-          >
-            <BaseAdCard
-              width={300}
-              height={600}
-              defaultSrc={ADS_CARD_DEFAULT_BANNER}
-              src={verticalArticleAd.bannerUrl}
-              alt={verticalArticleAd.name}
-              fill
-              interactive
-            />
-          </a>
-        </div>
+        <SidebarVerticalAd ad={verticalArticleAd} />
       )}
 
       <SidebarSection

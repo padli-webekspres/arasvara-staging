@@ -9,6 +9,7 @@ import { formatPublishedAtForUi } from "@/lib/format-published-at";
 import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { resolvePublicArticleHref } from "@/lib/article-public-path";
 import { resolveAuthorPublicHref } from "@/lib/author-public-path";
+import { trackSelectContent } from "@/lib/ga-events";
 
 interface NewsCardProps {
   article: Article | ArticleListResponse;
@@ -16,6 +17,8 @@ interface NewsCardProps {
   showExcerpt?: boolean;
   showAuthor?: boolean;
   showPublishedDate?: boolean;
+  gaClickLocation?: string;
+  gaPosition?: number;
 }
 
 const NewsCard = ({
@@ -24,6 +27,8 @@ const NewsCard = ({
   showExcerpt = true,
   showAuthor = true,
   showPublishedDate = false,
+  gaClickLocation,
+  gaPosition,
 }: NewsCardProps) => {
   const authorHref = resolveAuthorPublicHref(article.author);
   const imageUrl = article.featuredImage?.url?.trim() ?? "";
@@ -76,6 +81,14 @@ const NewsCard = ({
             <Link
               href={resolvePublicArticleHref(article)}
               className="after:absolute after:inset-0 after:z-0"
+              onClick={gaClickLocation ? () => trackSelectContent({
+                article_id: String(article._id ?? ""),
+                article_slug: article.slug ?? "",
+                article_title: article.title ?? "",
+                category_name: article.category?.name ?? "",
+                click_location: gaClickLocation,
+                position: gaPosition,
+              }) : undefined}
             >
               {article.title}
             </Link>

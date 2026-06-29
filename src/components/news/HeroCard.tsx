@@ -9,17 +9,22 @@ import { Article, ArticleListResponse } from "@/types/article";
 import { ImageNotFound } from "@/components/image-notfound/ImageNotFound";
 import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { resolvePublicArticleHref } from "@/lib/article-public-path";
+import { trackSelectContent } from "@/lib/ga-events";
 
 interface HeroCardProps {
   article: Article | ArticleListResponse;
   variant?: "dark" | "light";
-  size?: "large" | "small" | "full"; // 1. Tambahkan "full" di sini
+  size?: "large" | "small" | "full";
+  gaClickLocation?: string;
+  gaPosition?: number;
 }
 
 const HeroCard = ({
   article,
   variant = "dark",
   size = "large",
+  gaClickLocation,
+  gaPosition,
 }: HeroCardProps) => {
   const isDark = variant === "dark";
   const splitTextRef = useHeroCardSplitText(article.slug);
@@ -38,6 +43,14 @@ const HeroCard = ({
       href={resolvePublicArticleHref(article)}
       className="block group h-full"
       draggable="false"
+      onClick={gaClickLocation ? () => trackSelectContent({
+        article_id: String(article._id ?? ""),
+        article_slug: article.slug ?? "",
+        article_title: article.title ?? "",
+        category_name: article.category?.name ?? "",
+        click_location: gaClickLocation,
+        position: gaPosition,
+      }) : undefined}
     >
       {" "}
       {/* Tambahkan h-full */}

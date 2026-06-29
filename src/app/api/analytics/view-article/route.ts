@@ -8,6 +8,8 @@ import { ObjectId } from "mongodb";
 import { ACCESS_TOKEN_COOKIE } from "@/lib/auth-config";
 import { getUserFromRequest } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db/db";
+import { sendMpEvent } from "@/lib/measurement-protocol";
+import type { ArticleGaPayload } from "@/lib/google-analytics";
 
 export async function POST(req: NextRequest) {
   try {
@@ -85,6 +87,20 @@ export async function POST(req: NextRequest) {
             "Failed to increment viewCount, log view rolled back",
         },
         { status: 500 },
+      );
+    }
+
+    // Kirim view_article ke GA4 via Measurement Protocol (server-side, non-blocking).
+    // gaClientId dan gaParams dikirim dari browser di POST body.
+    const gaClientId: string = typeof data.gaClientId === "string" ? data.gaClientId : "";
+    const gaParams: ArticleGaPayload | null =
+      data.gaParams && typeof data.gaParams === "object" ? (data.gaParams as ArticleGaPayload) : null;
+
+    if (gaClientId && gaParams) {
+      void sendMpEvent(
+        gaClientId,
+        [{ name: "view_article", params: gaParams as unknown as Record<string, unknown> }],
+        userId?.toString(),
       );
     }
 

@@ -25,6 +25,7 @@
     "migrate:structured-path-prefix:prod": "tsx scripts/migrate-structured-path-remove-news-prefix.ts --env-file=.env.migrate-prod",
     "warm:article-paths": "tsx scripts/warm-article-paths-cache.ts",
     "warm:article-paths:prod": "tsx scripts/warm-article-paths-cache.ts --env-file=.env.migrate-prod",
+    "ga:register-definitions": "tsx scripts/register-ga-custom-definitions.ts",
     "audit:user-slugs": "tsx scripts/audit-user-names-slugs.ts",
     "audit:user-slugs:prod": "tsx scripts/audit-user-names-slugs.ts --env-file=.env.migrate-prod",
     "backfill:user-slugs": "tsx scripts/backfill-user-slugs.ts",
@@ -109,6 +110,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@google-analytics/admin": "^9.2.0",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/fluent-ffmpeg": "^2.1.28",
     "@types/jsonwebtoken": "^9.0.10",

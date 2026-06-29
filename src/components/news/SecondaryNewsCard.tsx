@@ -10,12 +10,15 @@ import { formatPublishedAtForUi } from "@/lib/format-published-at";
 import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { resolvePublicArticleHref } from "@/lib/article-public-path";
 import { resolveAuthorPublicHref } from "@/lib/author-public-path";
+import { trackSelectContent } from "@/lib/ga-events";
 
 interface SecondaryNewsCardProps {
   article: ArticleListResponse;
   showImage?: boolean;
   className?: string;
-  hasPadding?: boolean; // Tambahkan prop untuk mengontrol padding
+  hasPadding?: boolean;
+  gaClickLocation?: string;
+  gaPosition?: number;
 }
 
 const SecondaryNewsCard = ({
@@ -23,6 +26,8 @@ const SecondaryNewsCard = ({
   showImage = true,
   className,
   hasPadding = false,
+  gaClickLocation,
+  gaPosition,
 }: SecondaryNewsCardProps) => {
   const imageUrl = article?.featuredImage?.url?.trim() ?? "";
   const [imageFailed, setImageFailed] = React.useState(false);
@@ -89,6 +94,14 @@ const SecondaryNewsCard = ({
             <Link
               href={resolvePublicArticleHref(article)}
               className="after:absolute after:inset-0 after:z-0"
+              onClick={gaClickLocation ? () => trackSelectContent({
+                article_id: String(article._id ?? ""),
+                article_slug: article.slug ?? "",
+                article_title: article.title ?? "",
+                category_name: article.category?.name ?? "",
+                click_location: gaClickLocation,
+                position: gaPosition,
+              }) : undefined}
             >
               {article.title}
             </Link>

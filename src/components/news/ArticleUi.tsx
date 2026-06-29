@@ -53,6 +53,7 @@ import { useConfiguration } from "@/hooks/useConfiguration";
 import NewsCarouselUi from "../homepage/carousel/NewsCarouselUi";
 import SecondaryNewsCard from "./SecondaryNewsCard";
 import LoadMoreButton from "@/components/ui/LoadMoreButton";
+import { trackArticleShare } from "@/lib/ga-events";
 
 // const ArticleContent = dynamic(() => import("@/components/ArticleContent"), {
 //   ssr: false,
@@ -321,6 +322,10 @@ const ArticleUi = ({
               content={article.content ?? ""}
             />
           )}
+          {/* Marker akhir konten galeri — dipakai useScrollDepth untuk tracking article_read_complete */}
+          {article.format === "GALLERY" && (
+            <div id="article-end-marker" aria-hidden="true" />
+          )}
 
           {/* Meta */}
           <div className="flex flex-row flex-wrap items-center gap-4 mb-8 pb-8 border-b border-border">
@@ -358,6 +363,13 @@ const ArticleUi = ({
                 rel="noopener noreferrer"
                 className={shareButtonClass}
                 aria-label="Bagikan ke Facebook"
+                onClick={() => trackArticleShare({
+                  article_id: String(article._id ?? ""),
+                  article_slug: article.slug ?? "",
+                  article_title: article.title ?? "",
+                  category_name: article.category?.name ?? "",
+                  share_method: "facebook",
+                })}
               >
                 <Facebook className="h-4 w-4" />
               </a>
@@ -367,6 +379,13 @@ const ArticleUi = ({
                 rel="noopener noreferrer"
                 className={shareButtonClass}
                 aria-label="Bagikan ke X"
+                onClick={() => trackArticleShare({
+                  article_id: String(article._id ?? ""),
+                  article_slug: article.slug ?? "",
+                  article_title: article.title ?? "",
+                  category_name: article.category?.name ?? "",
+                  share_method: "x",
+                })}
               >
                 <XIcon className="h-4 w-4" />
               </a>
@@ -376,6 +395,13 @@ const ArticleUi = ({
                 rel="noopener noreferrer"
                 className={shareButtonClass}
                 aria-label="Bagikan ke LinkedIn"
+                onClick={() => trackArticleShare({
+                  article_id: String(article._id ?? ""),
+                  article_slug: article.slug ?? "",
+                  article_title: article.title ?? "",
+                  category_name: article.category?.name ?? "",
+                  share_method: "linkedin",
+                })}
               >
                 <Linkedin className="h-4 w-4" />
               </a>
@@ -385,6 +411,13 @@ const ArticleUi = ({
                 rel="noopener noreferrer"
                 className={shareButtonClass}
                 aria-label="Bagikan ke WhatsApp"
+                onClick={() => trackArticleShare({
+                  article_id: String(article._id ?? ""),
+                  article_slug: article.slug ?? "",
+                  article_title: article.title ?? "",
+                  category_name: article.category?.name ?? "",
+                  share_method: "whatsapp",
+                })}
               >
                 <WaIcon className="h-4 w-4" />
               </a>
@@ -394,12 +427,28 @@ const ArticleUi = ({
                 rel="noopener noreferrer"
                 className={shareButtonClass}
                 aria-label="Bagikan ke Telegram"
+                onClick={() => trackArticleShare({
+                  article_id: String(article._id ?? ""),
+                  article_slug: article.slug ?? "",
+                  article_title: article.title ?? "",
+                  category_name: article.category?.name ?? "",
+                  share_method: "telegram",
+                })}
               >
                 <TelegramIcon className="h-4 w-4" />
               </a>
               <button
                 type="button"
-                onClick={handleCopy}
+                onClick={() => {
+                  handleCopy?.();
+                  trackArticleShare({
+                    article_id: String(article._id ?? ""),
+                    article_slug: article.slug ?? "",
+                    article_title: article.title ?? "",
+                    category_name: article.category?.name ?? "",
+                    share_method: "copy_link",
+                  });
+                }}
                 className={`${shareButtonClass} relative`}
                 aria-label="Salin tautan artikel"
               >
@@ -418,6 +467,10 @@ const ArticleUi = ({
             <div className="prose-arasvara text-lg leading-relaxed text-start">
               <ArticleContent htmlContent={article.content} />
             </div>
+          )}
+          {/* Marker akhir konten artikel — dipakai useScrollDepth untuk tracking article_read_complete */}
+          {article.format !== "GALLERY" && (
+            <div id="article-end-marker" aria-hidden="true" />
           )}
 
           {/* Pagination */}
@@ -517,8 +570,13 @@ const ArticleUi = ({
                 <TitleHomepage title="Berita Terkait" variant="light" />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {related?.map((article) => (
-                    <SecondaryNewsCard key={article._id} article={article} />
+                  {related?.map((article, index) => (
+                    <SecondaryNewsCard
+                      key={article._id}
+                      article={article}
+                      gaClickLocation="related"
+                      gaPosition={index + 1}
+                    />
                   ))}
                 </div>
               </section>

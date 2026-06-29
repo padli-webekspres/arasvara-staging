@@ -3,6 +3,7 @@ import { Article, ArticleListResponse } from "@/types/article";
 
 interface ArticleFeaturedHeroProps {
   articles: (Article | ArticleListResponse)[];
+  gaClickLocation?: string;
 }
 
 /**
@@ -10,6 +11,7 @@ interface ArticleFeaturedHeroProps {
  */
 export default function ArticleFeaturedHero({
   articles,
+  gaClickLocation,
 }: ArticleFeaturedHeroProps) {
   if (!articles[0]) return null;
 
@@ -25,11 +27,23 @@ export default function ArticleFeaturedHero({
             articles[1] ? "h-[400px] lg:h-full lg:flex-3" : "h-full w-full"
           }`}
         >
-          <HeroCard article={articles[0]} variant="dark" size="full" />
+          <HeroCard
+            article={articles[0]}
+            variant="dark"
+            size="full"
+            gaClickLocation={gaClickLocation}
+            gaPosition={1}
+          />
         </div>
         {articles[1] && (
           <div className="h-[400px] min-w-0 lg:h-full lg:flex-2">
-            <HeroCard article={articles[1]} variant="dark" size="full" />
+            <HeroCard
+              article={articles[1]}
+              variant="dark"
+              size="full"
+              gaClickLocation={gaClickLocation}
+              gaPosition={2}
+            />
           </div>
         )}
       </div>

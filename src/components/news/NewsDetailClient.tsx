@@ -16,6 +16,12 @@ import { useArticleTracking } from "@/hooks/useArticleTracking";
 import { resolveAuthorPublicHref } from "@/lib/author-public-path";
 import { buildAbsoluteUrl, getSiteBaseUrl } from "@/lib/og-image";
 import CategoryPushPrompt from "@/components/notification/CategoryPushPrompt";
+import {
+  buildArticleGaParams,
+  getGaClientId,
+} from "@/lib/google-analytics";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { trackPushOpen } from "@/lib/ga-events";
 
 interface NewsDetailClientProps {
   article: Article;
@@ -35,6 +41,9 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
   const isShowAll = pageParam === "all";
   const pageNum = isShowAll ? 1 : Math.max(1, parseInt(pageParam || "1") || 1);
 
+  const { data: currentUser } = useCurrentUser();
+  const userType: "logged_in" | "guest" = currentUser ? "logged_in" : "guest";
+
   const pathname = usePathname();
   useEffect(() => {
     if (!article?._id) return;
@@ -42,10 +51,24 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
     if (typeof window !== "undefined" && !sessionStorage.getItem(key)) {
       (async () => {
         try {
+          const gaClientId = getGaClientId();
+          const gaParams = buildArticleGaParams(
+            article,
+            isShowAll ? "all" : pageNum,
+            {
+              pagePath: window.location.pathname + window.location.search,
+              pageLocation: window.location.href,
+              pageTitle: document.title,
+            },
+            userType,
+          );
+
           await api.post("/analytics/view-article", {
             articleId: article._id,
             userAgent: navigator.userAgent,
             referrer: document.referrer,
+            gaClientId,
+            gaParams,
           });
           sessionStorage.setItem(key, "1");
         } catch (e) {
@@ -127,6 +150,21 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
     const list = articleAdsData?.horizontal ?? [];
     return [...list].sort((a, b) => a.order - b.order);
   }, [articleAdsData]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("ref") !== "push") return;
+    const sessionKey = `push_open_${article._id}`;
+    if (sessionStorage.getItem(sessionKey)) return;
+    sessionStorage.setItem(sessionKey, "1");
+    trackPushOpen({
+      notification_id: urlParams.get("notif_id") ?? "",
+      notification_title: urlParams.get("notif_title") ?? "",
+      article_id: String(article._id ?? ""),
+      category_name: article.category?.name ?? "",
+    });
+  }, [article._id]);
 
   useArticleTracking(article, isShowAll ? "all" : pageNum);
 

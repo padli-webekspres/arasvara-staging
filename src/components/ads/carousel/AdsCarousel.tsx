@@ -9,6 +9,8 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdsCarouselVariant, type HomepageAdItem } from "@/types/ads";
 import { trackAdClick } from "@/lib/trackAdClick";
+import { trackGaAdClick } from "@/lib/ga-events";
+import { useAdImpressionTracking } from "@/hooks/useAdImpressionTracking";
 
 // Card Components
 import SquareAdCard from "../card/SquareAdCard";
@@ -16,6 +18,59 @@ import VerticalAdCard from "../card/VerticalAdCard";
 import VerticalLongAdCard from "../card/VerticalLongAdCard";
 import HorizontalAdCard from "../card/HorizontalAdCard";
 import HorizontalLongAds from "../card/HorizontalLongAds";
+
+// ─── Sub-component ────────────────────────────────────────────────────────────
+
+interface AdsCarouselItemProps {
+  ad: HomepageAdItem;
+  variant: AdsCarouselVariant;
+  renderCard: (ad: HomepageAdItem) => React.ReactNode;
+}
+
+/**
+ * Satu item iklan di carousel.
+ * Di-ekstrak ke sub-component agar hook `useAdImpressionTracking` bisa dipakai
+ * (hooks harus dipanggil dari dalam komponen React, bukan dari callback biasa).
+ */
+function AdsCarouselItem({ ad, variant, renderCard }: AdsCarouselItemProps) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useAdImpressionTracking(wrapperRef, {
+    ad_id: ad._id,
+    ad_position: String(ad.position),
+    ad_size: variant,
+    ad_sponsor: ad.name,
+  });
+
+  const card = renderCard(ad);
+
+  return (
+    <div ref={wrapperRef} className="block w-full h-full">
+      {ad.linkUrl ? (
+        <a
+          href={ad.linkUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block w-full h-full"
+          onClick={() => {
+            trackAdClick(ad._id, "homepage");
+            trackGaAdClick({
+              ad_id: ad._id,
+              ad_position: String(ad.position),
+              ad_size: variant,
+              ad_sponsor: ad.name,
+              ad_destination_url: ad.linkUrl ?? "",
+            });
+          }}
+        >
+          {card}
+        </a>
+      ) : (
+        card
+      )}
+    </div>
+  );
+}
 
 export interface AdsCarouselProps {
   ads: HomepageAdItem[];
@@ -62,27 +117,12 @@ const AdsCarousel: React.FC<AdsCarouselProps> = ({
 
   if (!ads || ads.length === 0) return null;
 
-  const wrapAdLink = (ad: HomepageAdItem, card: React.ReactNode) =>
-    ad.linkUrl ? (
-      <a
-        href={ad.linkUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block w-full h-full"
-        onClick={() => trackAdClick(ad._id, "homepage")}
-      >
-        {card}
-      </a>
-    ) : (
-      card
-    );
-
   if (ads.length === 1) {
     const ad = ads[0];
     return (
       <div className={cn("w-full flex justify-center", className)}>
         <div className="w-full md:w-3/5">
-          {wrapAdLink(ad, renderCard(ad))}
+          <AdsCarouselItem ad={ad} variant={variant} renderCard={renderCard} />
         </div>
       </div>
     );
@@ -122,7 +162,7 @@ const AdsCarousel: React.FC<AdsCarouselProps> = ({
       >
         {ads.map((ad) => (
           <SwiperSlide key={ad._id}>
-            {wrapAdLink(ad, renderCard(ad))}
+            <AdsCarouselItem ad={ad} variant={variant} renderCard={renderCard} />
           </SwiperSlide>
         ))}
       </Swiper>

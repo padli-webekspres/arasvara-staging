@@ -78,12 +78,20 @@ export default function CategoryClient() {
           </div>
         ) : (
           <>
-            <ArticleFeaturedHero articles={articles} />
+            <ArticleFeaturedHero
+              articles={articles}
+              gaClickLocation="category_listing"
+            />
 
             {/* Article Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-y-4 gap-x-8">
-              {articles.slice(2).map((article) => (
-                <NewsCard key={article.slug} article={article} />
+              {articles.slice(2).map((article, index) => (
+                <NewsCard
+                  key={article.slug}
+                  article={article}
+                  gaClickLocation="category_listing"
+                  gaPosition={index + 3}
+                />
               ))}
               {loadingMore &&
                 Array.from({ length: 4 }).map((_, i) => (

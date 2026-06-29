@@ -13,20 +13,34 @@
 import Footer from "@/components/Footer";
 import NavbarContainer from "@/components/navbar/NavbarContainer";
 import React from "react";
+import "@/styles/swiper";
+import { getPublicStorageOrigins } from "@/lib/storage-origins";
 
 interface PublicLayoutProps {
   children: React.ReactNode;
 }
 
 const PublicLayout = ({ children }: PublicLayoutProps) => {
+  const storageOrigins = getPublicStorageOrigins();
+
   return (
-    <div className="min-h-screen bg-background">
-      <NavbarContainer />
+    <>
+      {storageOrigins.map((origin) => (
+        <link
+          key={origin}
+          rel="preconnect"
+          href={origin}
+          crossOrigin="anonymous"
+        />
+      ))}
+      <div className="min-h-screen bg-background">
+        <NavbarContainer />
 
-      {children}
+        {children}
 
-      <Footer />
-    </div>
+        <Footer />
+      </div>
+    </>
   );
 };
 

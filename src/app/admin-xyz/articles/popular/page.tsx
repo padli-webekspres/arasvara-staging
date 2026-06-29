@@ -80,8 +80,6 @@ const PopularArticlesPage = ({}: EditorChoicePageProps) => {
             !popularArticles.some((e) => e.article?._id === a._id),
         );
 
-        console.log(filteredArticles);
-
         if (paginationCursor) {
           setAvailableArticles((prev) => [...prev, ...filteredArticles]);
         } else {

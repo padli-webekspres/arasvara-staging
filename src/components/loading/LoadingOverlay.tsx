@@ -11,23 +11,23 @@ interface LoadingOverlayProps {
  * LoadingOverlay akan slide ke bawah keluar layar ketika isLoading berubah dari true ke false.
  */
 const LoadingOverlay = ({ isLoading = true }: LoadingOverlayProps) => {
-  const [show, setShow] = useState(true); // Kontrol render komponen
-  const [animateOut, setAnimateOut] = useState(false); // Trigger animasi keluar
+  const [show, setShow] = useState(isLoading);
+  const [animateOut, setAnimateOut] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isLoading) {
-      setAnimateOut(true);
-      // Unmount setelah animasi selesai
-      const timeout = setTimeout(() => setShow(false), 1000);
-      return () => clearTimeout(timeout);
-    } else {
-      // Hanya update jika sebelumnya tidak show
-      if (!show) setShow(true);
+    if (isLoading) {
+      setShow(true);
       setAnimateOut(false);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
+
+    if (!show) return;
+
+    setAnimateOut(true);
+    const timeout = setTimeout(() => setShow(false), 1000);
+    return () => clearTimeout(timeout);
+  }, [isLoading, show]);
 
   if (!show) return null;
 
@@ -37,7 +37,7 @@ const LoadingOverlay = ({ isLoading = true }: LoadingOverlayProps) => {
   return (
     <div
       ref={overlayRef}
-      className={`h-screen w-full flex items-center justify-center bg-[#e5e8e5] absolute inset-0 z-9999 transition-transform duration-1000 ease-in-out ${
+      className={`h-screen w-full flex items-center justify-center bg-[#e5e8e5] fixed inset-0 z-9999 transition-transform duration-1000 ease-in-out ${
         animateOut ? "translate-y-full" : "translate-y-0"
       }`}
       style={{ willChange: "transform" }}

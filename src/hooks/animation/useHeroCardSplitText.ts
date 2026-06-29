@@ -18,6 +18,13 @@ export function useHeroCardSplitText(titleKey?: string) {
 
   useEffect(() => {
     if (!parentRef.current) return;
+    if (typeof window === "undefined") return;
+
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    if (isMobile || prefersReducedMotion) return;
 
     const title =
       parentRef.current.querySelector<HTMLElement>(".titleHeroCard");

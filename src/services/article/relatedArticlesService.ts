@@ -326,7 +326,8 @@ export async function updateRelatedArticles(
       {
         idOrSlug,
         userId,
-        payload,
+        relatedCount: payload.related?.length,
+        articleIds: payload.related?.map((r) => r.article_id),
         error: {
           message: error?.message,
           stack: error?.stack,

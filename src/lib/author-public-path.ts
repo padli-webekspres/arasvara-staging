@@ -1,5 +1,11 @@
 const AUTHOR_PREFIX = "/author";
 
+/** Jumlah artikel pada muatan awal halaman penulis. */
+export const AUTHOR_PAGE_INITIAL_LIMIT = 14;
+
+/** Jumlah artikel per muatan "lihat berita lainnya". */
+export const AUTHOR_PAGE_LOAD_MORE_LIMIT = 12;
+
 /** Encode satu segmen slug untuk path URL. */
 export function encodeAuthorSlugSegment(slug: string): string {
   const trimmed = slug.trim();

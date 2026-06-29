@@ -22,11 +22,6 @@ export const SortableArticleCard = ({
     index,
   });
 
-  console.log(
-    "Rendering SortableArticleCard for article:",
-    editorChoice.article,
-  );
-
   return (
     <div
       ref={ref}

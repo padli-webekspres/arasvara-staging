@@ -8,9 +8,21 @@
  */
 
 import { Db, ObjectId } from "mongodb";
-import { sendFcmMessage, sendFcmMulticast } from "@/lib/firebaseAdmin";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import {
+  initFirebaseAdmin,
+  sendFcmMessage,
+  sendFcmMulticast,
+  sendFcmToTopic,
+  subscribeTokenToCategoryTopic,
+  toCategoryTopic,
+} from "@/lib/firebaseAdmin";
+import {
+  buildAbsoluteUrl,
+  getSiteBaseUrl,
+  resolveFeaturedImageAbsoluteUrl,
+} from "@/lib/og-image";
+import type { ArticleMedia } from "@/types/article";
+import logger from "@/lib/logger";
 
 export interface PushToken {
   _id?: string;
@@ -119,6 +131,66 @@ export async function sendPushToUser(
   await cleanupExpiredTokens(db, expiredTokens);
 }
 
+export interface SendPushResult {
+  firebaseConfigured: boolean;
+  tokenCount: number;
+  sentCount: number;
+  failedCount: number;
+}
+
+/**
+ * Kirim push ke user dan kembalikan ringkasan hasil (untuk debugging).
+ */
+export async function sendPushToUserWithResult(
+  db: Db,
+  userId: string,
+  payload: SendPushPayload,
+): Promise<SendPushResult> {
+  const firebaseConfigured = initFirebaseAdmin();
+  if (!firebaseConfigured) {
+    return {
+      firebaseConfigured: false,
+      tokenCount: 0,
+      sentCount: 0,
+      failedCount: 0,
+    };
+  }
+
+  const tokens = await getPushTokensByUser(db, userId);
+  if (!tokens.length) {
+    return {
+      firebaseConfigured: true,
+      tokenCount: 0,
+      sentCount: 0,
+      failedCount: 0,
+    };
+  }
+
+  let sentCount = 0;
+  const expiredTokens: string[] = [];
+
+  const results = await Promise.all(
+    tokens.map((token) => sendFcmMessage(token, payload)),
+  );
+
+  results.forEach((success, index) => {
+    if (success) {
+      sentCount += 1;
+    } else {
+      expiredTokens.push(tokens[index]);
+    }
+  });
+
+  await cleanupExpiredTokens(db, expiredTokens);
+
+  return {
+    firebaseConfigured: true,
+    tokenCount: tokens.length,
+    sentCount,
+    failedCount: tokens.length - sentCount,
+  };
+}
+
 /**
  * Kirim push notification ke banyak user sekaligus.
  * Token yang expired/invalid akan otomatis dihapus dari database.
@@ -142,4 +214,134 @@ export async function sendPushToUsers(
 
   const { expiredTokens } = await sendFcmMulticast(tokens, payload);
   await cleanupExpiredTokens(db, expiredTokens);
+}
+
+// ─── Category topic subscriptions (guest + logged-in) ───────────────────────
+
+export interface CategoryPushSubscription {
+  token: string;
+  categorySlug: string;
+  userId?: ObjectId | null;
+  userAgent?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Simpan subscription kategori + subscribe token ke FCM topic.
+ */
+export async function saveCategoryPushSubscription(
+  db: Db,
+  params: {
+    token: string;
+    categorySlug: string;
+    userId?: string | null;
+    userAgent?: string;
+  },
+): Promise<boolean> {
+  const slug = params.categorySlug.trim().toLowerCase();
+  const token = params.token.trim();
+  if (!slug || !token) return false;
+
+  const subscribed = await subscribeTokenToCategoryTopic(token, slug);
+  if (!subscribed) return false;
+
+  const now = new Date();
+  const userOid =
+    params.userId && ObjectId.isValid(params.userId)
+      ? new ObjectId(params.userId)
+      : null;
+
+  await db.collection("category_push_subscriptions").updateOne(
+    { token, categorySlug: slug },
+    {
+      $set: {
+        token,
+        categorySlug: slug,
+        userId: userOid,
+        userAgent: params.userAgent ?? null,
+        updatedAt: now,
+      },
+      $setOnInsert: { createdAt: now },
+    },
+    { upsert: true },
+  );
+
+  return true;
+}
+
+type ArticlePublishNotifyInput = {
+  title?: string;
+  publicPath?: string | null;
+  featuredImage?: ArticleMedia | string | null;
+  categoryId?: ObjectId | string | null;
+  category?: { slug?: string; name?: string } | null;
+};
+
+/**
+ * Kirim push ke subscriber topic kategori saat artikel baru dipublish.
+ */
+export async function notifyCategoryOnArticlePublished(
+  db: Db,
+  article: ArticlePublishNotifyInput,
+): Promise<void> {
+  if (!initFirebaseAdmin()) return;
+
+  let categorySlug = article.category?.slug?.trim().toLowerCase() ?? "";
+  let categoryName = article.category?.name?.trim() ?? "";
+
+  if (!categorySlug && article.categoryId) {
+    const cid =
+      article.categoryId instanceof ObjectId
+        ? article.categoryId
+        : new ObjectId(String(article.categoryId));
+    const cat = await db
+      .collection("categories")
+      .findOne({ _id: cid }, { projection: { slug: 1, name: 1 } });
+    categorySlug = String(cat?.slug ?? "")
+      .trim()
+      .toLowerCase();
+    categoryName = String(cat?.name ?? "").trim();
+  }
+
+  if (!categorySlug) {
+    logger.warn(
+      "notifyCategoryOnArticlePublished: category slug tidak ditemukan",
+    );
+    return;
+  }
+
+  const titleStr = String(article.title ?? "").trim();
+  if (!titleStr) return;
+
+  const displayName = categoryName || categorySlug;
+  const publicPath = article.publicPath?.trim();
+  const baseUrl = getSiteBaseUrl();
+  const link = publicPath
+    ? publicPath.startsWith("http")
+      ? publicPath
+      : buildAbsoluteUrl(publicPath, baseUrl)
+    : baseUrl;
+
+  const imageUrl = resolveFeaturedImageAbsoluteUrl(
+    article.featuredImage ?? null,
+    baseUrl,
+  );
+
+  
+
+  const topic = toCategoryTopic(categorySlug);
+  const sent = await sendFcmToTopic(topic, {
+    title: `Ada yang baru buat kamu di ${displayName}`,
+    body: `Intip yuk: ${titleStr}`,
+    link,
+    imageUrl,
+  });
+
+  if (!sent) {
+    logger.warn(
+      { topic, articleTitle: titleStr },
+      "notifyCategoryOnArticlePublished: gagal kirim push topic",
+    );
+  }
 }

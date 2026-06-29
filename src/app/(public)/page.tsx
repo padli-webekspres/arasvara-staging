@@ -28,6 +28,8 @@ import {
   QueryClient,
 } from "@tanstack/react-query";
 import HomePageClient from "./HomePageClient";
+import HeroMonogram from "@/components/homepage/HeroMonogram";
+import { HERO_MONOGRAM_SRC } from "@/lib/homepage-lcp";
 import {
   fetchConfigurationsServer,
   fetchHeadlineArticlesServer,
@@ -222,6 +224,13 @@ export default async function HomePage() {
 
   return (
     <>
+      <link
+        rel="preload"
+        as="image"
+        href={HERO_MONOGRAM_SRC}
+        fetchPriority="high"
+      />
+
       {/* JSON-LD Structured Data untuk Google Knowledge Graph */}
       <script
         type="application/ld+json"
@@ -243,7 +252,7 @@ export default async function HomePage() {
         konten krusial (konfigurasi, headline, artikel terbaru).
       */}
       <HydrationBoundary state={dehydrate(queryClient)}>
-        <HomePageClient />
+        <HomePageClient lcpMonogram={<HeroMonogram />} />
       </HydrationBoundary>
     </>
   );

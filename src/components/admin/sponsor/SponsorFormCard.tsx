@@ -6,6 +6,7 @@ import { Edit2, Trash2, GripVertical } from "lucide-react";
 import Image from "next/image";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { SponsorItem } from "@/types/sponsor";
+import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 
 interface SponsorFormCardProps {
   item: SponsorItem;
@@ -52,7 +53,7 @@ export const SponsorFormCard = ({
             src={item.image_url}
             alt={item.name}
             fill
-            unoptimized
+            unoptimized={shouldUnoptimizeNewsCardImage(item.image_url)}
             className="object-contain"
             sizes="(max-width: 768px) 100vw, 300px"
           />

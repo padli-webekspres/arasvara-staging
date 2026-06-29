@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { Menu, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/users/AvatarUser";
 import { adminPanelHref } from "@/lib/admin-panel-path";
 import DividerHorizontal from "@/components/homepage/DividerHorizontal";
 import { UserProfile } from "@/types/user";
@@ -145,20 +145,11 @@ const Sidebar = ({
           className={`flex items-center gap-3 ${isSidebarOpen ? "" : "justify-center"}`}
           title={!isSidebarOpen ? "Profil" : undefined}
         >
-          <Avatar>
-            <AvatarImage
-              src={
-                typeof user.avatar === "string"
-                  ? user.avatar
-                  : user.avatar?.url
-                    ? user.avatar.url
-                    : undefined
-              }
-            />
-            <AvatarFallback>
-              {user.name?.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            avatar={user.avatar}
+            name={user.name}
+            className="size-8 shrink-0"
+          />
           {isSidebarOpen && (
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm truncate">{user.name}</p>

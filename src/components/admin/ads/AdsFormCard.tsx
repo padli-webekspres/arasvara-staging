@@ -1,10 +1,11 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Edit2, Trash2, GripVertical } from "lucide-react";
 import { useSortable } from "@dnd-kit/react/sortable";
-import { cn } from "@/lib/utils";
+import { cn, shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import {
   AdsPosition,
   adsHomepageBannerCropSpec,
@@ -100,10 +101,13 @@ export function AdsFormCard({
             cropSpec.previewAspectClass,
           )}
         >
-          <img
+          <Image
             src={item.banner.previewUrl}
-            alt=""
-            className="h-full w-full object-cover"
+            alt={item.name ? `Banner ${item.name}` : "Banner iklan"}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, 300px"
+            unoptimized={shouldUnoptimizeNewsCardImage(item.banner.previewUrl)}
           />
         </div>
       </div>

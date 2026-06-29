@@ -37,7 +37,6 @@ const GridSectionPage = ({}: EditorChoicePageProps) => {
         setLoadingGridSection(true);
         const response = await api.get("/articles/grid-section");
         const { data } = response.data;
-        console.log("Fetched grid section:", data);
         setGridSection(data || []);
         toast.success("Grid Section berhasil dimuat");
       } catch (error) {
@@ -225,14 +224,11 @@ const GridSectionPage = ({}: EditorChoicePageProps) => {
       setGridSection(response.data.data || []);
 
       toast.success("Grid Section berhasil disimpan!");
-      console.log("Grid section saved:", response.data.data);
     } catch (error) {
       console.error("Error saving grid section:", error);
       toast.error("Gagal menyimpan Grid Section");
     }
   };
-
-  console.log("Render GridSectionPage with gridSection:", gridSection);
 
   return (
     <SelectAndSort

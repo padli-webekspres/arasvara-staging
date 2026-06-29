@@ -7,7 +7,7 @@ import { ArticleListResponse } from "./article";
  * Menggunakan OR intra-filter dan AND inter-filter.
  */
 export interface ArticleSearchParams {
-  // Full-text search (title, metaDesc, tags.name, category.name, author.name)
+  // Full-text search (title, metaDesc/metaDescription, excerpt, tags, category, author)
   search?: string;
 
   // Filter format artikel (OR) — STANDARD | GALLERY
@@ -44,6 +44,8 @@ export interface ArticleSearchParams {
   // Paginasi berbasis halaman
   page?: number;
   limit?: number;
+  /** Offset dokumen (mengabaikan perhitungan page jika diset). */
+  skip?: number;
 }
 
 // ─── Video Search ─────────────────────────────────────────────────────────────

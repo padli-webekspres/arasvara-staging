@@ -81,7 +81,6 @@ export default function ArticlePreviewPage() {
   const [copied, setCopied] = useState(false);
 
   const { data: currentUser } = useCurrentUser();
-  console.log("Current user in preview page:", currentUser);
 
   useEffect(() => {
     const loadDraft = async () => {
@@ -145,7 +144,6 @@ export default function ArticlePreviewPage() {
             setError("Gagal mengambil editor images dari IndexedDB.");
           }
         }
-        console.log("current user:", currentUser);
         // 4. Author: fallback ke user localStorage, jika tidak ada pakai default
         let author: UserProfile = {
           _id: currentUser?._id || "preview",
@@ -470,8 +468,6 @@ export default function ArticlePreviewPage() {
       </div>
     );
   }
-
-  console.log("Previewing article:", pagedArticle?.author);
 
   return (
     <div className="min-w-0 max-w-full overflow-x-clip">

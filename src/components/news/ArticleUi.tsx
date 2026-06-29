@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  User,
   Calendar,
   Facebook,
   Linkedin,
@@ -11,17 +10,19 @@ import {
 } from "lucide-react";
 import { Button } from "../ui/button";
 import ArticleContent from "./ArticleContent";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getInitials } from "@/lib/utils";
+import UserAvatar from "@/components/users/AvatarUser";
 import NewsCard from "./NewsCard";
 import { Article, ArticleListResponse } from "@/types/article";
 import type { UserProfile } from "@/types/user";
 import ButtonConnect from "../ui/ButtonConnect";
-import XIcon from "../ui/XIcon";
-import WaIcon from "../ui/WaIcon";
-import TelegramIcon from "../ui/TelegramIcon";
+import {
+  TelegramIcon,
+  WaIcon,
+  XIcon,
+} from "../icon/SocmedIcon";
 import { getArticleShareLinks } from "@/lib/article-share";
 import { resolveAuthorPublicHref } from "@/lib/author-public-path";
+import { buildAbsoluteUrl, getSiteBaseUrl } from "@/lib/og-image";
 import { useState, useCallback, useMemo } from "react";
 import Image from "next/image";
 import GalleryContent from "./GalleryContent";
@@ -57,27 +58,14 @@ import LoadMoreButton from "@/components/ui/LoadMoreButton";
 //   ssr: false,
 // });
 
-function userProfileAvatarSrc(
-  avatar: UserProfile["avatar"],
-): string | undefined {
-  if (!avatar) return undefined;
-  return typeof avatar === "string" ? avatar : avatar.url;
-}
-
 function AttributionPersonRow({ profile }: { profile: UserProfile }) {
-  const src = userProfileAvatarSrc(profile.avatar);
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <div className="w-10 h-10 shrink-0 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-        {src ? (
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={src} alt={profile.name} />
-            <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
-          </Avatar>
-        ) : (
-          <User className="h-8 w-8 text-muted-foreground" />
-        )}
-      </div>
+      <UserAvatar
+        avatar={profile.avatar}
+        name={profile.name}
+        className="h-8 w-8 shrink-0"
+      />
       <p className="font-medium text-sm truncate">{profile.name}</p>
     </div>
   );
@@ -146,24 +134,16 @@ const ArticleUi = ({
   );
 
   const authorHref = resolveAuthorPublicHref(article.author);
+  const authorProfileUrl = authorHref
+    ? buildAbsoluteUrl(authorHref, getSiteBaseUrl())
+    : undefined;
   const authorMetaContent = (
     <>
-      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-        {article.author.avatar ? (
-          <Avatar className="h-8 w-8">
-            <AvatarImage
-              src={
-                typeof article.author.avatar === "string"
-                  ? article.author.avatar
-                  : article.author.avatar?.url
-              }
-            />
-            <AvatarFallback>{getInitials(article.author.name)}</AvatarFallback>
-          </Avatar>
-        ) : (
-          <User className="h-8 w-8" />
-        )}
-      </div>
+      <UserAvatar
+        avatar={article.author.avatar}
+        name={article.author.name}
+        className="h-8 w-8"
+      />
       <div>
         <p
           className={`font-medium text-sm${authorHref ? " group-hover:text-hijauSawah transition-colors" : ""}`}
@@ -212,7 +192,6 @@ const ArticleUi = ({
     if (isLoadingArticleAds || !articleHorizontalAds?.length) return [];
     return articleHorizontalAds.map(singleArticleAdToCarouselItem);
   }, [isLoadingArticleAds, articleHorizontalAds]);
-
 
   return (
     <>
@@ -304,7 +283,7 @@ const ArticleUi = ({
             )}
           </div>
 
-          <h1 className="font-serif  text-3xl md:text-4xl lg:text-5xl font-bold leading-tight mb-6 pr-12">
+          <h1 className="font-sans text-3xl md:text-4xl lg:text-5xl font-bold leading-tight mb-6 pr-12">
             {article.title}
           </h1>
 
@@ -538,12 +517,9 @@ const ArticleUi = ({
                 <TitleHomepage title="Berita Terkait" variant="light" />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {related?.map((article) => {
-                    console.log(article);
-                    return (
-                      <SecondaryNewsCard key={article._id} article={article} />
-                    );
-                  })}
+                  {related?.map((article) => (
+                    <SecondaryNewsCard key={article._id} article={article} />
+                  ))}
                 </div>
               </section>
             </>
@@ -651,6 +627,7 @@ const ArticleUi = ({
             author: {
               "@type": "Person",
               name: article.author.name,
+              ...(authorProfileUrl ? { url: authorProfileUrl } : {}),
             },
             publisher: {
               "@type": "Organization",

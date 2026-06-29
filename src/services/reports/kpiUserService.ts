@@ -74,7 +74,7 @@ export async function getKPIWriterTeam(
 		.toArray();
 
 	logger.info(
-		{ userCount: users, search },
+		{ userCount: users.length, search },
 		"Fetched users for KPI Writer Team calculation",
 	);
 

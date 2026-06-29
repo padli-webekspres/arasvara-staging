@@ -113,7 +113,7 @@ import SnapWrapper from "@/components/homepage/SnapWrapper";
 import HorizontalFeaturedSection from "@/components/homepage/carousel/HorizontalFeaturedCarousel";
 import SnapWrapperBottom from "@/components/homepage/SnapWrapperBottom";
 import LoadingOverlay from "@/components/loading/LoadingOverlay";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode } from "react";
 import {
   useCarouselSection,
   useGridSection,
@@ -146,10 +146,11 @@ import SectionText from "@/components/aboutUs/SectionText";
  * di Server Component (`page.tsx`) melalui HydrationBoundary, sehingga
  * komponen ini tidak perlu menunggu network request ulang untuk data tersebut.
  */
-export default function HomePageClient() {
-  // --- State Management ---
-  const [isOverlayLoading, setIsOverlayLoading] = useState(true);
-
+export default function HomePageClient({
+  lcpMonogram,
+}: {
+  lcpMonogram: ReactNode;
+}) {
   // Fetch semua konfigurasi situs
   // Data ini sudah tersedia dari prefetch server — tidak ada loading delay
   const {
@@ -209,17 +210,6 @@ export default function HomePageClient() {
     isLoadingFeaturedCategories,
   ].some(Boolean);
 
-  // Tampilkan loading overlay sambil menunggu semua data siap
-  useEffect(() => {
-    if (isLoadingAll) {
-      setIsOverlayLoading(true);
-    } else {
-      // Delay kecil untuk smooth transition
-      const timeout = setTimeout(() => setIsOverlayLoading(false), 2000);
-      return () => clearTimeout(timeout);
-    }
-  }, [isLoadingAll]);
-
   // --- Ambil konfigurasi URL gambar/video dari konfigurasi situs ---
   const heroVideoUrl = getMediaUrl("hero_video_config");
   const heroVideoPosterUrl = getMediaUrl("hero_video_poster_bg");
@@ -262,19 +252,17 @@ export default function HomePageClient() {
 
   return (
     <>
-      {isOverlayLoading && <LoadingOverlay isLoading={isLoadingAll} />}
-      {!isOverlayLoading && <FloatingSearchButton />}
+      <LoadingOverlay isLoading={isLoadingAll} />
+      {!isLoadingAll && <FloatingSearchButton />}
       <main>
-        {/* Hero Section with Video */}
-        {!isLoadingAll && (
-          <SnapWrapper
-            heroVideoUrl={heroVideoUrl}
-            heroVideoPosterUrl={heroVideoPosterUrl}
-            headlines={headlines}
-            videoSectionBgUrl={videoSectionBgUrl}
-            headlineCarouselAds={headlineAds}
-          />
-        )}
+        <SnapWrapper
+          heroVideoUrl={heroVideoUrl}
+          heroVideoPosterUrl={heroVideoPosterUrl}
+          headlines={headlines}
+          videoSectionBgUrl={videoSectionBgUrl}
+          headlineCarouselAds={headlineAds}
+          lcpMonogram={lcpMonogram}
+        />
 
         {!isLoadingAll && (
           <>

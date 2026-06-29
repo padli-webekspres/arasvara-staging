@@ -1,8 +1,14 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import Cropper from "react-easy-crop";
-import type { Area } from "react-easy-crop";
+import { useState, useCallback, useEffect, useRef } from "react";
+import ReactCrop, {
+  centerCrop,
+  makeAspectCrop,
+  convertToPixelCrop,
+  type Crop,
+  type PixelCrop,
+} from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -12,18 +18,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  getCroppedImg,
+  toNaturalPixelCrop,
+  type CropImageExportOptions,
+} from "@/lib/image/getCroppedImg";
 
-export type CropImageExportOptions = {
-  /** Rasio tampilan crop (lebar ÷ tinggi). */
-  aspect?: number;
-  /** Jika diisi keduanya, hasil diskalakan ke ukuran tetap (mis. featured 1280×800). */
-  outputWidth?: number;
-  outputHeight?: number;
-  /** Kualitas WebP `canvas.toBlob` (0–1). */
-  webpQuality?: number;
-  /** Batas ukuran file dalam MB (default: 0.78). */
-  maxSizeMB?: number;
-};
+export type { CropImageExportOptions };
 
 interface CropImageModalProps {
   open: boolean;
@@ -39,110 +40,6 @@ interface CropImageModalProps {
   webpQuality?: number;
   /** Mengatur lebar dialog & tinggi viewport crop (default mengikuti aspect). */
   layout?: "portrait" | "landscape";
-}
-
-async function getCroppedImg(
-  imageSrc: string,
-  pixelCrop: Area,
-  {
-    aspect = 4 / 5,
-    outputWidth,
-    outputHeight,
-    webpQuality = 0.9,
-    maxSizeMB = 0.78,
-  }: CropImageExportOptions = {},
-): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    if (/^https?:\/\//i.test(imageSrc)) {
-      image.crossOrigin = "anonymous";
-    }
-    image.onload = async () => {
-      try {
-        const hasFixedOutput =
-          outputWidth != null &&
-          outputHeight != null &&
-          outputWidth > 0 &&
-          outputHeight > 0;
-
-        let baseWidth = 0;
-        let baseHeight = 0;
-
-        if (hasFixedOutput) {
-          baseWidth = outputWidth;
-          baseHeight = outputHeight;
-        } else {
-          /* Legacy: ukuran mengikuti crop + aspect */
-          let canvasWidth = pixelCrop.width;
-          let canvasHeight = pixelCrop.height;
-          if (canvasWidth / canvasHeight > aspect) {
-            canvasWidth = canvasHeight * aspect;
-          } else {
-            canvasHeight = canvasWidth / aspect;
-          }
-          baseWidth = Math.round(canvasWidth);
-          baseHeight = Math.round(canvasHeight);
-        }
-
-        const maxSizeBytes = maxSizeMB * 1024 * 1024;
-
-        // Hybrid scaling & quality configuration list
-        const attempts = [
-          { scale: 1.0, quality: webpQuality || 0.85 },
-          { scale: 1.0, quality: 0.8 },
-          { scale: 0.85, quality: 0.8 },
-          { scale: 0.85, quality: 0.75 },
-          { scale: 0.7, quality: 0.75 },
-          { scale: 0.6, quality: 0.7 },
-        ];
-
-        let finalBlob: Blob | null = null;
-
-        for (const attempt of attempts) {
-          const targetWidth = Math.round(baseWidth * attempt.scale);
-          const targetHeight = Math.round(baseHeight * attempt.scale);
-
-          const canvas = document.createElement("canvas");
-          canvas.width = targetWidth;
-          canvas.height = targetHeight;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            throw new Error("No canvas context");
-          }
-
-          ctx.drawImage(
-            image,
-            pixelCrop.x,
-            pixelCrop.y,
-            pixelCrop.width,
-            pixelCrop.height,
-            0,
-            0,
-            targetWidth,
-            targetHeight,
-          );
-
-          finalBlob = await new Promise<Blob | null>((res) =>
-            canvas.toBlob((b) => res(b), "image/webp", attempt.quality),
-          );
-
-          if (finalBlob && finalBlob.size <= maxSizeBytes) {
-            break;
-          }
-        }
-
-        if (finalBlob) {
-          resolve(finalBlob);
-        } else {
-          reject(new Error("Failed to create blob"));
-        }
-      } catch (err) {
-        reject(err);
-      }
-    };
-    image.onerror = () => reject(new Error("Failed to load image"));
-    image.src = imageSrc;
-  });
 }
 
 function cropModalChrome(aspect: number, layout?: "portrait" | "landscape") {
@@ -166,29 +63,46 @@ export default function CropImageModal({
   layout,
 }: CropImageModalProps) {
   const { dialogClass, viewportHeight } = cropModalChrome(aspect, layout);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [crop, setCrop] = useState<Crop | undefined>(undefined);
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setCrop({ x: 0, y: 0 });
-      setZoom(1);
-      setCroppedAreaPixels(null);
+      setCrop(undefined);
+      setCompletedCrop(null);
     }
   }, [open, imageSrc]);
 
-  const onCropComplete = useCallback((_: Area, pixels: Area) => {
-    setCroppedAreaPixels(pixels);
-  }, []);
+  const onImageLoad = useCallback(
+    (e: React.SyntheticEvent<HTMLImageElement>) => {
+      const { width, height } = e.currentTarget;
+      const percentCrop = centerCrop(
+        makeAspectCrop({ unit: "%", width: 90 }, aspect, width, height),
+        width,
+        height,
+      );
+      setCrop(percentCrop);
+      // Implikasikan completedCrop langsung agar tombol crop bisa diklik tanpa harus drag dulu
+      setCompletedCrop(convertToPixelCrop(percentCrop, width, height));
+    },
+    [aspect],
+  );
+
+  // Jangan render <img> tanpa src valid — komponen ini selalu ter-mount dari parent
+  // dengan `imageSrc={cropSrc ?? ""}` meski modal tertutup.
+  if (!imageSrc) {
+    return null;
+  }
 
   const handleCrop = async () => {
-    if (!croppedAreaPixels) return;
+    if (!completedCrop || !imgRef.current) return;
     setLoading(true);
+    const naturalCrop = toNaturalPixelCrop(imgRef.current, completedCrop);
     let blob: Blob;
     try {
-      blob = await getCroppedImg(imageSrc, croppedAreaPixels, {
+      blob = await getCroppedImg(imageSrc, naturalCrop, {
         aspect,
         outputWidth,
         outputHeight,
@@ -198,6 +112,7 @@ export default function CropImageModal({
       toast.error(
         "Gagal memproses gambar hasil crop. Coba lagi atau gunakan gambar lain.",
       );
+      setLoading(false);
       return;
     }
     try {
@@ -215,41 +130,34 @@ export default function CropImageModal({
         </DialogHeader>
 
         <div
-          className="relative w-full overflow-hidden rounded-md bg-black"
+          className="relative flex w-full items-center justify-center overflow-hidden rounded-md bg-black"
           style={{ height: viewportHeight }}
         >
-          <Cropper
-            image={imageSrc}
+          <ReactCrop
             crop={crop}
-            zoom={zoom}
+            onChange={(c) => setCrop(c)}
+            onComplete={(c) => setCompletedCrop(c)}
             aspect={aspect}
-            onCropChange={setCrop}
-            onZoomChange={setZoom}
-            onCropComplete={onCropComplete}
-          />
-        </div>
-
-        <div className="space-y-1 px-1">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Zoom</span>
-            <span>{zoom.toFixed(1)}×</span>
-          </div>
-          <input
-            type="range"
-            min={1}
-            max={3}
-            step={0.05}
-            value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))}
-            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary"
-          />
+            keepSelection
+            className="max-h-full"
+            style={{ maxHeight: viewportHeight }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- react-image-crop butuh <img> native untuk mengakses naturalWidth/naturalHeight via ref */}
+            <img
+              ref={imgRef}
+              src={imageSrc}
+              alt="Crop preview"
+              onLoad={onImageLoad}
+              style={{ maxHeight: viewportHeight, width: "auto" }}
+            />
+          </ReactCrop>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onCancel} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleCrop} disabled={loading || !croppedAreaPixels}>
+          <Button onClick={handleCrop} disabled={loading || !completedCrop}>
             {loading ? "Processing..." : "Use This Image"}
           </Button>
         </DialogFooter>

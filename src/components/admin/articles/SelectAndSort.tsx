@@ -9,6 +9,7 @@ import { DragDropProvider } from "@dnd-kit/react";
 import { SortableArticleCard } from "@/components/admin/articles/SortableArticleCard";
 import { ArticleListResponse } from "@/types/article";
 import { SectionArticleItem } from "@/types/articleSection";
+import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 
 interface SelectAndSortProps {
   selectedArticles: SectionArticleItem[];
@@ -163,9 +164,7 @@ const SelectAndSort = ({
                               fill
                               className="object-cover transition-transform duration-300 group-hover:scale-105"
                               sizes="(max-width: 768px) 100vw, 300px"
-                              {...(!imageUrl.startsWith("http")
-                                ? { unoptimized: true }
-                                : {})}
+                              unoptimized={shouldUnoptimizeNewsCardImage(imageUrl)}
                             />
                           </div>
                         )}

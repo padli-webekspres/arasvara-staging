@@ -10,22 +10,23 @@ import {
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import {
-  Instagram,
-  Linkedin,
   Search,
   X,
-  MessageCircle,
-  Facebook,
 } from "lucide-react";
 import PageNavbar from "./PageNavbar";
 import { FOOTER_MORE, FOOTER_SECTION_LINKS } from "@/lib/constants";
-import { useCategories, useRootCategories } from "@/hooks/useCategory";
+import { useRootCategories } from "@/hooks/useCategory";
 import type { Category } from "@/types/category";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConfiguration } from "@/hooks/useConfiguration";
-import XIcon from "../ui/XIcon";
-import WaIcon from "../ui/WaIcon";
-import TelegramIcon from "../ui/TelegramIcon";
+import {
+  FacebookIcon,
+  InstagramIcon,
+  TelegramIcon,
+  ThreadsIcon,
+  WaIcon,
+  XIcon,
+} from "../icon/SocmedIcon";
 
 function categoryDrawerHref(cat: Category): string {
   const slug = String(cat.slug ?? "").trim();
@@ -39,16 +40,6 @@ const linkClass =
 
 const columnTitleClass =
   "text-base font-semibold uppercase tracking-wider mb-4 text-foreground";
-
-const socialIconMap: Record<
-  string,
-  React.ComponentType<{ className?: string }>
-> = {
-  instagram: Instagram,
-  linkedin: Linkedin,
-  x: X,
-  threads: MessageCircle,
-};
 
 interface DrawerNavbarProps {
   pathname: string;
@@ -69,6 +60,7 @@ const DrawerNavbar = ({
   const instagramLink = getStringValue("social_instagram_link");
   const twitterLink = getStringValue("social_twitter_link");
   const facebookLink = getStringValue("social_facebook_link");
+  const threadsLink = getStringValue("social_threads_link");
   const whatsappChannel = getStringValue("whatsapp_channel");
   const telegramGroup = getStringValue("telegram_group");
 
@@ -81,14 +73,17 @@ const DrawerNavbar = ({
     socialLinks.push({
       name: "Instagram",
       href: instagramLink,
-      icon: Instagram,
+      icon: InstagramIcon,
     });
   }
   if (twitterLink) {
     socialLinks.push({ name: "X (Twitter)", href: twitterLink, icon: XIcon });
   }
   if (facebookLink) {
-    socialLinks.push({ name: "Facebook", href: facebookLink, icon: Facebook });
+    socialLinks.push({ name: "Facebook", href: facebookLink, icon: FacebookIcon });
+  }
+  if (threadsLink) {
+    socialLinks.push({ name: "Threads", href: threadsLink, icon: ThreadsIcon });
   }
   if (whatsappChannel) {
     socialLinks.push({

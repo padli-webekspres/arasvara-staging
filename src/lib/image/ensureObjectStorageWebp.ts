@@ -12,6 +12,7 @@ import {
 import { isAllowedArticleUploadFolder } from "@/lib/media/articleUploadScopes";
 import { MAX_IMAGE_SIZE_BYTES } from "@/lib/helper-article";
 import logger from "@/lib/logger";
+import { withImmutableCacheControl } from "@/lib/s3/object-cache";
 
 export type PresignedWebpAuditResult = {
   size: number;
@@ -172,12 +173,12 @@ export async function auditStorageWebpKey(
     }
 
     await s3Client.send(
-      new PutObjectCommand({
+      new PutObjectCommand(withImmutableCacheControl({
         Bucket: S3_BUCKET,
         Key: fileKey,
         Body: reencodedBuffer,
         ContentType: "image/webp",
-      }),
+      })),
     );
 
     logger.warn(

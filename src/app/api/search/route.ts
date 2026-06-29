@@ -9,7 +9,7 @@ import logger from "@/lib/logger";
  *
  * Query Parameters:
  * - type         : "ARTICLES" | "VIDEO" (default: "ARTICLES")
- * - q            : teks pencarian bebas
+ * - q            : teks pencarian bebas (judul, excerpt, tag, kategori, nama/slug penulis)
  * - format       : "STANDARD" | "GALLERY" (bisa multiple, dipisah koma)
  * - category     : slug kategori (bisa multiple, dipisah koma)
  * - tags         : slug tag (bisa multiple, dipisah koma)
@@ -23,6 +23,7 @@ import logger from "@/lib/logger";
  * - authorId     : satu ObjectId penulis (filter CMS; tidak boleh koma)
  * - page         : nomor halaman (default: 1)
  * - limit        : jumlah item per halaman (default: 12, max: 50)
+ * - skip         : offset dokumen (opsional; mengabaikan page jika diset)
  */
 export async function GET(req: NextRequest) {
   try {
@@ -55,6 +56,11 @@ export async function GET(req: NextRequest) {
     const sortOrder = (getString("sortOrder") || "desc") as "asc" | "desc";
     const page = getInt("page", 1);
     const limit = getInt("limit", 12);
+    const skipRaw = url.searchParams.get("skip");
+    const skip =
+      skipRaw != null && skipRaw.trim() !== "" && !Number.isNaN(parseInt(skipRaw, 10))
+        ? parseInt(skipRaw, 10)
+        : undefined;
 
     // ── Routing berdasarkan tipe ──
     if (type === "VIDEO") {
@@ -120,6 +126,7 @@ export async function GET(req: NextRequest) {
       sortOrder,
       page,
       limit,
+      ...(skip != null ? { skip } : {}),
     };
 
     const result = await searchArticles(db, params);

@@ -22,6 +22,10 @@ import {
 } from "@/types/search";
 import logger from "@/lib/logger";
 import { normalizeFeaturedImage } from "@/lib/helper-article";
+import {
+  findAuthorIdsMatchingSearch,
+} from "@/lib/article-denorm";
+import { escapeRegexLiteral } from "@/services/auditLogService";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -193,19 +197,29 @@ export async function searchArticles(
     const extraConditions: Record<string, any>[] = [];
 
     // ── Filter Teks ──
-    // Mencari di title, metaDesc, tags.name, category.name, author.name secara OR.
-    // Data category.name dan author.name harus sudah didenormalisasi di dalam dokumen.
+    // Mencari di title, metaDesc/metaDescription, excerpt, tags, kategori, dan penulis.
+    // Penulis: field denormalisasi (`author.name`/`author.slug`) + fallback lookup `users`.
     if (params.search && params.search.trim().length > 0) {
-      const regex = { $regex: params.search.trim(), $options: "i" };
-      extraConditions.push({
-        $or: [
-          { title: regex },
-          { metaDesc: regex },
-          { "tags.name": regex },
-          { "category.name": regex },
-          { "author.name": regex },
-        ],
-      });
+      const trimmed = params.search.trim();
+      const regex = { $regex: escapeRegexLiteral(trimmed), $options: "i" };
+      const authorIdsFromUsers = await findAuthorIdsMatchingSearch(db, trimmed);
+
+      const textOrConditions: Record<string, unknown>[] = [
+        { title: regex },
+        { metaDesc: regex },
+        { metaDescription: regex },
+        { excerpt: regex },
+        { "tags.name": regex },
+        { "category.name": regex },
+        { "author.name": regex },
+        { "author.slug": regex },
+      ];
+
+      if (authorIdsFromUsers.length > 0) {
+        textOrConditions.push({ authorId: { $in: authorIdsFromUsers } });
+      }
+
+      extraConditions.push({ $or: textOrConditions });
     }
 
     // ── Filter Format (STANDARD / GALLERY) — OR intra-filter ──
@@ -312,7 +326,12 @@ export async function searchArticles(
     // ── Paginasi ──
     const limit = clampLimit(params.limit);
     const page = Math.max(1, params.page ?? 1);
-    const skip = (page - 1) * limit;
+    const skip =
+      params.skip != null &&
+      Number.isFinite(params.skip) &&
+      params.skip >= 0
+        ? Math.floor(params.skip)
+        : (page - 1) * limit;
 
     // ── Query utama ke database (count + fetch paralel) ──
     // Projection penting: SKIP field `content` dan `revisionHistory`
@@ -474,11 +493,12 @@ export async function searchArticles(
     });
 
     const totalPages = Math.ceil(total / limit);
+    const hasNextPage = skip + data.length < total;
 
     return {
       success: true,
       data,
-      meta: { page, limit, total, totalPages, hasNextPage: page < totalPages },
+      meta: { page, limit, total, totalPages, hasNextPage },
     };
   } catch (error) {
     logger.error({ error, params }, "searchArticles: Gagal mencari artikel");

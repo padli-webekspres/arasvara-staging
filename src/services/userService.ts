@@ -15,6 +15,7 @@ import bcrypt from "bcryptjs";
 import logger from "@/lib/logger";
 import { createAuditLog, requireAuditActor } from "@/services/auditLogService";
 import { AuditLogAction } from "@/types/auditLog";
+import { withImmutableCacheControl } from "@/lib/s3/object-cache";
 import {
 	buildActiveUserFilter,
 	isUserPubliclyVisible,
@@ -168,12 +169,12 @@ export async function uploadAvatar(
 		const size = buffer.length;
 		const now = new Date().toISOString();
 		await s3Client.send(
-			new PutObjectCommand({
+			new PutObjectCommand(withImmutableCacheControl({
 				Bucket: S3_BUCKET_AVATAR,
 				Key: filename,
 				Body: buffer,
 				ContentType: mimetype,
-			}),
+			})),
 		);
 		logger.info({ filename, size }, "uploadAvatar: avatar terunggah ke S3");
 		return {

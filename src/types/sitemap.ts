@@ -11,7 +11,14 @@ export interface SitemapCategory {
 	name: string;
 }
 
+export interface SitemapAuthor {
+	slug: string;
+	name: string;
+	updatedAt: string;
+}
+
 export interface SitemapResponse {
 	articles: SitemapArticle[];
 	categories: SitemapCategory[];
+	authors: SitemapAuthor[];
 }

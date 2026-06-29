@@ -37,7 +37,7 @@ import {
   PaginationNext,
   PaginationEllipsis,
 } from "@/components/ui/pagination";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/users/AvatarUser";
 import { User } from "@/types/user";
 import { ROLES } from "@/lib/constants";
 import { getPageNumbers } from "@/lib/utils";
@@ -53,12 +53,6 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import ChangePasswordDialog from "@/components/profile/ChangePasswordDialog";
-
-function getAvatarUrl(avatar: User["avatar"]): string | undefined {
-  if (!avatar) return undefined;
-  if (typeof avatar === "string") return avatar;
-  return avatar.url || undefined;
-}
 
 const LIMIT = 10;
 
@@ -176,10 +170,11 @@ const UsersPage = () => {
       header: "User",
       render: (row) => (
         <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9 shrink-0">
-            <AvatarImage src={getAvatarUrl(row.avatar)} />
-            <AvatarFallback>{row.name?.charAt(0).toUpperCase()}</AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            avatar={row.avatar}
+            name={row.name || row.email || "User"}
+            className="h-9 w-9 shrink-0"
+          />
           <div className="min-w-0">
             <p className="font-medium line-clamp-1">{row.name}</p>
             <p className="text-sm text-muted-foreground line-clamp-1">

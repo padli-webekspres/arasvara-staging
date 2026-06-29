@@ -2,6 +2,7 @@ import { S3_BUCKET, s3Client } from "@/lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { ulid } from "ulid";
 import logger from "@/lib/logger";
+import { withImmutableCacheControl } from "@/lib/s3/object-cache";
 import {
   getSharpThumbnailSize,
   getSocmedLayout,
@@ -48,12 +49,12 @@ export async function uploadVideoThumbnail(
 
     // Upload ke S3
     await s3Client.send(
-      new PutObjectCommand({
+      new PutObjectCommand(withImmutableCacheControl({
         Bucket: S3_BUCKET,
         Key: s3Key,
         Body: buffer,
         ContentType: "image/webp",
-      }),
+      })),
     );
 
     // Build URL endpoint untuk fetch

@@ -27,13 +27,14 @@ import {
   resolveArticleSlug,
   titleNormalizedForStorage,
 } from "@/lib/article-validation";
+import { resolveArticleDenormFields } from "@/lib/article-denorm";
 import {
   createBulkNotifications,
   createOneNotification,
 } from "@/services/notificationService";
 import type { CreateNotificationInput } from "@/types/notification";
 import { NotificationType } from "@/types/notification";
-import { sendPushToUser } from "@/services/pushNotifService";
+import { sendPushToUser, notifyCategoryOnArticlePublished } from "@/services/pushNotifService";
 import { adminPanelHref } from "@/lib/admin-panel-path";
 import { ROLES } from "@/lib/auth-client";
 import { AuditLogAction } from "@/types/auditLog";
@@ -133,6 +134,13 @@ export async function autosaveArticle(
       setFields.metaTitle = resolvedTitle;
     }
 
+    if (mongoCategoryId) {
+      Object.assign(
+        setFields,
+        await resolveArticleDenormFields(db, existing.authorId, mongoCategoryId),
+      );
+    }
+
     await db.collection("articles").updateOne(
       {
         _id: oid,
@@ -154,6 +162,15 @@ export async function autosaveArticle(
     : generateArticleSlug(resolvedTitle);
   await assertUniqueArticleSlug(db, slug);
 
+  const authorObjectId =
+    typeof author._id === "string" ? new ObjectId(author._id) : author._id;
+
+  const denormFields = await resolveArticleDenormFields(
+    db,
+    authorObjectId,
+    mongoCategoryId,
+  );
+
   const doc = {
     title: resolvedTitle,
     titleNormalized: titleNormalizedForStorage(resolvedTitle),
@@ -163,10 +180,8 @@ export async function autosaveArticle(
     categoryId: mongoCategoryId,
     tags: tagsArray,
     featuredImage: featuredImage || null,
-    authorId:
-      typeof author._id === "string" ? new ObjectId(author._id) : author._id,
-    createdById:
-      typeof author._id === "string" ? new ObjectId(author._id) : author._id,
+    authorId: authorObjectId,
+    createdById: authorObjectId,
     editorId: null,
     status,
     isFeatured: false,
@@ -179,6 +194,7 @@ export async function autosaveArticle(
     publishedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
+    ...denormFields,
   };
 
   const result = await db.collection("articles").insertOne(doc);
@@ -466,6 +482,22 @@ export async function publishScheduledArticles(
         );
       });
     }),
+  );
+
+  await Promise.allSettled(
+    succeeded.map((article) =>
+      notifyCategoryOnArticlePublished(db, {
+        title: String(article.title ?? ""),
+        publicPath: article.publicPath ? String(article.publicPath) : null,
+        featuredImage: article.featuredImage,
+        categoryId: article.categoryId,
+      }).catch((catPushErr) => {
+        logger.error(
+          { err: catPushErr, articleId: article._id?.toString?.() },
+          "publishScheduledArticles: push kategori gagal",
+        );
+      }),
+    ),
   );
 
   return { published: succeeded.length, total: scheduled.length };

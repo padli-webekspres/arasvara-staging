@@ -1,12 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import ReactQueryProvider from "@/app/providers/ReactQueryProvider";
-import "swiper/css";
-import "swiper/css/navigation";
-import "swiper/css/scrollbar";
-import "swiper/css/mousewheel";
 import PushSubscriber from "@/components/notification/PushSubscriber";
 import GaRouteTracker from "@/components/analytics/GaRouteTracker";
 import { Suspense } from "react";
@@ -17,14 +13,42 @@ import {
   getSiteBaseUrl,
 } from "@/lib/og-image";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const rubik = localFont({
+  src: [
+    {
+      path: "../../public/fonts/Rubik/Rubik-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Rubik/Rubik-Italic.woff2",
+      weight: "400",
+      style: "italic",
+    },
+    {
+      path: "../../public/fonts/Rubik/Rubik-Medium.woff2",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Rubik/Rubik-SemiBold.woff2",
+      weight: "600",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Rubik/Rubik-Bold.woff2",
+      weight: "700",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Rubik/Rubik-BoldItalic.woff2",
+      weight: "700",
+      style: "italic",
+    },
+  ],
+  variable: "--font-rubik",
+  display: "swap",
+  preload: true,
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -154,7 +178,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         )}
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background hide-scrollbar`}
+        className={`${rubik.variable} antialiased min-h-screen bg-background hide-scrollbar`}
       >
         {gtmId && (
           <noscript>

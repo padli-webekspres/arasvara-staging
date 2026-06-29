@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Team } from "@/types/team";
-import CropImageModal from "./CropImageModal";
+import CropImageModal from "@/components/media/CropImageModal";
 import { ImageIcon, X, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { generateUserSlug } from "@/lib/user-validation";
@@ -353,6 +353,8 @@ const FormUserDialogUi: React.FC<FormUserDialogUiProps> = ({
         <CropImageModal
           open={cropOpen}
           imageSrc={rawImageSrc}
+          aspect={1}
+          title="Crop Avatar"
           onCrop={onCropDone}
           onCancel={onCropCancel}
         />

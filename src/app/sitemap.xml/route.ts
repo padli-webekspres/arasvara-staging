@@ -6,8 +6,8 @@ export async function GET() {
 	const baseUrl = getSitemapBaseUrl();
 
 	try {
-		const { articles, categories } = await getSitemapData();
-		const xml = buildSitemapXml(baseUrl, articles, categories);
+		const { articles, categories, authors } = await getSitemapData();
+		const xml = buildSitemapXml(baseUrl, articles, categories, authors);
 
 		return new NextResponse(xml, {
 			headers: {

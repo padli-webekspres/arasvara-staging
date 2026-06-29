@@ -1,23 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import {
-  Copyright,
-  Facebook,
-  Instagram,
-  Linkedin,
-  MessageCircle,
-  Send,
-  X,
-} from "lucide-react";
+import { Copyright } from "lucide-react";
 import Image from "next/image";
 import { FOOTER_MORE } from "@/lib/constants";
 import { useConfiguration } from "@/hooks/useConfiguration";
-import XIcon from "./ui/XIcon";
-import WaIcon from "./ui/WaIcon";
-import TelegramIcon from "./ui/TelegramIcon";
-import ThreadsIcon from "./ui/ThreadsIcon";
-
+import {
+  FacebookIcon,
+  InstagramIcon,
+  TelegramIcon,
+  ThreadsIcon,
+  WaIcon,
+  XIcon,
+} from "./icon/SocmedIcon";
 // ── Kelas CSS yang dipakai berulang ──────────────────────────────────────────
 const footerLinkClass =
   "text-muted-foreground hover:text-white transition-colors text-sm";
@@ -55,7 +50,7 @@ export default function Footer() {
     socialLinks.push({
       name: "Instagram",
       href: instagramLink,
-      icon: Instagram,
+      icon: InstagramIcon,
     });
   }
   if (twitterLink) {
@@ -69,7 +64,7 @@ export default function Footer() {
     socialLinks.push({
       name: "Facebook",
       href: facebookLink,
-      icon: Facebook,
+      icon: FacebookIcon,
     });
   }
   if (threadsLink) {

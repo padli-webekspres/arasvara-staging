@@ -14,6 +14,7 @@ import CropImageModal from "@/components/media/CropImageModal";
 import SponsorFormCard from "./SponsorFormCard";
 import Image from "next/image";
 import { SponsorItem } from "@/types/sponsor";
+import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 
 interface SponsorFormProps {
   existingItems?: SponsorItem[]; // Load existing items on mount
@@ -481,6 +482,8 @@ export default function SponsorForm({
                       alt="Preview"
                       className="object-contain"
                       fill
+                      sizes="(max-width: 1024px) 100vw, 320px"
+                      unoptimized={shouldUnoptimizeNewsCardImage(imagePreview)}
                     />
                   </div>
                   <Button
@@ -548,7 +551,7 @@ export default function SponsorForm({
         <CropImageModal
           open={cropOpen}
           imageSrc={rawImageSrc}
-          aspect={1 / 1} // Free aspect ratio for sponsors
+          aspect={1 / 1} // Persegi 1:1
           title="Crop Gambar Sponsor"
           onCrop={handleCropDone}
           onCancel={handleCropCancel}

@@ -126,8 +126,6 @@ export default function VideoSocmedForm({
             }),
           );
 
-          console.log("Loaded items with thumbnails:", itemsWithThumbnails);
-
           setVideoItems(itemsWithThumbnails);
         }
       } catch (error) {

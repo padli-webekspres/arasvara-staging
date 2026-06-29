@@ -65,7 +65,7 @@ export default function CategoryClient() {
       <div className="container mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-4 md:mb-8">
-          <h1 className="font-serif uppercase text-4xl md:text-5xl font-bold mb-4 animate-fade-in">
+          <h1 className="font-sans uppercase text-4xl md:text-5xl font-bold mb-4 animate-fade-in">
             {category?.name || categorySlug}
           </h1>
         </div>

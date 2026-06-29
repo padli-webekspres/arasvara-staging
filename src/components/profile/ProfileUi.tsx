@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
+import UserAvatar from "@/components/users/AvatarUser";
 import { Badge } from "@/components/ui/badge";
 import { Article } from "@/types/article";
 import { User } from "@/types/user";
@@ -18,12 +18,6 @@ interface ProfileUiProps {
     user: User;
     articles: Article[];
     totalArticles: number;
-}
-
-function getAvatarUrl(user: User): string {
-    if (!user.avatar) return "/placeholder.jpg";
-    if (typeof user.avatar === "string") return user.avatar;
-    return user.avatar.url || "/placeholder.jpg";
 }
 
 function formatDate(value?: Date | string): string {
@@ -55,8 +49,6 @@ export default function ProfileUi({
     const { data: currentUser } = useCurrentUser();
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
-    const avatarUrl = getAvatarUrl(user);
-
     const isOwnProfile = useMemo(() => {
         if (!currentUser) return false;
         return currentUser._id === user._id || currentUser.email === user.email;
@@ -88,15 +80,11 @@ export default function ProfileUi({
                 <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
                     <div>
                         <div className="flex items-start gap-4">
-                            <div className="relative h-20 w-20 overflow-hidden rounded-full border border-border">
-                                <Image
-                                    src={avatarUrl}
-                                    alt={user.name}
-                                    fill
-                                    className="object-cover"
-                                    unoptimized
-                                />
-                            </div>
+                            <UserAvatar
+                                avatar={user.avatar}
+                                name={user.name || user.email || "User"}
+                                className="h-20 w-20 shrink-0 border border-border"
+                            />
                             <div className="space-y-2">
                                 <h1 className="text-2xl font-bold leading-tight md:text-3xl">
                                     {user.name}

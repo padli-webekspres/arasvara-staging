@@ -23,7 +23,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ChevronUp, ImageOff, Plus, Save } from "lucide-react";
+import Image from "next/image";
 import CropImageModal from "@/components/media/CropImageModal";
+import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import {
   ADS_SINGLE_ARTICLE_SECTION_ORDER,
@@ -835,10 +837,13 @@ export default function AdsSingleArticleForm({
                 <div
                   className={`relative w-full overflow-hidden rounded-md bg-muted ${sidebarCropSpec.previewAspectClass}`}
                 >
-                  <img
+                  <Image
                     src={banner.previewUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
+                    alt="Pratinjau banner"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 1024px) 100vw, 320px"
+                    unoptimized={shouldUnoptimizeNewsCardImage(banner.previewUrl)}
                   />
                 </div>
                 <Button

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { get as idbGet, del as idbDel } from "idb-keyval";
 import axios from "axios";
 import api from "@/lib/axios";
+import { S3_IMMUTABLE_CACHE_CONTROL } from "@/lib/s3/object-cache";
 import AdsSingleArticleForm, {
   type SingleArticleDraft,
   type AdsServerBanner,
@@ -83,7 +84,10 @@ async function uploadBanner(itemId: string): Promise<AdsServerBanner> {
   const { uploadUrl, fileKey } = presignRes.data;
 
   await axios.put(uploadUrl, blob, {
-    headers: { "Content-Type": blob.type || "image/webp" },
+    headers: {
+      "Content-Type": blob.type || "image/webp",
+      "Cache-Control": S3_IMMUTABLE_CACHE_CONTROL,
+    },
   });
 
 

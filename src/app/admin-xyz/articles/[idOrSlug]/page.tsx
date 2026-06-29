@@ -14,7 +14,6 @@ export default async function EditArticlePage({
 }: {
   params: Promise<{ idOrSlug: string }>;
 }) {
-  console.log("EditArticlePage");
   const { idOrSlug } = await params;
 
   const db = await connectToDatabase();

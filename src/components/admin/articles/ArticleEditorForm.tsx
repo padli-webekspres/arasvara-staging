@@ -34,6 +34,7 @@ import axios from "axios";
 import api from "@/lib/axios";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { adminPanelHref } from "@/lib/admin-panel-path";
+import { S3_IMMUTABLE_CACHE_CONTROL } from "@/lib/s3/object-cache";
 import type { ArticleEditorFormProps } from "@/types/article";
 import { ArticleStatus } from "@/types/article";
 import {
@@ -174,7 +175,10 @@ async function uploadOnePendingMedia(
 
   // 3. PUT langsung ke object storage
   await axios.put(uploadUrl, blobFile, {
-    headers: { "Content-Type": "image/webp" },
+    headers: {
+      "Content-Type": "image/webp",
+      "Cache-Control": S3_IMMUTABLE_CACHE_CONTROL,
+    },
   });
 
 

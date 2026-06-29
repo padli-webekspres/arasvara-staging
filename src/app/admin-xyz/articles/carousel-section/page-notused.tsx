@@ -39,7 +39,6 @@ const CarouselSectionPage = ({}: EditorChoicePageProps) => {
         setLoadingCarouselSection(true);
         const response = await api.get("/articles/carousel-section");
         const { data } = response.data;
-        console.log("Fetched carousel section:", data);
         setCarouselSection(data || []);
         toast.success("Carousel Section berhasil dimuat");
       } catch (error) {
@@ -227,17 +226,11 @@ const CarouselSectionPage = ({}: EditorChoicePageProps) => {
       setCarouselSection(response.data.data || []);
 
       toast.success("Carousel Section berhasil disimpan!");
-      console.log("Carousel section saved:", response.data.data);
     } catch (error) {
       console.error("Error saving carousel section:", error);
       toast.error("Gagal menyimpan Carousel Section");
     }
   };
-
-  console.log(
-    "Render CarouselSectionPage with carouselSection:",
-    carouselSection,
-  );
 
   return (
     <SelectAndSort

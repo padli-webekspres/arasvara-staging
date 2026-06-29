@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import HeroVideo from "./HeroVideo";
@@ -21,9 +21,10 @@ interface SnapWrapperProps {
   heroVideoUrl: string;
   heroVideoPosterUrl?: string;
   headlines: SectionArticleItem[];
-  videoSectionBgUrl?: string; // Tambahkan prop untuk background video section
-  /** Data carousel iklan headline dari GET /api/ads/homepage */
+  videoSectionBgUrl?: string;
   headlineCarouselAds: HomepageAdItem[];
+  /** Server-rendered monogram LCP — dari page.tsx */
+  lcpMonogram: ReactNode;
 }
 
 const SnapWrapper = ({
@@ -32,6 +33,7 @@ const SnapWrapper = ({
   headlines,
   videoSectionBgUrl,
   headlineCarouselAds,
+  lcpMonogram,
 }: SnapWrapperProps) => {
   const wrapperRef = useSnapScroll();
   const router = useRouter();
@@ -51,7 +53,10 @@ const SnapWrapper = ({
     <div ref={wrapperRef} className="w-full relative">
       {/* SECTION 1: Hero */}
       <section className="snap-panel h-screen w-full  top-0 z-0">
-        <HeroVideo videoUrl={heroVideoUrl} posterUrl={heroVideoPosterUrl} />
+        <div className="relative h-screen w-full">
+          <HeroVideo videoUrl={heroVideoUrl} posterUrl={heroVideoPosterUrl} />
+          {lcpMonogram}
+        </div>
       </section>
 
       {/* snap-panel 2: About Us */}

@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { adminPanelHref } from "@/lib/admin-panel-path";
 import api from "@/lib/axios";
+import { usePushNotification } from "@/hooks/usePushNotification";
 
 // Import 5 sub-dashboard views
 import AdminDashboard from "@/components/dashboard/AdminDashboard";
@@ -78,6 +79,8 @@ export default function UnifiedAdminDashboard() {
   const [activeRole, setActiveRole] = useState<string>("admin");
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const { subscribe, isSubscribed, permission, isLoading, isSupportedBrowser, environmentIssue } =
+    usePushNotification();
 
   useEffect(() => {
     setMounted(true);
@@ -104,6 +107,26 @@ export default function UnifiedAdminDashboard() {
         setAuthLoading(false);
       });
   }, []);
+
+  // Minta izin push notification saat dashboard admin dibuka (setelah login terkonfirmasi)
+  useEffect(() => {
+    if (authLoading || !currentUser) return;
+    if (environmentIssue) return;
+    if (!isSupportedBrowser) return;
+    if (permission === "unsupported" || permission === "denied") return;
+    if (isSubscribed || isLoading) return;
+
+    void subscribe();
+  }, [
+    authLoading,
+    currentUser,
+    environmentIssue,
+    isSupportedBrowser,
+    permission,
+    isSubscribed,
+    isLoading,
+    subscribe,
+  ]);
 
   if (!mounted || authLoading) {
     return (
@@ -178,6 +201,13 @@ export default function UnifiedAdminDashboard() {
 
   return (
     <div className="min-w-0 max-w-full space-y-4 sm:space-y-6">
+      {environmentIssue && (
+        <div className="rounded-lg border border-terakota/30 bg-terakota/5 px-4 py-3 text-sm text-foreground">
+          <p className="font-semibold text-terakota">Push notification tidak tersedia</p>
+          <p className="mt-1 text-muted-foreground">{environmentIssue}</p>
+        </div>
+      )}
+
       {/* 1. Header & Dynamic Role Debugging Switcher */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between pb-3 border-b border-border">
         <div>

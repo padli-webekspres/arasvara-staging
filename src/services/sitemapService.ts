@@ -2,6 +2,7 @@ import { connectToDatabase } from "@/lib/db/db";
 import { ArticleStatus } from "@/types/article";
 import {
 	SitemapArticle,
+	SitemapAuthor,
 	SitemapCategory,
 	SitemapResponse,
 } from "@/types/sitemap";
@@ -60,10 +61,73 @@ export async function getSitemapCategories(): Promise<SitemapCategory[]> {
 		.filter((category) => Boolean(category.slug));
 }
 
+export async function getSitemapAuthors(): Promise<SitemapAuthor[]> {
+	const db = await connectToDatabase();
+	const rows = await db
+		.collection("articles")
+		.aggregate<{
+			slug: string;
+			name: string;
+			updatedAt: Date | string;
+		}>([
+			{
+				$match: {
+					status: ArticleStatus.PUBLISHED,
+					$or: [{ deletedAt: { $exists: false } }, { deletedAt: null }],
+					authorId: { $exists: true, $ne: null },
+				},
+			},
+			{
+				$group: {
+					_id: "$authorId",
+					updatedAt: { $max: "$publishedAt" },
+				},
+			},
+			{
+				$lookup: {
+					from: "users",
+					localField: "_id",
+					foreignField: "_id",
+					as: "user",
+				},
+			},
+			{ $unwind: "$user" },
+			{
+				$match: {
+					"user.slug": { $exists: true, $nin: [null, ""] },
+					$or: [
+						{ "user.deletedAt": { $exists: false } },
+						{ "user.deletedAt": null },
+						{ "user.deletedAt": "" },
+					],
+					"user.isActive": { $ne: false },
+				},
+			},
+			{
+				$project: {
+					_id: 0,
+					slug: "$user.slug",
+					name: "$user.name",
+					updatedAt: 1,
+				},
+			},
+		])
+		.toArray();
+
+	return rows.flatMap((row) => {
+		const slug = String(row.slug ?? "").trim().toLowerCase();
+		const name = String(row.name ?? "").trim();
+		const updatedAt = toIsoString(row.updatedAt);
+		if (!slug || !updatedAt) return [];
+		return [{ slug, name, updatedAt }];
+	});
+}
+
 export async function getSitemapData(): Promise<SitemapResponse> {
-	const [articles, categories] = await Promise.all([
+	const [articles, categories, authors] = await Promise.all([
 		getSitemapArticles(),
 		getSitemapCategories(),
+		getSitemapAuthors(),
 	]);
-	return { articles, categories };
+	return { articles, categories, authors };
 }

@@ -4,6 +4,7 @@ import Sidebar from "../navigation/Sidebar";
 import { Eye, Menu } from "lucide-react";
 import Link from "next/link";
 import NotificationButton from "../notification/NotificationButton";
+import PushDebugButton from "../notification/PushDebugButton";
 import { Button } from "../ui/button";
 
 export default function AdminLayoutClient({
@@ -53,6 +54,7 @@ export default function AdminLayoutClient({
           <div className="flex-1" />
 
           <NotificationButton />
+          {process.env.NODE_ENV === "development" ? <PushDebugButton /> : null}
           <Link
             href="/"
             target="_blank"

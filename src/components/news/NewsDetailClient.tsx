@@ -13,6 +13,9 @@ import { Article, ArticleListResponse } from "@/types/article";
 import { useLatestArticles } from "@/hooks/useLatestArticles";
 import { useArticlePageAds } from "@/hooks/useAds";
 import { useArticleTracking } from "@/hooks/useArticleTracking";
+import { resolveAuthorPublicHref } from "@/lib/author-public-path";
+import { buildAbsoluteUrl, getSiteBaseUrl } from "@/lib/og-image";
+import CategoryPushPrompt from "@/components/notification/CategoryPushPrompt";
 
 interface NewsDetailClientProps {
   article: Article;
@@ -46,7 +49,7 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
           });
           sessionStorage.setItem(key, "1");
         } catch (e) {
-          console.log("Failed to log article view:", e);
+          console.error("Failed to log article view:", e);
         }
       })();
     }
@@ -127,6 +130,11 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
 
   useArticleTracking(article, isShowAll ? "all" : pageNum);
 
+  const authorProfilePath = resolveAuthorPublicHref(article.author);
+  const authorProfileUrl = authorProfilePath
+    ? buildAbsoluteUrl(authorProfilePath, getSiteBaseUrl())
+    : undefined;
+
   return (
     <main className="pt-40">
       <ArticleUi
@@ -155,6 +163,13 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
         isLoadingArticleAds={isLoadingArticleAds}
       />
 
+      {article.category?.slug ? (
+        <CategoryPushPrompt
+          categorySlug={article.category.slug}
+          categoryName={article.category.name}
+        />
+      ) : null}
+
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -174,6 +189,7 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
             author: {
               "@type": "Person",
               name: article.author?.name || "Unknown Author",
+              ...(authorProfileUrl ? { url: authorProfileUrl } : {}),
             },
             publisher: {
               "@type": "Organization",

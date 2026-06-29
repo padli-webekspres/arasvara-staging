@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/users/AvatarUser";
 import { ListTable, ListTableColumn } from "@/components/table/ListTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
@@ -55,34 +55,21 @@ const writerColumns: ListTableColumn<KPIWriterTeamResponse>[] = [
   {
     key: "name",
     header: "Anggota Tim",
-    render: (row) => {
-      let avatarSrc: string | undefined = undefined;
-      if (typeof row.user.avatar === "string") {
-        avatarSrc = row.user.avatar;
-      } else if (
-        row.user.avatar &&
-        typeof row.user.avatar === "object" &&
-        "url" in row.user.avatar
-      ) {
-        avatarSrc = row.user.avatar.url;
-      }
-      return (
-        <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9 shrink-0">
-            <AvatarImage src={avatarSrc} />
-            <AvatarFallback>
-              {row.user.name?.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <p className="font-medium line-clamp-1">{row.user.name}</p>
-            <p className="text-sm text-muted-foreground line-clamp-1 capitalize">
-              {row.user.role.toLowerCase()}
-            </p>
-          </div>
+    render: (row) => (
+      <div className="flex items-center gap-3">
+        <UserAvatar
+          avatar={row.user.avatar}
+          name={row.user.name || "User"}
+          className="h-9 w-9 shrink-0"
+        />
+        <div className="min-w-0">
+          <p className="font-medium line-clamp-1">{row.user.name}</p>
+          <p className="text-sm text-muted-foreground line-clamp-1 capitalize">
+            {row.user.role.toLowerCase()}
+          </p>
         </div>
-      );
-    },
+      </div>
+    ),
   },
   {
     key: "productivity",
@@ -141,34 +128,21 @@ const editorColumns: ListTableColumn<KPIEditorResponse>[] = [
   {
     key: "name",
     header: "Editor",
-    render: (row) => {
-      let avatarSrc: string | undefined = undefined;
-      if (typeof row.user.avatar === "string") {
-        avatarSrc = row.user.avatar;
-      } else if (
-        row.user.avatar &&
-        typeof row.user.avatar === "object" &&
-        "url" in row.user.avatar
-      ) {
-        avatarSrc = row.user.avatar.url;
-      }
-      return (
-        <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9 shrink-0">
-            <AvatarImage src={avatarSrc} />
-            <AvatarFallback>
-              {row.user.name?.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0">
-            <p className="font-medium line-clamp-1">{row.user.name}</p>
-            <p className="text-sm text-muted-foreground line-clamp-1 capitalize">
-              {row.user.role.toLowerCase()}
-            </p>
-          </div>
+    render: (row) => (
+      <div className="flex items-center gap-3">
+        <UserAvatar
+          avatar={row.user.avatar}
+          name={row.user.name || "User"}
+          className="h-9 w-9 shrink-0"
+        />
+        <div className="min-w-0">
+          <p className="font-medium line-clamp-1">{row.user.name}</p>
+          <p className="text-sm text-muted-foreground line-clamp-1 capitalize">
+            {row.user.role.toLowerCase()}
+          </p>
         </div>
-      );
-    },
+      </div>
+    ),
   },
   {
     key: "productivity",

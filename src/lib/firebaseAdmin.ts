@@ -106,3 +106,79 @@ export async function sendFcmMulticast(
 
   return { expiredTokens };
 }
+
+export interface FcmTopicPayload {
+  title: string;
+  body: string;
+  link?: string;
+  imageUrl?: string;
+}
+
+/** Sanitize category slug menjadi nama topic FCM yang valid. */
+export function toCategoryTopic(categorySlug: string): string {
+  const sanitized = categorySlug
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-_.~%]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return `cat-${sanitized || "unknown"}`;
+}
+
+/**
+ * Subscribe satu FCM token ke topic kategori.
+ */
+export async function subscribeTokenToCategoryTopic(
+  token: string,
+  categorySlug: string,
+): Promise<boolean> {
+  if (!initFirebaseAdmin()) return false;
+
+  try {
+    const topic = toCategoryTopic(categorySlug);
+    const result = await admin.messaging().subscribeToTopic([token], topic);
+    return result.failureCount === 0;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[FCM] Gagal subscribe topic:", message);
+    return false;
+  }
+}
+
+/**
+ * Kirim push notification ke semua subscriber topic FCM.
+ */
+export async function sendFcmToTopic(
+  topic: string,
+  payload: FcmTopicPayload,
+): Promise<boolean> {
+  if (!initFirebaseAdmin()) return false;
+
+  const link = payload.link?.trim();
+  const imageUrl = payload.imageUrl?.trim();
+
+  try {
+    await admin.messaging().send({
+      topic,
+      notification: {
+        title: payload.title,
+        body: payload.body,
+        ...(imageUrl ? { imageUrl } : {}),
+      },
+      webpush: {
+        ...(link ? { fcmOptions: { link } } : {}),
+        notification: {
+          title: payload.title,
+          body: payload.body,
+          icon: "/logo-arasvara/monogram/contained-monogram-hitam-gema.png",
+          ...(imageUrl ? { image: imageUrl } : {}),
+        },
+      },
+    });
+    return true;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[FCM] Gagal kirim ke topic:", message);
+    return false;
+  }
+}

@@ -1,4 +1,4 @@
-import type { SitemapArticle, SitemapCategory } from "@/types/sitemap";
+import type { SitemapArticle, SitemapAuthor, SitemapCategory } from "@/types/sitemap";
 import { isStructuredPublicPath } from "@/lib/article-public-path";
 
 /** Basis URL publik dari NEXT_PUBLIC_BASE_URL (tanpa trailing slash). */
@@ -93,13 +93,28 @@ function articleUrlXml(baseUrl: string, articles: SitemapArticle[]): string {
 		.join("");
 }
 
+function authorUrlXml(baseUrl: string, authors: SitemapAuthor[]): string {
+	return authors
+		.map(
+			(author) => `
+  <url>
+    <loc>${buildLoc(baseUrl, `/author/${encodeURIComponent(author.slug)}`)}</loc>
+    <lastmod>${escapeXml(author.updatedAt)}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>`,
+		)
+		.join("");
+}
+
 export function buildSitemapXml(
 	baseUrl: string,
 	articles: SitemapArticle[],
 	categories: SitemapCategory[],
+	authors: SitemapAuthor[] = [],
 ): string {
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">${staticUrlXml(baseUrl)}${categoryUrlXml(baseUrl, categories)}${articleUrlXml(baseUrl, articles)}
+        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">${staticUrlXml(baseUrl)}${categoryUrlXml(baseUrl, categories)}${authorUrlXml(baseUrl, authors)}${articleUrlXml(baseUrl, articles)}
 </urlset>`;
 }

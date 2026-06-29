@@ -14,6 +14,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ulid } from "ulid";
 import { s3Client, S3_BUCKET } from "@/lib/s3";
 import logger from "@/lib/logger";
+import { withImmutableCacheControl } from "@/lib/s3/object-cache";
 import type {
   AdsHomepageFinalizeResponse,
   AdsHomepagePresignResponse,
@@ -114,11 +115,11 @@ export async function generatePresignedUrl(
 
   const uploadUrl = await getSignedUrl(
     s3Client,
-    new PutObjectCommand({
+    new PutObjectCommand(withImmutableCacheControl({
       Bucket: S3_BUCKET,
       Key: key,
       ContentType: mime,
-    }),
+    })),
     { expiresIn: PRESIGN_EXPIRES_IN },
   );
 
@@ -184,13 +185,13 @@ export async function finalizeMedia(
   const finalKey = `${s3PrefixFinal}/${ulid()}.webp`;
 
   await s3Client.send(
-    new PutObjectCommand({
+    new PutObjectCommand(withImmutableCacheControl({
       Bucket: S3_BUCKET,
       Key: finalKey,
       Body: webpBuffer,
       ContentType: "image/webp",
       ContentLength: webpBuffer.length,
-    }),
+    })),
   );
 
   // 4. Hapus file incoming (best-effort)

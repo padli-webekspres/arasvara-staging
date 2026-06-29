@@ -4,7 +4,7 @@ import React from "react";
 import { useHeroCardSplitText } from "@/hooks/animation/useHeroCardSplitText";
 import Link from "next/link";
 import Image from "next/image";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/users/AvatarUser";
 import { Article, ArticleListResponse } from "@/types/article";
 import { ImageNotFound } from "@/components/image-notfound/ImageNotFound";
 import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
@@ -116,10 +116,11 @@ const HeroCard = ({
             )}
 
             <div className="flex flex-row items-center gap-2 lg:gap-3">
-              <Avatar className="w-8 h-8">
-                <AvatarImage src="https://github.com/shadcn.png" />
-                <AvatarFallback>CN</AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                avatar={article.author?.avatar}
+                name={article.author?.name || "ARASVARA"}
+                className="w-8 h-8"
+              />
               <p
                 className={`text-sm font-medium ${isDark ? "text-gray-400" : "text-muted-foreground"}`}
               >

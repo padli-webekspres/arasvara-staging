@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { useAdsHistory, type AdsHistoryItem } from "@/hooks/useAds";
+import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { ListTable, ListTableColumn } from "@/components/table/ListTable";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,13 +52,17 @@ function BannerViewButton({ row }: { row: AdsHistoryItem }) {
               Pratinjau banner iklan — {row.type} / {row.positionOrPlacement}
             </DialogDescription>
           </DialogHeader>
-          <div className="relative w-full min-h-[160px] max-h-[70vh] rounded-md border border-border overflow-hidden bg-muted/30 flex items-center justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={row.bannerUrl}
-              alt={`Banner ${row.name}`}
-              className="max-w-full max-h-[70vh] object-contain"
-            />
+          <div className="relative w-full h-[min(50vh,28rem)] min-h-40 rounded-md border border-border overflow-hidden bg-muted/30">
+            {hasBanner && (
+              <Image
+                src={row.bannerUrl}
+                alt={`Banner ${row.name}`}
+                fill
+                className="object-contain"
+                sizes="(max-width: 768px) 100vw, 672px"
+                unoptimized={shouldUnoptimizeNewsCardImage(row.bannerUrl)}
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>

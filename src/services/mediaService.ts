@@ -22,6 +22,10 @@ import type { AuditLogActor } from "@/types/auditLog";
 import { AuditLogAction } from "@/types/auditLog";
 import { createAuditLog, requireAuditActor } from "@/services/auditLogService";
 import { ensurePresignedUploadIsWebp } from "@/lib/image/ensureObjectStorageWebp";
+import {
+	ensureObjectCacheControl,
+	withImmutableCacheControl,
+} from "@/lib/s3/object-cache";
 
 export interface UploadMediaResult {
 	fileName: string;
@@ -73,12 +77,12 @@ export async function uploadMedia(file: File): Promise<UploadMediaResult> {
 		}
 
 		await s3Client.send(
-			new PutObjectCommand({
+			new PutObjectCommand(withImmutableCacheControl({
 				Bucket: S3_BUCKET,
 				Key: generatedFileName,
 				Body: buffer,
 				ContentType: contentType,
-			}),
+			})),
 		);
 
 		logger.info(
@@ -134,11 +138,11 @@ export async function getPresignedUploadUrl(
 	const expiresIn = 60 * 5; // 5 menit
 	const uploadUrl = await getSignedUrl(
 		s3Client,
-		new PutObjectCommand({
+		new PutObjectCommand(withImmutableCacheControl({
 			Bucket: S3_BUCKET,
 			Key: generatedFileName,
 			ContentType: contentType,
-		}),
+		})),
 		{ expiresIn },
 	);
 
@@ -307,6 +311,7 @@ export async function registerPresignedMedia(
 	}
 
 	const audit = await ensurePresignedUploadIsWebp(fileKey, meta.size);
+	await ensureObjectCacheControl(S3_BUCKET, fileKey);
 	const finalSize = audit.size > 0 ? audit.size : meta.size;
 
 	const url = `/api/media/view?key=${encodeURIComponent(fileKey)}`;

@@ -37,7 +37,6 @@ const EditorChoicePage = ({}: EditorChoicePageProps) => {
         setLoadingEditorChoices(true);
         const response = await api.get("/articles/editor-choice");
         const { data } = response.data;
-        console.log("Fetched editor choices:", data);
         setEditorChoices(data || []);
         toast.success("Pilihan Editor berhasil dimuat");
       } catch (error) {
@@ -225,14 +224,11 @@ const EditorChoicePage = ({}: EditorChoicePageProps) => {
       setEditorChoices(response.data.data || []);
 
       toast.success("Pilihan Editor berhasil disimpan!");
-      console.log("Editor choices saved:", response.data.data);
     } catch (error) {
       console.error("Error saving editor choices:", error);
       toast.error("Gagal menyimpan Pilihan Editor");
     }
   };
-
-  console.log("Render EditorChoicePage with editorChoices:", editorChoices);
 
   return (
     <SelectAndSort

@@ -1,6 +1,7 @@
 import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { s3Client } from "@/lib/s3";
 import logger from "@/lib/logger";
+import { withImmutableCacheControl } from "@/lib/s3/object-cache";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -40,12 +41,12 @@ export async function uploadConfigurationFile(
 
     // Upload ke S3/MinIO
     await s3Client.send(
-      new PutObjectCommand({
+      new PutObjectCommand(withImmutableCacheControl({
         Bucket: CONFIGURATION_BUCKET,
         Key: storageKey,
         Body: buffer,
         ContentType: file.type || "application/octet-stream",
-      }),
+      })),
     );
 
     logger.info(

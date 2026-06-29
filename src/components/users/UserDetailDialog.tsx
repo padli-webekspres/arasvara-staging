@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/users/AvatarUser";
 import { Badge } from "@/components/ui/badge";
 import {
   CheckCircle,
@@ -28,12 +28,6 @@ import { adminPanelHref } from "@/lib/admin-panel-path";
 interface UserDetailDialogProps {
   userId: string | null;
   onOpenChange: (open: boolean) => void;
-}
-
-function getAvatarUrl(avatar: User["avatar"]): string | undefined {
-  if (!avatar) return undefined;
-  if (typeof avatar === "string") return avatar;
-  return avatar.url || undefined;
 }
 
 function getRoleInfo(roleValue: string) {
@@ -124,12 +118,12 @@ export default function UserDetailDialog({
             {/* Identity header */}
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16 shrink-0">
-                  <AvatarImage src={getAvatarUrl(data.avatar)} />
-                  <AvatarFallback className="text-xl">
-                    {data.name?.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar
+                  avatar={data.avatar}
+                  name={data.name || data.email || "User"}
+                  className="h-16 w-16 shrink-0"
+                  fallbackClassName="text-xl"
+                />
                 <div>
                   <h2 className="text-lg font-semibold">{data.name}</h2>
                   <span

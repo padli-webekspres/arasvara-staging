@@ -138,8 +138,6 @@ export default function SingleArticleApprovalPage() {
     );
   }
 
-  console.log("published", article.publishedAt);
-
   return (
     <div className="min-w-0 max-w-full space-y-4 sm:space-y-6">
       <ArticleUi

@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/users/AvatarUser";
 import { ListTableColumn } from "@/components/table/ListTable";
 import CardReportTable from "@/components/admin/reports/CardReportTable";
 import { useReportArticleWriter } from "@/hooks/useReportArticleWriter";
@@ -44,12 +44,11 @@ const columnsArticleUser: ListTableColumn<ArticleWriterTableRow>[] = [
     header: "User",
     render: (row: ArticleWriterTableRow) => (
       <div className="flex items-center gap-3">
-        <Avatar className="h-9 w-9 shrink-0">
-          <AvatarImage src={row.user.avatar} />
-          <AvatarFallback>
-            {row.user.name?.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <UserAvatar
+          avatar={row.user.avatar}
+          name={row.user.name || row.user.email || "User"}
+          className="h-9 w-9 shrink-0"
+        />
         <div className="min-w-0">
           <p className="font-medium line-clamp-1">{row.user.name}</p>
           <p className="text-sm text-muted-foreground line-clamp-1">

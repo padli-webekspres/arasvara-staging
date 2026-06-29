@@ -44,6 +44,7 @@ import { Media } from "@/types/media";
 import { Category } from "@/types/category";
 import { AuditLogAction } from "@/types/auditLog";
 import { createEditorActivity } from "@/services/analytics/editorActivityService";
+import { sendPushToUsers, notifyCategoryOnArticlePublished } from "@/services/pushNotifService";
 import { canPickArticleAttribution } from "@/lib/editorialPublicationAccess";
 import {
   buildLegacyArticlePath,
@@ -53,6 +54,7 @@ import {
   buildPublicPathFields,
   recomputeArticlePublicPathFromUpdates,
 } from "@/services/article/articlePublicPathService";
+import { resolveArticleDenormFields } from "@/lib/article-denorm";
 
 export function safeRevalidateArticlePublicPage(
   publicPath: string | null | undefined,
@@ -419,6 +421,86 @@ function resolveRelatedArticles(
   return result;
 }
 
+/** Editor dan superadmin (role admin) yang menerima notifikasi review artikel */
+const ARTICLE_REVIEWER_ROLE_PATTERN = /^(editor|admin)$/i;
+
+type ArticlePendingReviewNotifyActor = {
+  _id: string;
+  name: string;
+  email: string;
+};
+
+async function notifyArticlePendingReview(
+  db: Db,
+  params: {
+    articleId: string;
+    title: string;
+    actor: ArticlePendingReviewNotifyActor;
+    message: string;
+    logContext: string;
+  },
+): Promise<void> {
+  try {
+    const reviewerDocs = await db
+      .collection("users")
+      .find({
+        role: { $regex: ARTICLE_REVIEWER_ROLE_PATTERN },
+        deletedAt: { $in: [null, ""] },
+      })
+      .project({ _id: 1, name: 1, email: 1, avatar: 1 })
+      .toArray();
+
+    const bulkInputs: CreateNotificationInput[] = [];
+    const receiverIds: string[] = [];
+
+    for (const u of reviewerDocs) {
+      const email = String(u.email ?? "").trim();
+      const name = String(u.name ?? "").trim();
+      if (!email || !name) continue;
+
+      const rid =
+        u._id instanceof ObjectId ? u._id.toHexString() : String(u._id);
+      receiverIds.push(rid);
+
+      const av = u.avatar;
+      bulkInputs.push({
+        receiver: {
+          _id: rid,
+          name,
+          email,
+          ...(typeof av === "string" && av.trim()
+            ? { avatarUrl: av.trim() }
+            : {}),
+        },
+        actor: params.actor,
+        type: NotificationType.ARTICLE_SUBMITTED,
+        title: "Artikel menunggu review",
+        message: params.message,
+        targetId: params.articleId,
+        link: adminPanelHref(`articles/${params.articleId}`),
+        isPushSent: false,
+      });
+    }
+
+    if (bulkInputs.length > 0) {
+      await createBulkNotifications(db, bulkInputs);
+    }
+
+    if (receiverIds.length > 0) {
+      await sendPushToUsers(db, receiverIds, {
+        title: "Artikel menunggu review",
+        body: params.message,
+        link: adminPanelHref(`articles/${params.articleId}`),
+      });
+    }
+  } catch (notifErr) {
+    logger.error(
+      { err: notifErr, articleId: params.articleId },
+      params.logContext,
+    );
+  }
+}
+
 // ─── Create ───────────────────────────────────────────────────────────────────
 export async function createArticle(
   db: Db,
@@ -620,6 +702,12 @@ export async function createArticle(
       categorySlug,
     });
 
+    const denormFields = await resolveArticleDenormFields(
+      db,
+      resolvedAuthorId,
+      mongoCategoryId,
+    );
+
     let doc: any = {
       title: trimmedTitle,
       titleNormalized: titleNormalizedForStorage(trimmedTitle),
@@ -652,6 +740,7 @@ export async function createArticle(
       relatedArticles: resolveRelatedArticles(rawRelatedArticles, actorOid),
       urlFormat,
       publicPath: createPublicPath,
+      ...denormFields,
     };
     if (format === "STANDARD") {
       doc.content = content;
@@ -773,49 +862,13 @@ export async function createArticle(
       }),
       (async () => {
         if (status === ArticleStatus.PENDING_REVIEW) {
-          try {
-            const editorDocs = await db
-              .collection("users")
-              .find({ role: { $regex: /^editor$/i } })
-              .project({ _id: 1, name: 1, email: 1, avatar: 1 })
-              .toArray();
-
-            const bulkInputs: CreateNotificationInput[] = [];
-            for (const u of editorDocs) {
-              const email = String(u.email ?? "").trim();
-              const name = String(u.name ?? "").trim();
-              if (!email || !name) continue;
-              const rid =
-                u._id instanceof ObjectId ? u._id.toHexString() : String(u._id);
-              const av = u.avatar;
-              bulkInputs.push({
-                receiver: {
-                  _id: rid,
-                  name,
-                  email,
-                  ...(typeof av === "string" && av.trim()
-                    ? { avatarUrl: av.trim() }
-                    : {}),
-                },
-                actor: notifyActor,
-                type: NotificationType.ARTICLE_SUBMITTED,
-                title: "Artikel menunggu review",
-                message: `${actorName} mengirim artikel "${title}" untuk ditinjau.`,
-                targetId: articleIdStr,
-                link: adminPanelHref(`articles/${articleIdStr}`),
-                isPushSent: false,
-              });
-            }
-
-            if (bulkInputs.length > 0) {
-              await createBulkNotifications(db, bulkInputs);
-            }
-          } catch (notifErr) {
-            logger.error(
-              { err: notifErr, articleId: articleIdStr },
-              "createArticle: notifikasi ke editor gagal",
-            );
-          }
+          await notifyArticlePendingReview(db, {
+            articleId: articleIdStr,
+            title,
+            actor: notifyActor,
+            message: `${actorName} mengirim artikel "${title}" untuk ditinjau.`,
+            logContext: "createArticle: notifikasi ke reviewer gagal",
+          });
         } else if (status === ArticleStatus.PUBLISHED) {
           try {
             await createOneNotification(db, {
@@ -837,6 +890,23 @@ export async function createArticle(
               "createArticle: notifikasi publish ke penulis gagal",
             );
           }
+          void notifyCategoryOnArticlePublished(db, {
+            title,
+            publicPath: doc.publicPath ? String(doc.publicPath) : null,
+            featuredImage: resolvedFeaturedImage ?? featuredImage,
+            categoryId: mongoCategoryId,
+            category: categoryExists
+              ? {
+                  slug: String(categoryExists.slug ?? ""),
+                  name: String(categoryExists.name ?? ""),
+                }
+              : null,
+          }).catch((catPushErr) => {
+            logger.error(
+              { err: catPushErr, articleId: articleIdStr },
+              "createArticle: push kategori gagal",
+            );
+          });
         } else if (status === ArticleStatus.SCHEDULED) {
           try {
             const when =
@@ -1179,6 +1249,25 @@ export async function updateArticle(
     updates.publicPath = pathFields.publicPath;
     updates.urlFormat = pathFields.urlFormat;
 
+    const effectiveAuthorId =
+      attributionUpdates.authorId ?? existing.authorId;
+    const effectiveCategoryId =
+      mongoCategoryId !== undefined ? mongoCategoryId : existing.categoryId;
+    const shouldRefreshDenorm =
+      Object.prototype.hasOwnProperty.call(attributionUpdates, "authorId") ||
+      mongoCategoryId !== undefined;
+
+    if (shouldRefreshDenorm) {
+      Object.assign(
+        updates,
+        await resolveArticleDenormFields(
+          db,
+          effectiveAuthorId,
+          effectiveCategoryId,
+        ),
+      );
+    }
+
     // ───────────────── POINT 3: Update Article dengan $set & $push Atomik ──────
     // Gabungkan update regular fields ($set) dan tambah revision ke array ($push)
     await db.collection("articles").updateOne(query, {
@@ -1232,49 +1321,13 @@ export async function updateArticle(
       const titleStr = String(updated.title ?? existing.title ?? "");
 
       if (finalStatus === ArticleStatus.PENDING_REVIEW) {
-        try {
-          const editorDocs = await db
-            .collection("users")
-            .find({ role: { $regex: /^editor$/i } })
-            .project({ _id: 1, name: 1, email: 1, avatar: 1 })
-            .toArray();
-
-          const bulkInputs: CreateNotificationInput[] = [];
-          for (const u of editorDocs) {
-            const email = String(u.email ?? "").trim();
-            const name = String(u.name ?? "").trim();
-            if (!email || !name) continue;
-            const rid =
-              u._id instanceof ObjectId ? u._id.toHexString() : String(u._id);
-            const av = u.avatar;
-            bulkInputs.push({
-              receiver: {
-                _id: rid,
-                name,
-                email,
-                ...(typeof av === "string" && av.trim()
-                  ? { avatarUrl: av.trim() }
-                  : {}),
-              },
-              actor: notifyActor,
-              type: NotificationType.ARTICLE_SUBMITTED,
-              title: "Artikel menunggu review",
-              message: `${actorName} memperbarui artikel "${titleStr}" — menunggu review.`,
-              targetId: articleId,
-              link: adminPanelHref(`articles/${articleId}`),
-              isPushSent: false,
-            });
-          }
-
-          if (bulkInputs.length > 0) {
-            await createBulkNotifications(db, bulkInputs);
-          }
-        } catch (notifErr) {
-          logger.error(
-            { err: notifErr, articleId },
-            "updateArticle: notifikasi ke editor gagal",
-          );
-        }
+        await notifyArticlePendingReview(db, {
+          articleId,
+          title: titleStr,
+          actor: notifyActor,
+          message: `${actorName} memperbarui artikel "${titleStr}" — menunggu review.`,
+          logContext: "updateArticle: notifikasi ke reviewer gagal",
+        });
       } else if (finalStatus === ArticleStatus.PUBLISHED) {
         try {
           const rawAid = existing.authorId;
@@ -1318,6 +1371,17 @@ export async function updateArticle(
             "updateArticle: notifikasi publish ke penulis gagal",
           );
         }
+        void notifyCategoryOnArticlePublished(db, {
+          title: titleStr,
+          publicPath: updated.publicPath ? String(updated.publicPath) : null,
+          featuredImage: updated.featuredImage,
+          categoryId: updated.categoryId ?? existing.categoryId,
+        }).catch((catPushErr) => {
+          logger.error(
+            { err: catPushErr, articleId },
+            "updateArticle: push kategori gagal",
+          );
+        });
       } else if (finalStatus === ArticleStatus.SCHEDULED) {
         try {
           const rawAid = existing.authorId;
@@ -1556,7 +1620,7 @@ export async function deleteArticle(
     ]);
 
     logger.info(
-      { articleId, title: existing.title },
+      { articleId, title: existing.title?.slice(0, 120) },
       "deleteArticle: Article soft deleted",
     );
 

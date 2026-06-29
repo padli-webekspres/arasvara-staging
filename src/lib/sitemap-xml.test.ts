@@ -48,4 +48,24 @@ describe("buildSitemapXml structured paths", () => {
     expect(xml).not.toContain("/news/legacy-slug");
     expect(xml).not.toContain("/news/business/2026/06/19/stale");
   });
+
+  it("includes author profile URLs", () => {
+    const xml = buildSitemapXml(
+      "https://arasvara.id",
+      [],
+      [],
+      [
+        {
+          slug: "budi-santoso",
+          name: "Budi Santoso",
+          updatedAt: "2026-06-19T12:00:00.000Z",
+        },
+      ],
+    );
+
+    expect(xml).toContain(
+      "<loc>https://arasvara.id/author/budi-santoso</loc>",
+    );
+    expect(xml).toContain("<lastmod>2026-06-19T12:00:00.000Z</lastmod>");
+  });
 });

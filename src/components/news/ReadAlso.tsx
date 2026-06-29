@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "../ui/button";
-import { resolvePublicArticleHref } from "@/lib/article-public-path";
+import { resolveArticleHref } from "@/lib/article-public-path";
 
 interface ReadAlsoProps {
   slug: string;
@@ -12,7 +12,9 @@ interface ReadAlsoProps {
 const ReadAlso = ({ slug, title, publicPath }: ReadAlsoProps) => {
   if (!slug || !title) return null;
 
-  const href = resolvePublicArticleHref({ slug, publicPath });
+  // resolveArticleHref: jika publicPath ada → pakai langsung (termasuk hasil inject server),
+  // jika tidak → fallback ke /news/{slug}
+  const href = resolveArticleHref({ slug, publicPath });
 
   return (
     <Link

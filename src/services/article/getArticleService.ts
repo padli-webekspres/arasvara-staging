@@ -17,7 +17,128 @@ import {
   normalizeContentMediaItem,
 } from "@/lib/helper-article";
 import { rewriteArticleContentMediaUrls } from "@/lib/media/public-media-url";
-import { isValidArticlePublicPath } from "@/lib/article-public-path";
+import {
+  isValidArticlePublicPath,
+  buildLegacyArticlePath,
+} from "@/lib/article-public-path";
+
+/**
+ * Cari semua slug dari marker `data-read-also` dalam HTML konten artikel,
+ * batch-query publicPath-nya dari DB, lalu inject `data-public-path` ke HTML.
+ *
+ * Prioritas resolusi href per artikel referensi:
+ *   1. `publicPath` sudah ada di DB → pakai langsung
+ *   2. Ada `category.slug` + `publishedAt` → build structured path
+ *   3. Ada `slug` saja → fallback ke /news/{slug}
+ *
+ * Dipanggil sekali saat hydrasi artikel di server — hasilnya ikut ISR cache.
+ * Jika query gagal, HTML dikembalikan tanpa modifikasi (graceful fallback).
+ */
+async function injectReadAlsoPublicPaths(
+  db: Db,
+  html: string,
+): Promise<string> {
+  if (!html || !html.includes('data-read-also="true"')) return html;
+
+  const divPattern = /<div\b([^>]*data-read-also="true"[^>]*)>/g;
+  const slugAttrPattern = /data-slug="([^"]+)"/;
+  const hasPublicPath = /data-public-path=/;
+
+  const slugs: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = divPattern.exec(html)) !== null) {
+    const attrs = m[1];
+    if (hasPublicPath.test(attrs)) continue;
+    const slugMatch = slugAttrPattern.exec(attrs);
+    if (slugMatch?.[1]) slugs.push(slugMatch[1]);
+  }
+
+  if (slugs.length === 0) return html;
+
+  const uniqueSlugs = [...new Set(slugs)];
+
+  try {
+    const docs = await db
+      .collection("articles")
+      .find(
+        { slug: { $in: uniqueSlugs }, status: ArticleStatus.PUBLISHED },
+        {
+          projection: {
+            slug: 1,
+            publicPath: 1,
+            publishedAt: 1,
+            "category.slug": 1,
+            categoryId: 1,
+          },
+        },
+      )
+      .toArray();
+
+    const hrefMap = new Map<string, string>();
+    for (const doc of docs) {
+      if (!doc.slug) continue;
+      const slug = String(doc.slug);
+
+      // 1. publicPath sudah ada
+      if (doc.publicPath) {
+        hrefMap.set(slug, String(doc.publicPath));
+        continue;
+      }
+
+      // 2. Coba build structured path dari category + publishedAt
+      const categorySlug =
+        (doc.category as Record<string, unknown> | null)?.slug ??
+        undefined;
+      if (categorySlug && doc.publishedAt) {
+        try {
+          const date =
+            doc.publishedAt instanceof Date
+              ? doc.publishedAt
+              : new Date(String(doc.publishedAt));
+          if (!Number.isNaN(date.getTime())) {
+            const { buildStructuredArticlePath } = await import(
+              "@/lib/article-public-path"
+            );
+            hrefMap.set(
+              slug,
+              buildStructuredArticlePath({
+                categorySlug: String(categorySlug),
+                publishedAt: date,
+                articleSlug: slug,
+              }),
+            );
+            continue;
+          }
+        } catch {
+          // lanjut ke fallback
+        }
+      }
+
+      // 3. Fallback: legacy /news/{slug}
+      hrefMap.set(slug, buildLegacyArticlePath(slug));
+    }
+
+    if (hrefMap.size === 0) return html;
+
+    return html.replace(
+      /<div\b([^>]*data-read-also="true"[^>]*)>/g,
+      (match, attrs: string) => {
+        if (hasPublicPath.test(attrs)) return match;
+        const slugMatch = slugAttrPattern.exec(attrs);
+        if (!slugMatch?.[1]) return match;
+        const href = hrefMap.get(slugMatch[1]);
+        if (!href) return match;
+        return `<div${attrs} data-public-path="${href}">`;
+      },
+    );
+  } catch (err) {
+    logger.warn(
+      { err },
+      "injectReadAlsoPublicPaths: gagal resolve publicPath, fallback ke HTML asal",
+    );
+    return html;
+  }
+}
 
 /** Antrian editorial: baru + dokumen yang masih berstatus APPROVED di DB. */
 const APPROVAL_QUEUE_STATUSES: (ArticleStatus | "APPROVED")[] = [
@@ -238,8 +359,11 @@ async function hydrateArticleAggregateDoc(
     });
   }
 
-  const rewrittenContent = rewriteArticleContentMediaUrls(
-    typeof doc.content === "string" ? doc.content : "",
+  const rewrittenContent = await injectReadAlsoPublicPaths(
+    db,
+    rewriteArticleContentMediaUrls(
+      typeof doc.content === "string" ? doc.content : "",
+    ),
   );
 
   let authorSlug: string | undefined;

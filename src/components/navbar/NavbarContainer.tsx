@@ -383,6 +383,7 @@ const NavbarContainer = () => {
                     width={220}
                     height={88}
                     priority
+                    unoptimized
                     className="w-auto h-9 sm:h-10 object-contain"
                   />
                 </Link>
@@ -480,6 +481,7 @@ const NavbarContainer = () => {
                   width={240}
                   height={96}
                   priority
+                  unoptimized
                   className="w-auto h-12  object-contain"
                 />
               </Link>

@@ -75,7 +75,9 @@ import {
   formatDateReadable,
   formatDateTimeReadable,
   formatTimeReadable,
+  cn,
 } from "@/lib/utils";
+import { getAdminStandardCardGridClass } from "@/lib/admin-card-grid";
 import { ListTable, ListTableColumn } from "@/components/table/ListTable";
 import api from "@/lib/axios";
 import { toast } from "sonner";
@@ -576,7 +578,7 @@ const ArticlesPage = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
           <div className="space-y-2">
             <Label htmlFor="filter-type">Type</Label>
             <Select
@@ -653,7 +655,7 @@ const ArticlesPage = () => {
                 </Select>
               </div>
 
-              <div className="space-y-2 sm:col-span-2 xl:col-span-1">
+              <div className="space-y-2">
                 <Label htmlFor="filter-category">Category</Label>
                 <Select
                   value={categorySlug || "__all__"}
@@ -683,7 +685,12 @@ const ArticlesPage = () => {
             </>
           )}
 
-          <div className="space-y-2 sm:col-span-2 xl:col-span-1 2xl:col-span-2">
+          <div
+            className={cn(
+              "space-y-2",
+              type === "ARTICLES" && "sm:col-span-2",
+            )}
+          >
             <Label>Tanggal tayang / dibuat</Label>
             <Popover>
               <PopoverTrigger asChild>
@@ -738,7 +745,7 @@ const ArticlesPage = () => {
                 Tidak ada video
               </p>
             ) : (
-              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className={cn("p-4", getAdminStandardCardGridClass())}>
                 {videos.map((v) => (
                   <Card key={v._id} className="overflow-hidden flex flex-col">
                     <div className="aspect-video bg-muted relative">

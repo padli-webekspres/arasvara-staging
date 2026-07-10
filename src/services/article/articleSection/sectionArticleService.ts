@@ -2,10 +2,29 @@ import { Db, ObjectId } from "mongodb";
 import { SectionArticleItem } from "@/types/articleSection";
 import { ArticleListResponse } from "@/types/article";
 import logger from "@/lib/logger";
+import type { AuditLogActor, AuditLogEntityValue } from "@/types/auditLog";
+import { AuditLogAction, AuditLogEntity } from "@/types/auditLog";
+import { createAuditLog, requireAuditActor } from "@/services/auditLogService";
 import {
   normalizeFeaturedImage,
   featuredImageLookupStages,
 } from "./articleSectionUtils";
+
+type SectionArticleType = "featured" | "editor choices" | "popular" | "headline";
+
+const SECTION_TYPE_ENTITY: Record<SectionArticleType, AuditLogEntityValue> = {
+  featured: AuditLogEntity.SECTION_FEATURED,
+  "editor choices": AuditLogEntity.SECTION_EDITOR_CHOICES,
+  popular: AuditLogEntity.SECTION_POPULAR,
+  headline: AuditLogEntity.SECTION_HEADLINE,
+};
+
+const SECTION_TYPE_LABEL: Record<SectionArticleType, string> = {
+  featured: "grid unggulan",
+  "editor choices": "pilihan editor",
+  popular: "artikel populer",
+  headline: "headline",
+};
 
 /**
  * Payload untuk upsert section articles
@@ -262,10 +281,16 @@ export async function getSectionArticlesWithType(
 export async function upsertSectionArticlesWithType(
   db: Db,
   payload: UpsertSectionPayload,
-  userId: string,
-  type: "featured" | "editor choices" | "popular" | "headline",
+  actor: AuditLogActor,
+  type: SectionArticleType,
   limit?: number,
 ): Promise<SectionArticleItem[]> {
+  const auditActor = requireAuditActor(actor);
+  const userId =
+    typeof auditActor._id === "string"
+      ? auditActor._id
+      : auditActor._id.toString();
+
   try {
     // Validate input
     validateUpsertSectionInput(payload, limit);
@@ -304,6 +329,7 @@ export async function upsertSectionArticlesWithType(
     }
 
     // Perform bulk operation
+    const previousCount = await collection.countDocuments({ type });
     await collection.deleteMany({ type });
     const insertResult = await collection.insertMany(documentsToInsert);
 
@@ -326,6 +352,34 @@ export async function upsertSectionArticlesWithType(
       "Section articles upserted successfully",
     );
 
+    const entity = SECTION_TYPE_ENTITY[type];
+    const sectionLabel = SECTION_TYPE_LABEL[type];
+    const articleIds = payload.articles.map((article) => article.article_id);
+
+    try {
+      await createAuditLog(db, {
+        actor: auditActor,
+        action: AuditLogAction.UPDATE,
+        entity,
+        entityId: entity,
+        details: `Mengganti ${sectionLabel}: ${payload.articles.length} artikel`,
+        oldValue: { articleCount: previousCount },
+        newValue: {
+          articleCount: payload.articles.length,
+          articleIds,
+        },
+        meta: {
+          sectionType: type,
+          articleCount: payload.articles.length,
+        },
+      });
+    } catch (auditErr) {
+      logger.error(
+        { err: auditErr, type },
+        "createAuditLog gagal setelah upsertSectionArticlesWithType",
+      );
+    }
+
     // Return yang sudah di-insert, dengan convert ke string untuk frontend
     const result: SectionArticleItem[] = documentsToInsert.map(
       (doc, index) => ({
@@ -340,7 +394,16 @@ export async function upsertSectionArticlesWithType(
 
     return result;
   } catch (error) {
-    logger.error({ userId, type, payload, error }, "Error upserting section articles");
+    logger.error(
+      {
+        userId:
+          typeof actor._id === "string" ? actor._id : actor._id.toString(),
+        type,
+        payload,
+        error,
+      },
+      "Error upserting section articles",
+    );
     throw error;
   }
 }

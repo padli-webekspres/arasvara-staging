@@ -42,13 +42,14 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
         {/* ── ZONA SNAP 1: Hero · About Us · Visi · Misi ──────────────── */}
         <div ref={zone1Ref} className="relative">
           {/* snap-panel 1: Hero */}
-          <section className="snap-panel h-screen w-full bg-background container mx-auto px-4 md:px-0 flex items-center">
-            <div className="flex flex-col gap-8 items-center justify-center pointer-events-none z-10 px-4 md:px-0 w-full">
+          <section className="snap-panel h-screen w-full bg-background container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 flex items-center">
+            <div className="flex flex-col gap-8 items-center justify-center pointer-events-none z-10 w-full">
               <Image
                 src="/logo-arasvara/main-logo/main-logo-hitam-gema.png"
                 alt="Arasvara Monogram"
                 className="h-12 md:h-20 lg:h-24 object-contain select-none"
                 draggable={false}
+                unoptimized
                 width={500}
                 height={500}
               />
@@ -113,7 +114,7 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
 
           {/* snap-panel 3: Visi & Misi */}
           <section className="snap-panel min-h-screen overflow-hidden bg-background flex flex-col justify-center relative gap-8">
-            <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-8">
+            <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-8">
               <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold w-full md:w-1/3 text-primary">
                 Visi
               </h2>
@@ -125,7 +126,7 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
               </div>
             </div>
             <DividerHorizontal variant="dark" className="mx-auto max-w-3xl" />
-            <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-8">
+            <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-8">
               <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold w-full md:w-1/3 text-primary">
                 Misi
               </h2>
@@ -182,7 +183,7 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
             />
 
             <div
-              className="container xl:max-w-6xl relative z-20 mx-auto px-4 md:px-0"
+              className="container xl:max-w-6xl relative z-20 mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8"
               id="struktur-redaksi"
             >
               <div className="rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md shadow-lg p-6">
@@ -241,7 +242,7 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
                 return (
                   <div
                     key={idx}
-                    className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-8"
+                    className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-8"
                   >
                     {section.title && (
                       <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold w-full md:w-1/3 text-background">
@@ -278,7 +279,7 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
           ) : (
             // Fallback: tampilkan Pedoman & Ketentuan hardcoded jika belum ada sections dari config
             // <section className="snap-panel h-screen overflow-hidden bg-foreground flex flex-col justify-center relative gap-8">
-            //   <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-8">
+            //   <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-8">
             //     <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold w-full md:w-1/3 text-background">
             //       Pedoman Media Siber
             //     </h2>
@@ -301,7 +302,7 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
             //     variant="light"
             //     className="mx-auto max-w-3xl"
             //   />
-            //   <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-8">
+            //   <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-8">
             //     <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold w-full md:w-1/3 text-background">
             //       Ketentuan Konten
             //     </h2>
@@ -328,7 +329,7 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
           {/* snap-panel: Quotes */}
           {(data.quotes || data.quotesOwner) && (
             <section className="snap-panel h-screen overflow-hidden bg-foreground flex items-center">
-              <div className="container xl:max-w-6xl text-center mx-auto px-4 md:px-0">
+              <div className="container xl:max-w-6xl text-center mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
                 <h3 className="text-2xl md:text-3xl lg:text-4xl font-bold text-background text-center mb-4">
                   &ldquo;{data.quotes}&rdquo;
                 </h3>
@@ -345,7 +346,7 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
           {/* Fallback quotes jika tidak ada dari config */}
           {!data.quotes && !data.quotesOwner && (
             <section className="snap-panel h-screen overflow-hidden bg-foreground flex items-center">
-              <div className="container xl:max-w-6xl text-center mx-auto px-4 md:px-0">
+              <div className="container xl:max-w-6xl text-center mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
                 <h3 className="text-2xl md:text-3xl lg:text-4xl font-bold text-background text-center mb-4">
                   &ldquo;Arasvara hadir untuk menjadi suara yang mendengar dan
                   memantulkan aspirasi generasi muda.&rdquo;
@@ -379,7 +380,7 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
               }}
             />
 
-            <div className="container xl:max-w-6xl relative z-20 mx-auto px-4 md:px-0">
+            <div className="container xl:max-w-6xl relative z-20 mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
               <div className="rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md shadow-lg p-6">
                 <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white text-center mb-4">
                   {data.titleMeetUs || "Meet us"}

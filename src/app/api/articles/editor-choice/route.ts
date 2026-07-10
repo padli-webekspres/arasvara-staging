@@ -92,7 +92,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     // Upsert editor choices menggunakan service generik
-    await upsertSectionArticlesWithType(db, body, user._id?.toString() || user._id, "editor choices");
+    await upsertSectionArticlesWithType(
+      db,
+      body,
+      {
+        _id: user._id?.toString() || user._id,
+        name: String(user.name ?? ""),
+        email: String(user.email ?? ""),
+      },
+      "editor choices",
+    );
 
     // Fetch populated editor choices after upsert
     const populatedChoices = await getSectionArticlesWithType(db, "editor choices");

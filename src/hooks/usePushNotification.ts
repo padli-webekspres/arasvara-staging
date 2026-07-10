@@ -7,18 +7,20 @@
  * 1. Register service worker
  * 2. Meminta izin push notification dari browser
  * 3. Mendapatkan FCM token
- * 4. Menyimpan/menghapus token ke backend
+ * 4. (Opsional) Menyimpan token ke backend jika user login
  *
- * Dirancang untuk dipanggil di komponen yang sudah tahu user sudah login.
+ * Guest dapat subscribe tanpa login; penyimpanan ke `/api/push-token` opsional.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getToken, onMessage } from "firebase/messaging";
-import { getFirebaseMessaging } from "@/lib/firebase";
+import type { AxiosError } from "axios";
+import { getFirebaseMessaging, getFirebaseMessagingError } from "@/lib/firebase";
+import { resolveFirebaseVapidKey } from "@/lib/firebase-client-config";
 import { getPushEnvironmentIssue } from "@/lib/firebase-host";
 import api from "@/lib/axios";
 
-const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ?? "";
+const VAPID_KEY = resolveFirebaseVapidKey();
 const TOKEN_STORAGE_KEY = "fcm_token";
 const SUBSCRIBE_TIMEOUT_MS = 20_000;
 
@@ -91,6 +93,17 @@ function formatFcmError(err: unknown): string {
   }
 
   const message = err instanceof Error ? err.message : String(err);
+  const axiosStatus =
+    typeof err === "object" &&
+    err !== null &&
+    "response" in err &&
+    typeof (err as AxiosError).response?.status === "number"
+      ? (err as AxiosError).response?.status
+      : undefined;
+
+  if (axiosStatus === 401) {
+    return "Unauthorized";
+  }
   if (/service worker|pushmanager|subscribe/i.test(message)) {
     return `Gagal memuat FCM token: ${message}. Coba unregister service worker lama di DevTools lalu refresh.`;
   }
@@ -105,7 +118,9 @@ async function requestFcmToken(
 ): Promise<string> {
   const messaging = getFirebaseMessaging();
   if (!messaging) {
-    throw new Error("Firebase Messaging tidak tersedia.");
+    throw new Error(
+      getFirebaseMessagingError() ?? "Firebase Messaging tidak tersedia.",
+    );
   }
 
   const tokenOptions = {
@@ -144,14 +159,32 @@ export type SubscribeResult =
   | { ok: true; token: string }
   | { ok: false; reason: string };
 
+export type SubscribeOptions = {
+  /** Simpan token ke POST /api/push-token (hanya untuk user login). Default false. */
+  persistToBackend?: boolean;
+};
+
+export type UnsubscribeOptions = {
+  /** Hapus token dari DELETE /api/push-token (hanya untuk user login). Default false. */
+  removeFromBackend?: boolean;
+};
+
 export interface UsePushNotificationReturn {
   permission: PushPermission;
   isSubscribed: boolean;
   isLoading: boolean;
   isSupportedBrowser: boolean | null;
   environmentIssue: string | null;
-  subscribe: () => Promise<SubscribeResult>;
-  unsubscribe: () => Promise<void>;
+  subscribe: (options?: SubscribeOptions) => Promise<SubscribeResult>;
+  unsubscribe: (options?: UnsubscribeOptions) => Promise<void>;
+}
+
+async function persistPushTokenToBackend(token: string): Promise<void> {
+  await api.post("/push-token", { token });
+}
+
+async function removePushTokenFromBackend(token: string): Promise<void> {
+  await api.delete("/push-token", { data: { token } });
 }
 
 async function checkMessagingSupported(): Promise<boolean> {
@@ -235,7 +268,9 @@ export function usePushNotification(): UsePushNotificationReturn {
 
   // ─── Subscribe ────────────────────────────────────────────────────────────
 
-  const subscribe = useCallback(async (): Promise<SubscribeResult> => {
+  const subscribe = useCallback(async (options?: SubscribeOptions): Promise<SubscribeResult> => {
+    const persistToBackend = options?.persistToBackend ?? false;
+
     if (subscribeInFlight) return subscribeInFlight;
 
     subscribeInFlight = (async (): Promise<SubscribeResult> => {
@@ -290,7 +325,9 @@ export function usePushNotification(): UsePushNotificationReturn {
 
         const token = await requestFcmToken(registration);
 
-        await api.post("/push-token", { token });
+        if (persistToBackend) {
+          await persistPushTokenToBackend(token);
+        }
 
         localStorage.setItem(TOKEN_STORAGE_KEY, token);
         setIsSubscribed(true);
@@ -313,13 +350,16 @@ export function usePushNotification(): UsePushNotificationReturn {
 
   // ─── Unsubscribe ──────────────────────────────────────────────────────────
 
-  const unsubscribe = useCallback(async () => {
+  const unsubscribe = useCallback(async (options?: UnsubscribeOptions) => {
+    const removeFromBackend = options?.removeFromBackend ?? false;
+
     setIsLoading(true);
     try {
       const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+      if (storedToken && removeFromBackend) {
+        await removePushTokenFromBackend(storedToken);
+      }
       if (storedToken) {
-        // Hapus token dari backend
-        await api.delete("/push-token", { data: { token: storedToken } });
         localStorage.removeItem(TOKEN_STORAGE_KEY);
       }
       setIsSubscribed(false);

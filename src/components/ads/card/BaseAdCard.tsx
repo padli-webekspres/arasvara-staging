@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn, shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import Image from "next/image";
 
 /** Gambar iklan: cegah drag & highlight seperti asset gambar biasa. */
@@ -18,6 +18,8 @@ export interface BaseAdCardProps {
   fill?: boolean;
   /** Saat true (mis. di dalam `<a>`), aktifkan pointer-events untuk bisa diklik. */
   interactive?: boolean;
+  /** Paksa bypass image optimizer Next jika URL sumber perlu direct-fetch. */
+  unoptimized?: boolean;
 }
 
 /**
@@ -33,10 +35,14 @@ export default function BaseAdCard({
   className,
   fill = false,
   interactive = false,
+  unoptimized,
 }: BaseAdCardProps) {
   const pointerClass = interactive
     ? "pointer-events-auto"
     : "pointer-events-none";
+  const resolvedSrc = src || defaultSrc;
+  const shouldUnoptimize =
+    unoptimized ?? shouldUnoptimizeNewsCardImage(resolvedSrc);
 
   if (fill) {
     return (
@@ -51,12 +57,13 @@ export default function BaseAdCard({
           Iklan
         </div>
         <Image
-          src={src || defaultSrc}
+          src={resolvedSrc}
           alt={alt}
           fill
           draggable={false}
           className={cn("object-cover", AD_IMAGE_NO_DRAG_CLASS)}
           sizes={`(max-width: 1024px) min(100vw, 384px), ${width}px`}
+          unoptimized={shouldUnoptimize}
         />
       </div>
     );
@@ -72,13 +79,14 @@ export default function BaseAdCard({
       style={{ aspectRatio: `${width} / ${height}` }}
     >
       <Image
-        src={src || defaultSrc}
+        src={resolvedSrc}
         alt={alt}
         draggable={false}
         className={cn("object-cover w-full h-full", AD_IMAGE_NO_DRAG_CLASS)}
         width={width}
         height={height}
         sizes={`(max-width: ${width}px) 100vw, ${width}px`}
+        unoptimized={shouldUnoptimize}
       />
     </div>
   );

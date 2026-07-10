@@ -9,7 +9,9 @@ import { cn, shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import {
   AdsPosition,
   adsHomepageBannerCropSpec,
+  adsHomepageIsRatioBasedPosition,
   adsHomepageSupportsSpan,
+  type HomepageAdsSectionRatio,
   type AdsBannerCropSpec,
 } from "@/types/ads";
 
@@ -25,6 +27,8 @@ export interface AdsFormCardItem {
   position?: AdsPosition;
   /** 1 | 2 untuk posisi span-eligible; default 1. */
   span?: 1 | 2;
+  /** Rasio untuk posisi ratio-based. */
+  ratio?: HomepageAdsSectionRatio;
 }
 
 interface AdsFormCardProps {
@@ -47,8 +51,9 @@ export function AdsFormCard({
 }: AdsFormCardProps) {
   const cardPosition = item.position ?? AdsPosition.HEADLINE;
   const cardSpan = item.span ?? 1;
+  const cardRatio = item.ratio ?? "21:9";
   const cropSpec =
-    cropSpecOverride ?? adsHomepageBannerCropSpec(cardPosition, cardSpan);
+    cropSpecOverride ?? adsHomepageBannerCropSpec(cardPosition, cardSpan, cardRatio);
 
   const { ref, handleRef, isDragging } = useSortable({
     id: item._id,
@@ -91,6 +96,9 @@ export function AdsFormCard({
       <div className="mt-6 space-y-1">
         <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           {cropSpec.label}
+          {adsHomepageIsRatioBasedPosition(cardPosition) && (
+            <span className="normal-case"> · rasio {item.ratio ?? "21:9"}</span>
+          )}
           {adsHomepageSupportsSpan(cardPosition) && (
             <span className="normal-case"> · span {item.span ?? 1}</span>
           )}

@@ -8,7 +8,7 @@ import { NAV_LINKS } from "@/lib/constants";
 import Image from "next/image";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { buildAuthorPublicPath } from "@/lib/author-public-path";
+import { buildAuthorPublicPath, isPublicProfileRole } from "@/lib/author-public-path";
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -115,7 +115,9 @@ const MobileMenu = ({
 
           {/* Subscribe and Social */}
           <div>
-            {userAuthed && userAuthed.slug && (
+            {userAuthed &&
+              userAuthed.slug &&
+              isPublicProfileRole(userAuthed.role) && (
               <Link
                 href={buildAuthorPublicPath(userAuthed.slug)}
                 onClick={onClose}
@@ -130,7 +132,8 @@ const MobileMenu = ({
                 <p className="font-semibold text-lg">{userAuthed?.name}</p>
               </Link>
             )}
-            {userAuthed && !userAuthed.slug && (
+            {userAuthed &&
+              (!userAuthed.slug || !isPublicProfileRole(userAuthed.role)) && (
               <div className="py-4 border-t border-border flex flex-row justify-start items-center gap-4">
                 <Avatar className="w-8 h-8">
                   <AvatarImage src={userAuthed?.avatar || undefined} />
@@ -149,6 +152,7 @@ const MobileMenu = ({
                   alt="Arasvara Logo"
                   width={200}
                   height={80}
+                  unoptimized
                 />
                 <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
                   Subscribe

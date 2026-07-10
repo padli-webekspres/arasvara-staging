@@ -58,6 +58,7 @@ export function ImageNotFound({
         src={LOGO_SRC}
         alt=""
         fill
+        unoptimized
         className="object-contain p-[min(18%,2.5rem)]"
         sizes="(max-width: 768px) 100vw, 480px"
         priority={false}

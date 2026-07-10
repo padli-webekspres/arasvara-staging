@@ -33,6 +33,7 @@ const NavbarInside = () => {
               alt="Arasvara Logo"
               width={200}
               height={80}
+              unoptimized
               className="w-auto h-6 lg:h-8 object-contain"
             />
           </Link>
@@ -87,6 +88,7 @@ const NavbarInside = () => {
             alt="Arasvara Logo"
             width={150}
             height={60}
+            unoptimized
             className="w-auto h-5 object-contain"
           />
         </div>

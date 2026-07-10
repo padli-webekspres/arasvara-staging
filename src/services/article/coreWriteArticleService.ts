@@ -32,7 +32,11 @@ import {
 import logger from "@/lib/logger";
 import { revalidateArticlePage } from "@/lib/cache/revalidate-article-page";
 import { adminPanelHref } from "@/lib/admin-panel-path";
-import { createAuditLog } from "@/services/auditLogService";
+import {
+  buildArticleAuditMeta,
+  buildArticleSlimSnapshot,
+  createAuditLog,
+} from "@/services/auditLogService";
 import { hasPermission, ROLES } from "@/lib/auth-client";
 import {
   createBulkNotifications,
@@ -42,8 +46,7 @@ import type { CreateNotificationInput } from "@/types/notification";
 import { NotificationType } from "@/types/notification";
 import { Media } from "@/types/media";
 import { Category } from "@/types/category";
-import { AuditLogAction } from "@/types/auditLog";
-import { createEditorActivity } from "@/services/analytics/editorActivityService";
+import { AuditLogAction, AuditLogEntity } from "@/types/auditLog";
 import { sendPushToUsers, notifyCategoryOnArticlePublished } from "@/services/pushNotifService";
 import { canPickArticleAttribution } from "@/lib/editorialPublicationAccess";
 import {
@@ -625,11 +628,11 @@ export async function createArticle(
       );
     }
 
-    // ── Validasi scheduledAt (hanya terima tanggal di masa depan) ──
+    // ── Validasi scheduledAt (backdate diizinkan) ──
     let validScheduledAt: Date | null = null;
     if (scheduledAt) {
       const d = new Date(scheduledAt);
-      if (!isNaN(d.getTime()) && d > new Date()) validScheduledAt = d;
+      if (!isNaN(d.getTime())) validScheduledAt = d;
     }
 
     const actorOid =
@@ -811,7 +814,7 @@ export async function createArticle(
     const actorIdStr =
       typeof author._id === "string" ? author._id : author._id.toString();
 
-    /** Audit + aktivitas redaksi paralel; notifikasi menyusul di dalam task yang sama */
+    /** Audit log + notifikasi paralel */
     await Promise.all([
       Promise.allSettled([
         createAuditLog(db, {
@@ -821,42 +824,27 @@ export async function createArticle(
             email: actorEmail,
           },
           action: AuditLogAction.CREATE,
-          entity: "articles",
+          entity: AuditLogEntity.ARTICLES,
           entityId: insertedId,
           details: `Membuat artikel baru (${format}): "${title}" — status ${status}`,
-          newValue: {
+          oldValue: null,
+          newValue: buildArticleSlimSnapshot({
             status,
-            format,
+            title,
             slug: doc.slug,
-            title,
-          },
-        }),
-        createEditorActivity(db, {
-          actor: {
-            _id: actorIdStr,
-            name: actorName,
-            email: actorEmail,
-          },
-          action: AuditLogAction.CREATE,
-          statusFrom: ArticleStatus.DRAFT,
-          statusTo: status as ArticleStatus,
-          article: {
-            _id: insertedId.toHexString(),
-            title,
-            author: authorProfile,
-          },
+            scheduledAt: validScheduledAt ?? null,
+          }),
+          meta: buildArticleAuditMeta({
+            statusFrom: ArticleStatus.DRAFT,
+            statusTo: status as ArticleStatus,
+            articleTitle: title,
+          }),
         }),
       ]).then((results) => {
         if (results[0].status === "rejected") {
           logger.error(
             { err: results[0].reason, articleId: articleIdStr },
             "createAuditLog gagal setelah insert artikel",
-          );
-        }
-        if (results[1].status === "rejected") {
-          logger.warn(
-            { err: results[1].reason, articleId: articleIdStr },
-            "createEditorActivity gagal setelah createArticle",
           );
         }
       }),
@@ -1066,11 +1054,11 @@ export async function updateArticle(
       );
     }
 
-    // scheduledAt validation
+    // scheduledAt validation (backdate diizinkan)
     let validScheduledAt: Date | null = null;
     if (payload.scheduledAt) {
       const d = new Date(payload.scheduledAt);
-      if (!isNaN(d.getTime()) && d > new Date()) validScheduledAt = d;
+      if (!isNaN(d.getTime())) validScheduledAt = d;
     }
 
     // Handle featuredImage: null, File, string, or ArticleMedia object
@@ -1283,6 +1271,9 @@ export async function updateArticle(
     if (!updated) throw new Error("Article not found after update");
 
     try {
+      const editReason =
+        typeof payload.reason === "string" ? payload.reason.trim() : "";
+      const updateDetailsBase = `Memperbarui artikel (${updated.format}): "${updated.title}" — status ${finalStatus}`;
       await createAuditLog(db, {
         actor: {
           _id: typeof actor._id === "string" ? actor._id : actor._id.toString(),
@@ -1297,12 +1288,30 @@ export async function updateArticle(
               : finalStatus === ArticleStatus.REJECTED
                 ? AuditLogAction.REJECT
                 : AuditLogAction.UPDATE,
-        entity: "articles",
+        entity: AuditLogEntity.ARTICLES,
         entityId: articleId,
-        // details: `Memperbarui artikel "${String(existing.title ?? "").slice(0, 120)}": ${existing.status} → ${finalStatus}`,
-        details: `Memperbarui artikel (${updated.format}): "${updated.title}" — status ${finalStatus}`,
-        oldValue: mapDocToArticle(existing),
-        newValue: mapDocToArticle(updated),
+        details: editReason
+          ? `${updateDetailsBase}. Alasan: ${editReason}`
+          : updateDetailsBase,
+        oldValue: buildArticleSlimSnapshot({
+          status: String(existing.status ?? ""),
+          title: String(existing.title ?? ""),
+          slug: String(existing.slug ?? ""),
+          scheduledAt: existing.scheduledAt ?? null,
+        }),
+        newValue: buildArticleSlimSnapshot({
+          status: String(updated.status ?? ""),
+          title: String(updated.title ?? ""),
+          slug: String(updated.slug ?? ""),
+          scheduledAt: updated.scheduledAt ?? null,
+        }),
+        meta: buildArticleAuditMeta({
+          statusFrom: String(existing.status ?? ""),
+          statusTo: finalStatus,
+          articleTitle: String(updated.title ?? existing.title ?? ""),
+          // Reason dari form edit diutamakan; jika kosong UI fallback ke details
+          ...(editReason ? { reason: editReason } : {}),
+        }),
       });
     } catch (auditErr) {
       logger.error(

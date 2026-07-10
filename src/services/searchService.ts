@@ -250,11 +250,18 @@ export async function searchArticles(
       extraConditions.push({ "tags.slug": { $in: normalizedTags } });
     }
 
-    // ── Filter satu penulis (CMS / restraksi role) ──
+    // ── Filter satu penulis (CMS / halaman profil) ──
     if (params.authorId?.trim() && ObjectId.isValid(params.authorId.trim())) {
-      extraConditions.push({
-        authorId: new ObjectId(params.authorId.trim()),
-      });
+      const userObjectId = new ObjectId(params.authorId.trim());
+      if (params.includeEdited) {
+        extraConditions.push({
+          $or: [{ authorId: userObjectId }, { editorId: userObjectId }],
+        });
+      } else {
+        extraConditions.push({
+          authorId: userObjectId,
+        });
+      }
     }
 
     // ── Filter Sorotan Khusus (section_articles — sama dengan admin popular/editor/headline) ──

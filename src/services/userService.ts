@@ -21,6 +21,7 @@ import {
 	isUserPubliclyVisible,
 	nameNormalizedForStorage,
 } from "@/lib/user-validation";
+import { isPublicProfileRole } from "@/lib/author-public-path";
 import {
 	assertUniqueUserName,
 	resolveUniqueUserSlug,
@@ -396,7 +397,10 @@ function mapDocToUser(doc: Record<string, unknown>): User {
 				: undefined,
 		role: doc.role as keyof typeof ROLES,
 		avatar,
-		bio: doc.bio !== undefined ? String(doc.bio) : undefined,
+		bio:
+			doc.bio != null && String(doc.bio).trim() !== ""
+				? String(doc.bio)
+				: undefined,
 		isActive: doc.isActive !== undefined ? Boolean(doc.isActive) : undefined,
 		createdAt:
 			doc.createdAt instanceof Date
@@ -582,12 +586,15 @@ export async function getUserBySlug(
 	return user;
 }
 
-/** Lookup penulis untuk halaman publik /author/{slug}. */
+/** Lookup profil publik `/penulis/{slug}` — hanya role writer/editor. */
 export async function getPublicAuthorBySlug(
 	db: Db,
 	slug: string,
 ): Promise<User | null> {
-	return getUserBySlug(db, slug);
+	const user = await getUserBySlug(db, slug);
+	if (!user) return null;
+	if (!isPublicProfileRole(user.role)) return null;
+	return user;
 }
 
 export async function getUserByIdEmailOrSlug(

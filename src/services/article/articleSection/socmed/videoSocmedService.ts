@@ -5,7 +5,7 @@ import logger from "@/lib/logger";
 import { S3_BUCKET, s3Client } from "@/lib/s3";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import type { AuditLogActor } from "@/types/auditLog";
-import { AuditLogAction } from "@/types/auditLog";
+import { AuditLogAction, AuditLogEntity } from "@/types/auditLog";
 import { createAuditLog, requireAuditActor } from "@/services/auditLogService";
 
 export const COMBINED_PLATFORMS = ["tiktok", "instagram"] as const;
@@ -172,11 +172,12 @@ export async function upsertSocmedVideoSection(
 			await createAuditLog(db, {
 				actor: auditActor,
 				action: AuditLogAction.UPDATE,
-				entity: "SOCMED_VIDEO_SECTION",
+				entity: AuditLogEntity.SOCMED_VIDEO_SECTION,
 				entityId: platform,
 				details: `Mengganti section ${platform}: ${docsToInsert.length} video`,
 				oldValue: { videoCount: oldDocs.length },
 				newValue: { videoCount: docsToInsert.length },
+				meta: { platform },
 			});
 		} catch (auditErr) {
 			logger.error(
@@ -386,11 +387,12 @@ export async function upsertCombinedSocmedVideoSection(
 			await createAuditLog(db, {
 				actor: auditActor,
 				action: AuditLogAction.UPDATE,
-				entity: "SOCMED_VIDEO_SECTION",
+				entity: AuditLogEntity.SOCMED_VIDEO_SECTION,
 				entityId: "combined",
 				details: `Mengganti section socmed gabungan: ${docsToInsert.length} video`,
 				oldValue: { videoCount: oldDocs.length },
 				newValue: { videoCount: docsToInsert.length },
+				meta: { platform: "combined" },
 			});
 		} catch (auditErr) {
 			logger.error(

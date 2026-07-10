@@ -14,7 +14,9 @@ import {
   AdsVariant,
   ADS_HOMEPAGE_SECTION_ORDER,
   adsHomepageEffectiveSpan,
+  adsHomepageIsRatioBasedPosition,
   type BulkUpsertAdsItem,
+  type HomepageAdsSectionRatio,
 } from "@/types/ads";
 import type { HomepageAdItem } from "@/types/ads";
 
@@ -57,6 +59,11 @@ function serverDocToAdsDraft(doc: HomepageAdItem): AdsDraft {
       },
     },
     span: adsHomepageEffectiveSpan(position, doc.span),
+    ratio:
+      adsHomepageIsRatioBasedPosition(position) &&
+      (doc.ratio === "21:9" || doc.ratio === "16:9" || doc.ratio === "4:3")
+        ? (doc.ratio as HomepageAdsSectionRatio)
+        : undefined,
   };
 }
 
@@ -90,6 +97,9 @@ async function buildBulkItemsForPosition(
         endedAt: item.endedAt,
         variant: AdsVariant.HORIZONTAL,
         span: adsHomepageEffectiveSpan(item.position, item.span),
+        ratio: adsHomepageIsRatioBasedPosition(item.position)
+          ? item.ratio
+          : undefined,
       };
     }),
   );

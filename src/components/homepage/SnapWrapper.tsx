@@ -50,10 +50,10 @@ const SnapWrapper = ({
 
   return (
     // Pasang ref di container paling luar
-    <div ref={wrapperRef} className="w-full relative">
-      {/* SECTION 1: Hero */}
-      <section className="snap-panel h-screen w-full  top-0 z-0">
-        <div className="relative h-screen w-full">
+    <div ref={wrapperRef} className="w-full relative isolate">
+      {/* SECTION 1: Hero — sticky agar tertutup overlay saat scroll */}
+      <section className="snap-panel sticky top-0 h-screen w-full z-0">
+        <div className="relative h-screen w-full overflow-hidden">
           <HeroVideo videoUrl={heroVideoUrl} posterUrl={heroVideoPosterUrl} />
           {lcpMonogram}
         </div>
@@ -85,10 +85,9 @@ const SnapWrapper = ({
         </p>
       </SectionText> */}
 
-      {/* SECTION 2: Headlines Slider */}
-      {/* Ubah min-h-screen menjadi h-screen agar ukurannya pas 1 viewport */}
-      <section className="snap-panel h-screen w-full flex items-center bg-background relative z-10">
-        <div className="container mx-auto px-4 py-6 md:px-0">
+      {/* SECTION 2: Headlines Slider — scroll di atas hero (overlay) */}
+      <section className="snap-panel relative z-10 h-screen w-full flex items-center bg-background overflow-x-hidden">
+        <div className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 py-6">
           <form
             onSubmit={handleSearchSubmit}
             className="relative flex items-center w-full max-w-xl mx-auto mb-10 bg-foreground/5 backdrop-blur-sm border border-foreground/10 rounded-full shadow-inner focus-within:ring-2 focus-within:ring-hijauSawah/30 focus-within:border-hijauSawah/50 transition-all duration-300 group"
@@ -129,8 +128,6 @@ const SnapWrapper = ({
             />
           </div>
         </div>
-
-        <div className="contai"></div>
       </section>
 
       {/* SECTION 3: Terpopuler News */}

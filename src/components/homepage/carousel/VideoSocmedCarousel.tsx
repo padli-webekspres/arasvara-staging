@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef } from "react";
+import "@/styles/swiper";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation, Scrollbar, Mousewheel, FreeMode } from "swiper/modules";
 import type { Swiper as SwiperType } from "swiper";
@@ -132,7 +133,12 @@ export const VideoSocmedCarousel = ({
           !isError &&
           videos.map((video) => (
             <SwiperSlide key={video._id} className={span1Classes}>
-              <VideoCarouselItem video={video} span={1} layout={layout} />
+              <VideoCarouselItem
+                video={video}
+                span={1}
+                layout={layout}
+                showPlatformBadge
+              />
             </SwiperSlide>
           ))}
       </Swiper>

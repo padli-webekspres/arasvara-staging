@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef } from "react";
+import "@/styles/swiper";
 import Link from "next/link";
 import Image from "next/image";
 import { Swiper, SwiperSlide } from "swiper/react";

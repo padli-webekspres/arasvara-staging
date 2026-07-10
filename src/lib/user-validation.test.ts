@@ -4,7 +4,7 @@ import {
   normalizeUserName,
   nameNormalizedForStorage,
 } from "@/lib/user-validation";
-import { buildAuthorPublicPath, encodeAuthorSlugSegment } from "@/lib/author-public-path";
+import { buildAuthorPublicPath, encodeAuthorSlugSegment, resolveAuthorPublicHref } from "@/lib/author-public-path";
 
 describe("normalizeUserName", () => {
   it("menyamakan casing dan whitespace", () => {
@@ -39,10 +39,28 @@ describe("generateUserSlug", () => {
 
 describe("author-public-path", () => {
   it("buildAuthorPublicPath", () => {
-    expect(buildAuthorPublicPath("andi-pratama")).toBe("/author/andi-pratama");
+    expect(buildAuthorPublicPath("andi-pratama")).toBe("/penulis/andi-pratama");
   });
 
   it("encodeAuthorSlugSegment", () => {
     expect(encodeAuthorSlugSegment("andi pratama")).toBe("andi%20pratama");
+  });
+
+  it("resolveAuthorPublicHref returns null for ineligible role", () => {
+    expect(
+      resolveAuthorPublicHref({ slug: "andi-pratama", role: "admin" }),
+    ).toBeNull();
+    expect(
+      resolveAuthorPublicHref({ slug: "andi-pratama", role: "reporter" }),
+    ).toBeNull();
+  });
+
+  it("resolveAuthorPublicHref returns path for writer/editor with slug", () => {
+    expect(
+      resolveAuthorPublicHref({ slug: "andi-pratama", role: "writer" }),
+    ).toBe("/penulis/andi-pratama");
+    expect(
+      resolveAuthorPublicHref({ slug: "andi-pratama", role: "editor" }),
+    ).toBe("/penulis/andi-pratama");
   });
 });

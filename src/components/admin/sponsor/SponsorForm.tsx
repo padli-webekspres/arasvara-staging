@@ -15,6 +15,7 @@ import SponsorFormCard from "./SponsorFormCard";
 import Image from "next/image";
 import { SponsorItem } from "@/types/sponsor";
 import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
+import { getAdminStandardCardGridClass } from "@/lib/admin-card-grid";
 
 interface SponsorFormProps {
   existingItems?: SponsorItem[]; // Load existing items on mount
@@ -431,7 +432,7 @@ export default function SponsorForm({
               </div>
             ) : (
               <DragDropProvider onDragEnd={handleDragEnd}>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className={getAdminStandardCardGridClass()}>
                   {items.map((item, index) => (
                     <SponsorFormCard
                       key={item._id}

@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function PedomanMediaSiberPage() {
   return (
     <main className="min-h-screen bg-background py-24 lg:py-32">
-      <div className="container mx-auto max-w-4xl px-4 md:px-8">
+      <div className="container mx-auto max-w-4xl w-full min-w-0 px-4 md:px-6 lg:px-8">
         <div className="mb-10 border-b border-border pb-6">
           <h1 className="mb-4 text-3xl font-bold tracking-tight text-foreground md:text-4xl lg:text-5xl">
             Pedoman Pemberitaan Media Siber

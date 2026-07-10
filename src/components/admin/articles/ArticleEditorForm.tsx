@@ -1242,7 +1242,7 @@ export default function ArticleEditorForm({
           wibDate.setUTCSeconds(0, 0);
           const min = wibDate.getUTCMinutes();
           wibDate.setUTCMinutes(Math.floor(min / 5) * 5);
-          if (!isNaN(wibDate.getTime()) && wibDate > new Date()) {
+          if (!isNaN(wibDate.getTime())) {
             finalScheduledAt = wibDate.toISOString();
             finalStatus = ArticleStatus.SCHEDULED;
           }

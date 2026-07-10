@@ -21,6 +21,7 @@ import logger from "@/lib/logger";
  * - sortOrder    : "asc" | "desc"
  * - status       : satu status artikel; default `published`; gunakan `all` untuk semua status
  * - authorId     : satu ObjectId penulis (filter CMS; tidak boleh koma)
+ * - includeEdited: "true" | "1" — dengan authorId, sertakan artikel sebagai editor (halaman profil)
  * - page         : nomor halaman (default: 1)
  * - limit        : jumlah item per halaman (default: 12, max: 50)
  * - skip         : offset dokumen (opsional; mengabaikan page jika diset)
@@ -112,6 +113,10 @@ export async function GET(req: NextRequest) {
     const rawTags = getArray("tags");
     const tags = rawTags.length > 0 ? rawTags : (getString("tag") ? [getString("tag")] : []);
 
+    const includeEditedRaw = getString("includeEdited").toLowerCase();
+    const includeEdited =
+      includeEditedRaw === "true" || includeEditedRaw === "1";
+
     const params: ArticleSearchParams = {
       search,
       format: getArray("format"),
@@ -120,6 +125,7 @@ export async function GET(req: NextRequest) {
       flags: getArray("flags"),
       ...(statusRaw ? { status: statusRaw } : {}),
       ...(authorIdRaw ? { authorId: authorIdRaw } : {}),
+      ...(includeEdited ? { includeEdited: true } : {}),
       dateFrom,
       dateTo,
       sortBy,

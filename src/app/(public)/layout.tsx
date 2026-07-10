@@ -13,7 +13,6 @@
 import Footer from "@/components/Footer";
 import NavbarContainer from "@/components/navbar/NavbarContainer";
 import React from "react";
-import "@/styles/swiper";
 import { getPublicStorageOrigins } from "@/lib/storage-origins";
 
 interface PublicLayoutProps {

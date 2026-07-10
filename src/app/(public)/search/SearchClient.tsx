@@ -190,7 +190,7 @@ function SearchPageInner() {
 
   return (
     <main className="pt-32">
-      <section className="container mx-auto px-4 py-8 flex gap-6 min-h-[70vh]">
+      <section className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 py-8 flex gap-6 min-h-[70vh]">
         <SidebarSearch
           className="w-1/4 shrink-0 hidden md:block sticky top-36"
           onSearch={handleSearch}

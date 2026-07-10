@@ -26,13 +26,16 @@ import { ChevronUp, ImageOff, Plus, Save } from "lucide-react";
 import Image from "next/image";
 import CropImageModal from "@/components/media/CropImageModal";
 import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
+import { getAdminStandardCardGridClass } from "@/lib/admin-card-grid";
 import {
   AdsPosition,
   ADS_HOMEPAGE_SECTION_ORDER,
   adsHomepageBannerCropSpec,
   adsHomepageEffectiveSpan,
+  adsHomepageIsRatioBasedPosition,
   adsHomepagePositionLabel,
   adsHomepageSupportsSpan,
+  type HomepageAdsSectionRatio,
 } from "@/types/ads";
 import AdsFormCard, { type AdsFormCardItem } from "./AdsFormCard";
 
@@ -87,6 +90,8 @@ export interface AdsDraft {
   position: AdsPosition;
   /** Hanya relevan untuk posisi span-eligible; selalu 1 | 2 (non-eligible disimpan sebagai 1). */
   span: 1 | 2;
+  /** Khusus posisi ratio-based (above_photography). */
+  ratio?: HomepageAdsSectionRatio;
   linkUrl: string;
   order: number;
   startedAt: string;
@@ -162,6 +167,7 @@ export default function AdsHomepageForm({
   const [endedAt, setEndedAt] = useState(monthLaterStr);
   const [banner, setBanner] = useState<BannerState>(null);
   const [formSpan, setFormSpan] = useState<1 | 2>(1);
+  const [formRatio, setFormRatio] = useState<HomepageAdsSectionRatio>("21:9");
 
   const [cropOpen, setCropOpen] = useState(false);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
@@ -171,6 +177,9 @@ export default function AdsHomepageForm({
   );
   /** Span yang dipakai untuk rasio crop modal saat ini */
   const [cropAspectSpan, setCropAspectSpan] = useState<1 | 2>(1);
+  /** Ratio yang dipakai untuk rasio crop modal saat ini */
+  const [cropAspectRatio, setCropAspectRatio] =
+    useState<HomepageAdsSectionRatio>("21:9");
 
   useEffect(() => {
     setAdItems(
@@ -219,10 +228,16 @@ export default function AdsHomepageForm({
           const spanRaw = (m as AdsDraftMeta & { span?: unknown }).span;
           const parsedSpan =
             spanRaw === 2 ? 2 : spanRaw === 1 ? 1 : undefined;
+          const ratioRaw = (m as AdsDraftMeta & { ratio?: unknown }).ratio;
+          const ratio =
+            ratioRaw === "21:9" || ratioRaw === "16:9" || ratioRaw === "4:3"
+              ? ratioRaw
+              : undefined;
           items.push({
             ...m,
             position,
             span: adsHomepageEffectiveSpan(position, parsedSpan),
+            ratio,
             name: typeof m.name === "string" ? m.name : "",
             banner: {
               blob,
@@ -301,8 +316,16 @@ export default function AdsHomepageForm({
     return formPosition;
   }, [editingId, adItems, formPosition]);
 
-  const sidebarCropSpec = adsHomepageBannerCropSpec(activeCropPosition, formSpan);
-  const modalCropSpec = adsHomepageBannerCropSpec(cropAspectPosition, cropAspectSpan);
+  const sidebarCropSpec = adsHomepageBannerCropSpec(
+    activeCropPosition,
+    formSpan,
+    formRatio,
+  );
+  const modalCropSpec = adsHomepageBannerCropSpec(
+    cropAspectPosition,
+    cropAspectSpan,
+    cropAspectRatio,
+  );
 
   const openCrop = useCallback(
     (file: File) => {
@@ -315,6 +338,7 @@ export default function AdsHomepageForm({
         : formPosition;
       setCropAspectPosition(pos);
       setCropAspectSpan(formSpan);
+      setCropAspectRatio(formRatio);
       if (rawImageSrc) URL.revokeObjectURL(rawImageSrc);
       setRawImageSrc(URL.createObjectURL(file));
       setCropOpen(true);
@@ -362,6 +386,7 @@ export default function AdsHomepageForm({
       URL.revokeObjectURL(banner.previewUrl);
     setBanner(null);
     setFormSpan(1);
+    setFormRatio("21:9");
   }, [banner]);
 
   /**
@@ -384,7 +409,12 @@ export default function AdsHomepageForm({
   const handleFormPositionChange = (value: string) => {
     if (!isAdsPosition(value)) return;
     setFormPosition(value);
-    if (!adsHomepageSupportsSpan(value)) setFormSpan(1);
+    if (!adsHomepageSupportsSpan(value)) {
+      setFormSpan(1);
+    }
+    if (adsHomepageIsRatioBasedPosition(value)) {
+      setFormRatio("21:9");
+    }
     if (!editingId && banner) {
       if (banner.blob && banner.previewUrl)
         URL.revokeObjectURL(banner.previewUrl);
@@ -416,6 +446,9 @@ export default function AdsHomepageForm({
     }
 
     const resolvedSpan = adsHomepageEffectiveSpan(formPosition, formSpan);
+    const resolvedRatio = adsHomepageIsRatioBasedPosition(formPosition)
+      ? formRatio
+      : undefined;
 
     if (editingId) {
       setAdItems((prev) => {
@@ -429,6 +462,7 @@ export default function AdsHomepageForm({
             name: name.trim(),
             position: formPosition,
             span: resolvedSpan,
+            ratio: resolvedRatio,
             linkUrl,
             startedAt,
             endedAt,
@@ -448,6 +482,7 @@ export default function AdsHomepageForm({
           name: name.trim(),
           position: formPosition,
           span: resolvedSpan,
+          ratio: resolvedRatio,
           linkUrl,
           order: sectionCount,
           startedAt,
@@ -468,6 +503,7 @@ export default function AdsHomepageForm({
     setStartedAt(nowLocalStr());
     setEndedAt(monthLaterStr());
     setFormSpan(1);
+    setFormRatio("21:9");
   };
 
   const handleEditCard = (item: AdsFormCardItem) => {
@@ -486,6 +522,7 @@ export default function AdsHomepageForm({
         ? adsHomepageEffectiveSpan(full.position, full.span)
         : 1,
     );
+    setFormRatio(full.ratio ?? "21:9");
     setBanner(cloneBannerSlot(full.banner));
   };
 
@@ -579,6 +616,7 @@ export default function AdsHomepageForm({
   }, []);
 
   const sidebarShowsSpan = adsHomepageSupportsSpan(formPosition);
+  const sidebarShowsRatio = adsHomepageIsRatioBasedPosition(formPosition);
 
   return (
     <div ref={pageTopRef} className="w-full">
@@ -623,7 +661,7 @@ export default function AdsHomepageForm({
                   </p>
                 </div>
 
-                <div className="flex-1 overflow-y-auto pr-1">
+                <div className="flex-1">
                   {sectionItems.length === 0 ? (
                     <div className="flex min-h-[140px] items-center justify-center rounded-lg border-2 border-dashed border-border">
                       <p className="text-center text-sm text-muted-foreground">
@@ -638,7 +676,7 @@ export default function AdsHomepageForm({
                     <DragDropProvider
                       onDragEnd={handleDragEndForSection(position)}
                     >
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <div className={getAdminStandardCardGridClass()}>
                         {sectionItems.map((item, index) => (
                           <AdsFormCard
                             key={item._id}
@@ -733,6 +771,25 @@ export default function AdsHomepageForm({
               </Select>
               <p className="text-[11px] text-muted-foreground">
                 Jumlah kolom grid yang dipakai slot ini (hanya untuk posisi ini).
+              </p>
+            </div>
+          )}
+
+          {sidebarShowsRatio && (
+            <div className="space-y-1.5">
+              <Label htmlFor="adRatio">Rasio</Label>
+              <Select value={formRatio} onValueChange={(v) => setFormRatio(v as HomepageAdsSectionRatio)}>
+                <SelectTrigger id="adRatio" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="21:9">21:9</SelectItem>
+                  <SelectItem value="16:9">16:9</SelectItem>
+                  <SelectItem value="4:3">4:3</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Khusus posisi diatas arah lensa, gunakan rasio tampilan ads.
               </p>
             </div>
           )}

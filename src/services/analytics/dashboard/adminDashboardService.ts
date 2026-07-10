@@ -153,14 +153,48 @@ export async function getAdminDashboardStats(db: Db): Promise<AdminDashboardStat
       }
     }
 
+    const meta = log.meta && typeof log.meta === "object" ? log.meta : {};
+    const articleTitle =
+      typeof meta.articleTitle === "string" ? meta.articleTitle.trim() : "";
+    const reason = typeof meta.reason === "string" ? meta.reason.trim() : "";
+    const rawDetails =
+      typeof log.details === "string" && log.details.trim()
+        ? log.details.trim()
+        : "";
+    // Jika reason dari meta dipakai di depan, buang sufiks "Alasan: ..." dari details
+    // agar tidak dobel.
+    const detailsWithoutReason = reason
+      ? rawDetails
+          .replace(/\.\s*Alasan:\s*.+$/i, "")
+          .replace(/^Alasan:\s*.+$/i, "")
+          .trim()
+      : rawDetails;
+
+    // Prioritas target: meta.articleTitle → details (tanpa reason) → entity#id
+    const target =
+      articleTitle ||
+      (detailsWithoutReason
+        ? detailsWithoutReason.length > 80
+          ? `${detailsWithoutReason.slice(0, 80)}…`
+          : detailsWithoutReason
+        : "") ||
+      (log.entity ? `${log.entity} #${log.entityId}` : "Platform CMS");
+
+    // Reason diutamakan, lalu baru details
+    const detail = reason
+      ? detailsWithoutReason
+        ? `${reason} — ${detailsWithoutReason}`
+        : reason
+      : rawDetails || "Modifikasi konfigurasi data Arasvara.";
+
     return {
       id: log._id.toString(),
       action: log.action || "MODIFY",
-      target: log.entity ? `${log.entity} #${log.entityId}` : "Platform CMS",
+      target,
       user: log.actor?.name || "Sistem",
       time: timeLabel,
       createdAt: createdDate.toISOString(),
-      detail: log.details || "Modifikasi konfigurasi data Arasvara."
+      detail,
     };
   });
 

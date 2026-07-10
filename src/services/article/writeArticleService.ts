@@ -10,8 +10,11 @@ import {
 } from "@/types/article";
 
 import logger from "@/lib/logger";
-import { createAuditLog } from "@/services/auditLogService";
-import { createEditorActivity } from "@/services/analytics/editorActivityService";
+import {
+  buildArticleAuditMeta,
+  buildArticleSlimSnapshot,
+  createAuditLog,
+} from "@/services/auditLogService";
 import {
   toMongoObjectId,
   mapTagsToObjects,
@@ -37,7 +40,7 @@ import { NotificationType } from "@/types/notification";
 import { sendPushToUser, notifyCategoryOnArticlePublished } from "@/services/pushNotifService";
 import { adminPanelHref } from "@/lib/admin-panel-path";
 import { ROLES } from "@/lib/auth-client";
-import { AuditLogAction } from "@/types/auditLog";
+import { AuditLogAction, AuditLogEntity } from "@/types/auditLog";
 import { resolveAttributionMongoUpdates, safeRevalidateArticlePublicPage } from "@/services/article/coreWriteArticleService";
 import {
   recomputeArticlePublicPath,
@@ -340,11 +343,26 @@ export async function publishScheduledArticles(
             email: SCHEDULER_AUDIT_ACTOR.email,
           },
           action: AuditLogAction.PUBLISH,
-          entity: "articles",
+          entity: AuditLogEntity.ARTICLES,
           entityId: article._id,
           details: `Terbit otomatis dari jadwal: "${String(article.title ?? "").slice(0, 120)}"`,
-          oldValue: { status: ArticleStatus.SCHEDULED },
-          newValue: { status: ArticleStatus.PUBLISHED },
+          oldValue: buildArticleSlimSnapshot({
+            status: ArticleStatus.SCHEDULED,
+            title: String(article.title ?? ""),
+            slug: String(article.slug ?? ""),
+            scheduledAt: article.scheduledAt ?? null,
+          }),
+          newValue: buildArticleSlimSnapshot({
+            status: ArticleStatus.PUBLISHED,
+            title: String(article.title ?? ""),
+            slug: String(article.slug ?? ""),
+            scheduledAt: article.scheduledAt ?? null,
+          }),
+          meta: buildArticleAuditMeta({
+            statusFrom: ArticleStatus.SCHEDULED,
+            statusTo: ArticleStatus.PUBLISHED,
+            articleTitle: String(article.title ?? ""),
+          }),
         });
       } catch (auditErr) {
         logger.error(
@@ -556,8 +574,8 @@ function assertApprovalScheduledDateValid(payload: ApprovalPayload): void {
   if (payload.status !== ArticleStatus.SCHEDULED || !payload.scheduledAt)
     return;
   const scheduled = new Date(payload.scheduledAt);
-  if (Number.isNaN(scheduled.getTime()) || scheduled <= new Date()) {
-    throw Object.assign(new Error("Tanggal terjadwal harus di masa depan."), {
+  if (Number.isNaN(scheduled.getTime())) {
+    throw Object.assign(new Error("Tanggal jadwal tidak valid."), {
       status: 400,
     });
   }
@@ -857,7 +875,18 @@ export async function approveArticleStatus(
     if (!updatedRaw) throw new Error("Artikel tidak ditemukan setelah update.");
     const updated = await mapDocToArticle(updatedRaw);
 
-    const oldArticleSnapshot = await mapDocToArticle(article);
+    const oldArticleSnapshot = buildArticleSlimSnapshot({
+      status: String(article.status ?? ""),
+      title: String(article.title ?? ""),
+      slug: String(article.slug ?? ""),
+      scheduledAt: article.scheduledAt ?? null,
+    });
+    const newArticleSnapshot = buildArticleSlimSnapshot({
+      status: String(updated.status ?? ""),
+      title: String(updated.title ?? ""),
+      slug: String(updated.slug ?? ""),
+      scheduledAt: updated.scheduledAt ?? null,
+    });
 
     try {
       await createAuditLog(db, {
@@ -867,42 +896,24 @@ export async function approveArticleStatus(
           email: actorEmail,
         },
         action: auditActionForApprovalStatus(payload.status as ArticleStatus),
-        entity: "articles",
+        entity: AuditLogEntity.ARTICLES,
         entityId: articleId,
         details: payload.reason
           ? `Perubahan status ${article.status} → ${payload.status}. Alasan: ${payload.reason}`
           : `Perubahan status ${article.status} → ${payload.status}`,
         oldValue: oldArticleSnapshot,
-        newValue: updated,
+        newValue: newArticleSnapshot,
+        meta: buildArticleAuditMeta({
+          statusFrom: String(article.status ?? ""),
+          statusTo: String(payload.status ?? ""),
+          articleTitle: String(updated.title ?? ""),
+          reason: payload.reason,
+        }),
       });
     } catch (auditErr) {
       logger.error(
         { err: auditErr, articleId },
         "createAuditLog gagal setelah approveArticleStatus",
-      );
-    }
-
-    try {
-      await createEditorActivity(db, {
-        actor: {
-          _id: actorOid.toHexString(),
-          name: actorName,
-          email: actorEmail,
-        },
-        action: auditActionForApprovalStatus(payload.status as ArticleStatus),
-        statusFrom: article.status as ArticleStatus,
-        statusTo: payload.status as ArticleStatus,
-        ...(payload.reason?.trim() ? { reason: payload.reason.trim() } : {}),
-        article: {
-          _id: articleId,
-          title: updated.title,
-          author: updated.author,
-        },
-      });
-    } catch (editorActivityErr) {
-      logger.warn(
-        { err: editorActivityErr, articleId },
-        "createEditorActivity gagal setelah approveArticleStatus",
       );
     }
 

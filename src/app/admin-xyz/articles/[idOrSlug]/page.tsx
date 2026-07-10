@@ -9,6 +9,114 @@ import { Media } from "@/types/media";
 import { getArticleByIdOrSlug } from "@/services/article/getArticleService";
 import { getRelatedArticles } from "@/services/article/relatedArticlesService";
 
+function toPlainRelatedArticles(input: unknown): unknown[] {
+  if (!Array.isArray(input)) return [];
+
+  return input.map((item: any) => {
+    const rawArticle = item?.article;
+    const plainArticle =
+      rawArticle && typeof rawArticle === "object"
+        ? {
+            _id: rawArticle._id ? String(rawArticle._id) : "",
+            title:
+              typeof rawArticle.title === "string" ? rawArticle.title : "",
+            slug: typeof rawArticle.slug === "string" ? rawArticle.slug : "",
+            excerpt:
+              typeof rawArticle.excerpt === "string" ? rawArticle.excerpt : "",
+            category:
+              rawArticle.category && typeof rawArticle.category === "object"
+                ? {
+                    _id: rawArticle.category._id
+                      ? String(rawArticle.category._id)
+                      : "",
+                    name:
+                      typeof rawArticle.category.name === "string"
+                        ? rawArticle.category.name
+                        : "",
+                    slug:
+                      typeof rawArticle.category.slug === "string"
+                        ? rawArticle.category.slug
+                        : "",
+                  }
+                : null,
+            tags: Array.isArray(rawArticle.tags)
+              ? rawArticle.tags.map((tag: any) =>
+                  typeof tag === "object" && tag !== null
+                    ? {
+                        _id: tag._id ? String(tag._id) : "",
+                        name: typeof tag.name === "string" ? tag.name : "",
+                      }
+                    : String(tag ?? ""),
+                )
+              : [],
+            featuredImage:
+              rawArticle.featuredImage &&
+              typeof rawArticle.featuredImage === "object"
+                ? {
+                    ...rawArticle.featuredImage,
+                    ...(rawArticle.featuredImage._id
+                      ? { _id: String(rawArticle.featuredImage._id) }
+                      : {}),
+                    ...(rawArticle.featuredImage.mediaId
+                      ? { mediaId: String(rawArticle.featuredImage.mediaId) }
+                      : {}),
+                  }
+                : null,
+            author:
+              rawArticle.author && typeof rawArticle.author === "object"
+                ? {
+                    ...rawArticle.author,
+                    _id: rawArticle.author._id
+                      ? String(rawArticle.author._id)
+                      : "",
+                  }
+                : null,
+            editor:
+              rawArticle.editor && typeof rawArticle.editor === "object"
+                ? {
+                    ...rawArticle.editor,
+                    _id: rawArticle.editor._id
+                      ? String(rawArticle.editor._id)
+                      : "",
+                  }
+                : null,
+            status:
+              typeof rawArticle.status === "string" ? rawArticle.status : "",
+            isFeatured: Boolean(rawArticle.isFeatured),
+            isHeadline: Boolean(rawArticle.isHeadline),
+            isBreaking: Boolean(rawArticle.isBreaking),
+            viewCount:
+              typeof rawArticle.viewCount === "number"
+                ? rawArticle.viewCount
+                : 0,
+            publishedAt: rawArticle.publishedAt
+              ? rawArticle.publishedAt instanceof Date
+                ? rawArticle.publishedAt.toISOString()
+                : String(rawArticle.publishedAt)
+              : null,
+            updatedAt: rawArticle.updatedAt
+              ? rawArticle.updatedAt instanceof Date
+                ? rawArticle.updatedAt.toISOString()
+                : String(rawArticle.updatedAt)
+              : null,
+          }
+        : null;
+
+    return {
+      _id: item?._id ? String(item._id) : "",
+      article_id: item?.article_id ? String(item.article_id) : "",
+      order: typeof item?.order === "number" ? item.order : 0,
+      createdAt: item?.createdAt
+        ? item.createdAt instanceof Date
+          ? item.createdAt.toISOString()
+          : String(item.createdAt)
+        : null,
+      createdBy: item?.createdBy ? String(item.createdBy) : "",
+      article: plainArticle,
+    };
+  });
+}
+
 export default async function EditArticlePage({
   params,
 }: {
@@ -24,6 +132,7 @@ export default async function EditArticlePage({
 
   const { categories } = await getCategories(db, { limit: 200 });
   const relatedArticles = await getRelatedArticles(db, idOrSlug);
+  const plainRelatedArticles = toPlainRelatedArticles(relatedArticles);
 
   // Convert tags array to comma-separated string
   const tagsString = Array.isArray(articleDoc.tags)
@@ -96,10 +205,13 @@ export default async function EditArticlePage({
     status: articleDoc.status ?? "DRAFT",
     scheduledAt,
     authorId: articleDoc.authorId?.toString(),
-    editorId: articleDoc.editorId ?? null,
-    contributorIds: articleDoc.contributorIds ?? [],
+    editorId:
+      articleDoc.editorId != null ? String(articleDoc.editorId) : null,
+    contributorIds: Array.isArray(articleDoc.contributorIds)
+      ? articleDoc.contributorIds.map((id: any) => String(id))
+      : [],
     galleryItems: rawGalleryItems,
-    relatedArticles,
+    relatedArticles: plainRelatedArticles as any,
     publicPath: articleDoc.publicPath ?? null,
     urlFormat: articleDoc.urlFormat,
     publishedAt: articleDoc.publishedAt

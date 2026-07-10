@@ -92,7 +92,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     // Upsert headline articles menggunakan service generik
-    await upsertSectionArticlesWithType(db, body, user._id?.toString() || user._id, "headline");
+    await upsertSectionArticlesWithType(
+      db,
+      body,
+      {
+        _id: user._id?.toString() || user._id,
+        name: String(user.name ?? ""),
+        email: String(user.email ?? ""),
+      },
+      "headline",
+    );
 
     // Fetch populated headline articles after upsert
     const populatedArticles = await getSectionArticlesWithType(db, "headline");

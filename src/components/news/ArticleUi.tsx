@@ -54,22 +54,43 @@ import NewsCarouselUi from "../homepage/carousel/NewsCarouselUi";
 import SecondaryNewsCard from "./SecondaryNewsCard";
 import LoadMoreButton from "@/components/ui/LoadMoreButton";
 import { trackArticleShare } from "@/lib/ga-events";
+import { getPublicPageContainerClass } from "@/lib/public-page-container";
 
 // const ArticleContent = dynamic(() => import("@/components/ArticleContent"), {
 //   ssr: false,
 // });
 
-function AttributionPersonRow({ profile }: { profile: UserProfile }) {
-  return (
+function AttributionPersonRow({
+  profile,
+  href,
+}: {
+  profile: UserProfile;
+  href?: string | null;
+}) {
+  const content = (
     <div className="flex items-center gap-2 min-w-0">
       <UserAvatar
         avatar={profile.avatar}
         name={profile.name}
         className="h-8 w-8 shrink-0"
       />
-      <p className="font-medium text-sm truncate">{profile.name}</p>
+      <p
+        className={`font-medium text-sm truncate${href ? " group-hover:text-hijauSawah transition-colors" : ""}`}
+      >
+        {profile.name}
+      </p>
     </div>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="group block min-w-0">
+        {content}
+      </Link>
+    );
+  }
+
+  return content;
 }
 
 interface ArticleUiProps {
@@ -135,6 +156,7 @@ const ArticleUi = ({
   );
 
   const authorHref = resolveAuthorPublicHref(article.author);
+  const editorHref = resolveAuthorPublicHref(article.editor);
   const authorProfileUrl = authorHref
     ? buildAbsoluteUrl(authorHref, getSiteBaseUrl())
     : undefined;
@@ -198,7 +220,7 @@ const ArticleUi = ({
     <>
       {/* Article Content */}
       <article
-        className={`mx-auto px-4 py-8 md:px-0 flex flex-col md:flex-row items-start container ${isForPublic ? "lg:max-w-6xl" : ""}`}
+        className={`${getPublicPageContainerClass({ articleMaxWidth: isForPublic })} py-8 flex flex-col md:flex-row items-start`}
         style={{
           gap: isSidebarOpen ? "3rem" : "0",
           transition: "gap 500ms cubic-bezier(0.4, 0, 0.2, 1)",
@@ -517,7 +539,7 @@ const ArticleUi = ({
           {showEditor && article.editor && (
             <div className="p-4 rounded-xl border border-border w-fit min-w-3/5  md:min-w-64">
               <p className="font-semibold mb-3">Editor</p>
-              <AttributionPersonRow profile={article.editor} />
+              <AttributionPersonRow profile={article.editor} href={editorHref} />
             </div>
           )}
 
@@ -549,7 +571,7 @@ const ArticleUi = ({
           )}
 
           {/* Tombol follow */}
-          <section className="container mx-auto px-4 md:px-0 py-4">
+          <section className="w-full py-4">
             <div className="flex justify-center gap-8">
               {/* button wa channel */}
               <ButtonConnect href={waConnected} app="whatsapp" />
@@ -561,12 +583,10 @@ const ArticleUi = ({
           {related && related.length > 0 && (
             <>
               {/* Divider */}
-              <DividerHorizontal
-                className={` container mx-auto px-4 md:px-0`}
-              />
+              <DividerHorizontal className="w-full" />
 
               {/* related */}
-              <section className="container mx-auto px-4 md:px-0 py-4">
+              <section className="w-full py-4">
                 <TitleHomepage title="Berita Terkait" variant="light" />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -596,10 +616,10 @@ const ArticleUi = ({
         <>
           {/* Advertisement */}
           {horizontalCarouselAds && horizontalCarouselAds.length > 0 && (
-            <section className="container mx-auto px-4 md:px-0 py-4">
-              <div
-                className={`${isForPublic ? "lg:max-w-6xl" : ""} mx-auto  text-center`}
-              >
+            <section
+              className={`${getPublicPageContainerClass({ articleMaxWidth: isForPublic })} py-4`}
+            >
+              <div className="text-center">
                 <div className="w-full mt-8">
                   <AdsCarousel
                     variant={AdsCarouselVariant.HORIZONTAL_LONG}
@@ -614,21 +634,21 @@ const ArticleUi = ({
 
       {/* Divider */}
       <DividerHorizontal
-        className={`${isForPublic ? "lg:max-w-6xl" : ""} container mx-auto px-4 md:px-0`}
+        className={getPublicPageContainerClass({ articleMaxWidth: isForPublic })}
       />
 
       {/* Popular carousel */}
       {isForPublic && (
         <>
           <div
-            className={`${isForPublic ? "lg:max-w-6xl" : ""} container mx-auto px-4 md:px-0 py-8`}
+            className={`${getPublicPageContainerClass({ articleMaxWidth: isForPublic })} py-8`}
           >
             <TitleHomepage title="Berita Terpopuler" variant="light" />
 
             <PopularNewsCarousel showAds={false} />
           </div>
           <DividerHorizontal
-            className={`${isForPublic ? "lg:max-w-6xl" : ""} container mx-auto px-4 md:px-0`}
+            className={getPublicPageContainerClass({ articleMaxWidth: isForPublic })}
           />
         </>
       )}
@@ -636,7 +656,7 @@ const ArticleUi = ({
       {/* latest — hanya jika parent menyalurkan data (halaman publik berita) */}
       {latestArticles !== undefined && (
         <section
-          className={`${isForPublic ? "lg:max-w-6xl" : ""} container mx-auto px-4 md:px-0`}
+          className={getPublicPageContainerClass({ articleMaxWidth: isForPublic })}
         >
           <h2 className="text-3xl lg:text-4xl font-bold text-center w-full md:w-auto text-primary mb-8">
             Berita Terupdate

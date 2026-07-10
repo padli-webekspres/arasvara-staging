@@ -2,11 +2,12 @@ import { Db, ObjectId } from "mongodb";
 import type {
 	AuditLogActor,
 	AuditLogListResult,
+	AuditLogMeta,
 	AuditLogPayload,
 	AuditLogQueryParams,
 	SerializedAuditLog,
 } from "@/types/auditLog";
-import { AuditLogAction } from "@/types/auditLog";
+import { AuditLogAction, EDITORIAL_ENTITIES } from "@/types/auditLog";
 
 /**
  * Validasi actor sebelum mutasi + audit: name/email non-kosong setelah trim.
@@ -28,6 +29,73 @@ export function requireAuditActor(actor: {
 }
 
 const COLLECTION = "audit_log";
+
+/** Cek apakah entity termasuk aktivitas editorial */
+export function isEditorialEntity(entity: string): boolean {
+	const normalized = entity.trim();
+	return (EDITORIAL_ENTITIES as readonly string[]).includes(normalized);
+}
+
+/** Bangun meta konsisten untuk audit log artikel */
+export function buildArticleAuditMeta(params: {
+	statusFrom?: string;
+	statusTo?: string;
+	articleTitle?: string;
+	reason?: string;
+}): AuditLogMeta {
+	const meta: AuditLogMeta = {};
+	if (params.statusFrom != null && params.statusFrom !== "") {
+		meta.statusFrom = params.statusFrom;
+	}
+	if (params.statusTo != null && params.statusTo !== "") {
+		meta.statusTo = params.statusTo;
+	}
+	if (params.articleTitle != null && params.articleTitle !== "") {
+		meta.articleTitle = params.articleTitle;
+	}
+	if (params.reason != null && params.reason.trim() !== "") {
+		meta.reason = params.reason.trim();
+	}
+	return meta;
+}
+
+/** Snapshot ringkas artikel untuk oldValue/newValue audit log */
+export function buildArticleSlimSnapshot(article: {
+	status?: string | null;
+	title?: string | null;
+	slug?: string | null;
+	scheduledAt?: Date | string | null;
+}): {
+	status?: string;
+	title?: string;
+	slug?: string;
+	scheduledAt?: string;
+} {
+	const snapshot: {
+		status?: string;
+		title?: string;
+		slug?: string;
+		scheduledAt?: string;
+	} = {};
+
+	if (article.status != null && article.status !== "") {
+		snapshot.status = String(article.status);
+	}
+	if (article.title != null && article.title !== "") {
+		snapshot.title = String(article.title);
+	}
+	if (article.slug != null && article.slug !== "") {
+		snapshot.slug = String(article.slug);
+	}
+	if (article.scheduledAt != null) {
+		snapshot.scheduledAt =
+			article.scheduledAt instanceof Date
+				? article.scheduledAt.toISOString()
+				: String(article.scheduledAt);
+	}
+
+	return snapshot;
+}
 
 /** Escape untuk pola literal di dalam RegExp */
 export function escapeRegexLiteral(term: string): string {
@@ -130,6 +198,9 @@ function serializeAuditDoc(doc: Record<string, unknown>): SerializedAuditLog {
 	if (typeof doc.details === "string") out.details = doc.details;
 	if (doc.oldValue !== undefined) out.oldValue = doc.oldValue;
 	if (doc.newValue !== undefined) out.newValue = doc.newValue;
+	if (doc.meta !== undefined && doc.meta !== null && typeof doc.meta === "object") {
+		out.meta = doc.meta as AuditLogMeta;
+	}
 	if (typeof doc.ipAddress === "string") out.ipAddress = doc.ipAddress;
 
 	return out;
@@ -188,6 +259,9 @@ export async function createAuditLog(
 	}
 	if (payload.oldValue !== undefined) doc.oldValue = payload.oldValue;
 	if (payload.newValue !== undefined) doc.newValue = payload.newValue;
+	if (payload.meta !== undefined && Object.keys(payload.meta).length > 0) {
+		doc.meta = payload.meta;
+	}
 	if (payload.ipAddress != null && String(payload.ipAddress).trim() !== "") {
 		doc.ipAddress = String(payload.ipAddress).trim();
 	}

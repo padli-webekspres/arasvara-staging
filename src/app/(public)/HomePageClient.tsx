@@ -1,6 +1,6 @@
 "use client";
-import FotografiCarousel from "@/components/homepage/carousel/FotografiCarousel";
 
+import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { fetcher } from "@/lib/fetcher";
 import Image from "next/image";
@@ -103,15 +103,8 @@ const SELECTED_TOPICS_MOCK = [
 
 import { Article } from "@/types/article";
 import { useLatestArticles } from "@/hooks/useLatestArticles";
-
-import HeroVideo from "@/components/homepage/HeroVideo";
 import TitleHomepage from "@/components/homepage/TitleHomepage";
-import EditorChoiceCarousel from "@/components/homepage/carousel/EditorChoiceCarousel";
-import BreakingNewsCarousel from "@/components/homepage/carousel/PopularNewsCarousel";
-import DividerHorizontal from "@/components/homepage/DividerHorizontal";
 import SnapWrapper from "@/components/homepage/SnapWrapper";
-import HorizontalFeaturedSection from "@/components/homepage/carousel/HorizontalFeaturedCarousel";
-import SnapWrapperBottom from "@/components/homepage/SnapWrapperBottom";
 import LoadingOverlay from "@/components/loading/LoadingOverlay";
 import { type ReactNode } from "react";
 import {
@@ -119,20 +112,73 @@ import {
   useGridSection,
   useFeaturedCategoriesSection,
 } from "@/hooks/useSectionsHomepage";
-import SponsoredByCarousel from "@/components/homepage/carousel/SponsoredByCarousel";
-import PopularNewsCarousel from "@/components/homepage/carousel/PopularNewsCarousel";
 import { useConfiguration } from "@/hooks/useConfiguration";
 import { useHeadlineArticles } from "@/hooks/useSectionArticles";
 import { useHomepageAdsGrouped } from "@/hooks/useAds";
-import type { HomepageAdItem } from "@/types/ads";
-import { Button } from "@/components/ui/button";
+import type { HomepageAdItem, HomepageAdsSectionRatio } from "@/types/ads";
 import Link from "next/link";
-import SocmedCarousel from "@/components/homepage/socmed/SocmedCarousel";
-import YoutubeCarousel from "@/components/homepage/socmed/YoutubeCarousel";
-import HorizontalAdCard from "@/components/ads/card/HorizontalAdCard";
-import VerticalAdCard from "@/components/ads/card/VerticalAdCard";
+import type { HomepageAdsSectionItem } from "@/components/ads/section/HomepageAdsSection";
 import FloatingSearchButton from "@/components/search/FloatingSearchButton";
-import SectionText from "@/components/aboutUs/SectionText";
+
+/** Placeholder ringan untuk komponen below-fold agar layout tidak collapse saat lazy load */
+const carouselSectionFallback = (
+  <div className="min-h-[280px] w-full" aria-hidden="true" />
+);
+
+const adsSectionFallback = (
+  <div className="min-h-[120px] w-full" aria-hidden="true" />
+);
+
+const sponsorSectionFallback = (
+  <div className="min-h-[80px] w-full" aria-hidden="true" />
+);
+
+const PopularNewsCarousel = dynamic(
+  () => import("@/components/homepage/carousel/PopularNewsCarousel"),
+  { ssr: false, loading: () => carouselSectionFallback },
+);
+
+const SponsoredByCarousel = dynamic(
+  () => import("@/components/homepage/carousel/SponsoredByCarousel"),
+  { ssr: false, loading: () => sponsorSectionFallback },
+);
+
+const SocmedCarousel = dynamic(
+  () => import("@/components/homepage/socmed/SocmedCarousel"),
+  { ssr: false, loading: () => carouselSectionFallback },
+);
+
+const YoutubeCarousel = dynamic(
+  () => import("@/components/homepage/socmed/YoutubeCarousel"),
+  { ssr: false, loading: () => carouselSectionFallback },
+);
+
+const FotografiCarousel = dynamic(
+  () => import("@/components/homepage/carousel/FotografiCarousel"),
+  { ssr: false, loading: () => carouselSectionFallback },
+);
+
+const EditorChoiceCarousel = dynamic(
+  () => import("@/components/homepage/carousel/EditorChoiceCarousel"),
+  { ssr: false, loading: () => carouselSectionFallback },
+);
+
+const HomepageAdsSection = dynamic(
+  () => import("@/components/ads/section/HomepageAdsSection"),
+  { ssr: false, loading: () => adsSectionFallback },
+);
+
+function toHomepageAdsSectionItems(
+  ads: HomepageAdItem[] | undefined,
+): HomepageAdsSectionItem[] {
+  if (!ads || ads.length === 0) return [];
+  return ads.map((ad) => ({
+    id: ad._id,
+    src: ad.banner?.url,
+    alt: ad.name || "Homepage Advertisement",
+    linkUrl: ad.linkUrl,
+  }));
+}
 
 /**
  * Komponen Client utama untuk halaman beranda.
@@ -169,7 +215,13 @@ export default function HomePageClient({
   const headlines = headlinesData || [];
 
   // Semua iklan homepage (aktif, dalam rentang tanggal, semua posisi)
-  const { isLoading: isLoadingAds, headlineAds } = useHomepageAdsGrouped();
+  const { isLoading: isLoadingAds, headlineAds, abovePhotographyAds } =
+    useHomepageAdsGrouped();
+  const abovePhotographyAdsItems = toHomepageAdsSectionItems(
+    abovePhotographyAds,
+  );
+  const abovePhotographyRatio: HomepageAdsSectionRatio =
+    abovePhotographyAds?.[0]?.ratio ?? "21:9";
 
   const { data: gridSectionData, isLoading: isLoadingGridSection } =
     useGridSection();
@@ -267,7 +319,7 @@ export default function HomePageClient({
         {!isLoadingAll && (
           <>
             {/* Seksi Berita Terpopuler */}
-            <section className="bg-background py-16 lg:py-24 relative z-10 container mx-auto px-4 md:px-0">
+            <section className="bg-background py-16 lg:py-24 relative z-10 container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
               <div className="flex flex-col justify-center flex-1">
                 <TitleHomepage title="Berita Terpopuler" />
                 <PopularNewsCarousel />
@@ -289,7 +341,7 @@ export default function HomePageClient({
 
             {/* Seksi Kategori Unggulan */}
             {featuredCategories && featuredCategories.length > 0 && (
-              <section className="container mx-auto px-4 md:px-0 py-8 lg:py-12 relative z-10 bg-background border-t border-border">
+              <section className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 py-8 lg:py-12 relative z-10 bg-background border-t border-border">
                 {featuredCategories.map((topic) => {
                   const topicName = topic.nickname?.trim() || topic.name;
                   const topicSlug = topic.slug;
@@ -359,11 +411,10 @@ export default function HomePageClient({
                   />
                 )}
                 <div className="absolute inset-0 bg-black/60 z-0 pointer-events-none" />
-                <div className="container relative z-10 px-4 py-8">
+                <div className="container mx-auto relative z-10 w-full min-w-0 px-4 md:px-6 lg:px-8 py-8">
                   <TitleHomepage
                     title={
-                      SectionSocmedTitle?.toString() ||
-                      "Lihat Socmed Terbaru"
+                      SectionSocmedTitle?.toString() || "Lihat Socmed Terbaru"
                     }
                     variant="dark"
                   />
@@ -374,7 +425,7 @@ export default function HomePageClient({
 
             {/* Seksi Featured Grid (Style-Z) */}
             {featuredArticles.length > 0 && (
-              <section className="container mx-auto px-4 md:px-0 py-16 lg:py-24">
+              <section className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 py-16 lg:py-24">
                 <TitleHomepage
                   title={gridSectionCategorySlug}
                   variant="light"
@@ -428,7 +479,7 @@ export default function HomePageClient({
 
             {/* Seksi Sponsor / Trusted By */}
             {SectionSponsorIsActive && (
-              <section className="container mx-auto px-4 md:px-0 py-16 lg:py-24">
+              <section className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 py-16 lg:py-24">
                 <TitleHomepage
                   title={SectionSponsorTitle?.toString() || "Sponsored by"}
                   variant="light"
@@ -437,11 +488,16 @@ export default function HomePageClient({
               </section>
             )}
 
-            {/* Divider */}
-            <DividerHorizontal />
+            {/* ads horizontal */}
+            <section className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 py-8">
+              <HomepageAdsSection
+                ratio={abovePhotographyRatio}
+                items={abovePhotographyAdsItems}
+              />
+            </section>
 
             {/* Seksi Tentang Kami */}
-            <SectionText
+            {/* <SectionText
               title="Tentang Kami"
               hideIconMouseBouncing
               variant="light"
@@ -478,7 +534,7 @@ export default function HomePageClient({
                   </p>
                 </>
               )}
-            </SectionText>
+            </SectionText> */}
 
             {/* Seksi Fotografi */}
             <section
@@ -505,7 +561,7 @@ export default function HomePageClient({
                 />
               )}
               <div className="absolute inset-0 bg-black/60 z-0 pointer-events-none" />
-              <div className="container mx-auto relative z-10 px-4 md:px-0">
+              <div className="container mx-auto relative z-10 w-full min-w-0 px-4 md:px-6 lg:px-8">
                 <TitleHomepage
                   title={SectionFotografiTitle?.toString() || "Arah Lensa"}
                   seeMoreLink="/search?type=ARTICLES&format=GALLERY"
@@ -516,7 +572,7 @@ export default function HomePageClient({
             </section>
 
             {/* Seksi Pilihan Editor */}
-            <section className="container mx-auto px-4 py-16 md:px-0 lg:py-24">
+            <section className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 py-16 lg:py-24">
               <TitleHomepage title="Pilihan Editor" variant="light" />
               <EditorChoiceCarousel />
             </section>
@@ -547,7 +603,7 @@ export default function HomePageClient({
                   />
                 )}
                 <div className="absolute inset-0 bg-black/60 z-0 pointer-events-none" />
-                <div className="container mx-auto relative z-10 px-4 md:px-0">
+                <div className="container mx-auto relative z-10 w-full min-w-0 px-4 md:px-6 lg:px-8">
                   <TitleHomepage
                     title={
                       SectionYoutubeTitle?.toString() || "Lihat Youtube Terbaru"
@@ -560,7 +616,7 @@ export default function HomePageClient({
             )}
 
             {/* Seksi Berita Terupdate (Artikel Terbaru) */}
-            <section className="container mx-auto px-4 py-8 snap-panel md:py-16 lg:py-24">
+            <section className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 py-8 snap-panel md:py-16 lg:py-24">
               <h2 className="text-2xl lg:text-3xl font-bold text-center mb-8">
                 Berita Terupdate
               </h2>

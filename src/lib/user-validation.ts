@@ -25,7 +25,7 @@ export function buildActiveUserFilter(): Record<string, unknown> {
   };
 }
 
-/** User boleh tampil di halaman publik /author/{slug}. */
+/** User boleh tampil di halaman publik `/penulis/{slug}` (role writer/editor). */
 export function isUserPubliclyVisible(
   doc: Record<string, unknown> | null | undefined,
 ): boolean {

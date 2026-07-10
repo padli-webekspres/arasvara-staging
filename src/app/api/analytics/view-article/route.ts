@@ -92,14 +92,30 @@ export async function POST(req: NextRequest) {
 
     // Kirim view_article ke GA4 via Measurement Protocol (server-side, non-blocking).
     // gaClientId dan gaParams dikirim dari browser di POST body.
-    const gaClientId: string = typeof data.gaClientId === "string" ? data.gaClientId : "";
+    const gaClientId: string =
+      typeof data.gaClientId === "string" ? data.gaClientId.trim() : "";
     const gaParams: ArticleGaPayload | null =
-      data.gaParams && typeof data.gaParams === "object" ? (data.gaParams as ArticleGaPayload) : null;
+      data.gaParams && typeof data.gaParams === "object"
+        ? (data.gaParams as ArticleGaPayload)
+        : null;
 
-    if (gaClientId && gaParams) {
+    if (!gaClientId || !gaParams) {
+      if (process.env.GA_MP_DEBUG === "true") {
+        console.warn("[view-article] GA MP skipped — data tidak lengkap", {
+          articleId: data.articleId,
+          hasClientId: Boolean(gaClientId),
+          hasGaParams: Boolean(gaParams),
+        });
+      }
+    } else {
       void sendMpEvent(
         gaClientId,
-        [{ name: "view_article", params: gaParams as unknown as Record<string, unknown> }],
+        [
+          {
+            name: "view_article",
+            params: gaParams as unknown as Record<string, unknown>,
+          },
+        ],
         userId?.toString(),
       );
     }

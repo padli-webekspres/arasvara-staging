@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef } from "react";
+import "@/styles/swiper";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation, Scrollbar, Mousewheel, Autoplay } from "swiper/modules";
 import type { Swiper as SwiperType } from "swiper";

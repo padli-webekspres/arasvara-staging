@@ -221,19 +221,19 @@ const HeadlineSlider = ({ articles }: HeadlineSliderProps) => {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white z-50 rounded-full"
+              className="absolute left-1 md:left-2  top-1/2 -translate-y-1/2  bg-white/20 hover:bg-white/40 text-white z-50 rounded-full h-8 w-8"
               onClick={goToPrev}
             >
-              <ChevronLeft className="h-6 w-6" />
+              <ChevronLeft className="h-5 w-5" />
             </Button>
 
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white z-50 rounded-full"
+              className="absolute right-1 md:right-2   top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white z-50 rounded-full h-8 w-8"
               onClick={goToNext}
             >
-              <ChevronRight className="h-6 w-6" />
+              <ChevronRight className="h-5 w-5" />
             </Button>
 
             {/* Indicators */}

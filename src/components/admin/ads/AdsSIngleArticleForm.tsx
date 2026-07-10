@@ -26,6 +26,7 @@ import { ChevronUp, ImageOff, Plus, Save } from "lucide-react";
 import Image from "next/image";
 import CropImageModal from "@/components/media/CropImageModal";
 import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
+import { getAdminStandardCardGridClass } from "@/lib/admin-card-grid";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import {
   ADS_SINGLE_ARTICLE_SECTION_ORDER,
@@ -685,7 +686,7 @@ export default function AdsSingleArticleForm({
                     <DragDropProvider
                       onDragEnd={handleDragEndForPlacement(placement)}
                     >
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <div className={getAdminStandardCardGridClass()}>
                         {sectionItems.map((item, index) => (
                           <AdsFormCard
                             key={item._id}

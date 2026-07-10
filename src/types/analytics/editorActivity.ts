@@ -1,7 +1,10 @@
 import type { ObjectId } from "mongodb";
 import type { ArticleStatus } from "../article";
 import type { UserProfile } from "../user";
-import type { AuditLogAction } from "../auditLog";
+import type {
+  AuditLogAction,
+  AuditLogEntityValue,
+} from "../auditLog";
 
 /**
  * Pelaku aktivitas redaksi (= field `userId` di MongoDB untuk KPI).
@@ -60,6 +63,8 @@ export interface EditorActivityListParams {
   search?: string;
   /** Exact match pada field `action` */
   action?: string;
+  /** Exact match pada field `entity` */
+  entity?: string;
   createdFrom?: Date;
   createdTo?: Date;
   /** Filter pelaku aktivitas (= `userId`) */
@@ -81,14 +86,20 @@ export interface SerializedEditorActivity {
     avatar?: UserProfile["avatar"];
   };
   action: EditorActivityAction;
-  statusFrom: ArticleStatus;
-  statusTo: ArticleStatus;
-  article: {
+  entity: AuditLogEntityValue | string;
+  statusFrom?: ArticleStatus | string;
+  statusTo?: ArticleStatus | string;
+  article?: {
     _id: string;
     title: string;
   };
+  details?: string;
+  target?: string;
   meta?: {
     reason?: string;
+    articleTitle?: string;
+    statusFrom?: string;
+    statusTo?: string;
   };
 }
 

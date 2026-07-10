@@ -104,6 +104,7 @@ export default function Footer() {
                 src="/logo-arasvara/stacked-logo/stacked-logo-putih-naskah.png"
                 alt="Arasvara"
                 fill
+                unoptimized
                 className="hidden object-contain object-left lg:block"
                 sizes="224px"
                 priority
@@ -112,6 +113,7 @@ export default function Footer() {
                 src="/logo-arasvara/main-logo/main-logo-putih-naskah.png"
                 alt="Arasvara"
                 fill
+                unoptimized
                 className="object-contain object-center lg:hidden"
                 sizes="(max-width: 1024px) 224px"
                 priority

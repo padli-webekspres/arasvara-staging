@@ -1,7 +1,9 @@
 const WATERMARK_OPACITY = 0.5;
 const WATERMARK_WIDTH_RATIO = 0.25; // 25% lebar gambar (lebih kecil)
-const WATERMARK_DARK = "/logo-arasvara/main-logo/main-logo-putih-naskah.png"; // untuk gambar gelap
-const WATERMARK_BRIGHT = "/logo-arasvara/main-logo/main-logo-hitam-gema.png"; // untuk gambar cerah
+import { BRAND_LOGO } from "@/lib/brand-logos";
+
+const WATERMARK_DARK = BRAND_LOGO.mainLight; // untuk gambar gelap
+const WATERMARK_BRIGHT = BRAND_LOGO.mainDark; // untuk gambar cerah
 const BRIGHTNESS_THRESHOLD = 128; // 0-255, di atas ini = cerah
 const SAMPLE_STEP = 10; // sampling setiap N pixel untuk performa
 

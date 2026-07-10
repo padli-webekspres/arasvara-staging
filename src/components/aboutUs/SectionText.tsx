@@ -33,7 +33,7 @@ export default function SectionText({
         className,
       )}
     >
-      <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-8">
+      <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-8">
         <h2
           className={cn(
             "text-3xl md:text-4xl lg:text-5xl font-bold w-full md:w-1/3",

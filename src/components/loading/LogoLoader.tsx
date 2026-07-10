@@ -43,6 +43,7 @@ const LogoLoader: React.FC<LogoLoaderProps> = ({ onComplete }) => {
             src="/logo-arasvara/main-logo/main-logo-hitam-gema.png"
             alt="Arasvara Shadow"
             fill
+            unoptimized
             className="object-contain object-left"
             priority
           />
@@ -63,6 +64,7 @@ const LogoLoader: React.FC<LogoLoaderProps> = ({ onComplete }) => {
               src="/logo-arasvara/main-logo/main-logo-hitam-gema.png"
               alt="Arasvara Logo Loading"
               fill
+              unoptimized
               className="object-contain object-left"
               priority
             />

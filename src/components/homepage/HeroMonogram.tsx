@@ -15,6 +15,7 @@ export default function HeroMonogram() {
         draggable={false}
         priority
         fetchPriority="high"
+        unoptimized
         width={500}
         height={500}
       />

@@ -65,6 +65,7 @@ interface RawHomepageAdItem {
   name: string;
   position: string;
   span?: number;
+  ratio?: string;
   linkUrl: string;
   order: number;
   banner: {
@@ -100,12 +101,17 @@ function normalizeAdItem(raw: RawHomepageAdItem): HomepageAdItem | null {
 
   const position = raw.position;
   const span = adsHomepageEffectiveSpan(position, raw.span);
+  const ratio =
+    raw.ratio === "21:9" || raw.ratio === "16:9" || raw.ratio === "4:3"
+      ? raw.ratio
+      : undefined;
 
   return {
     _id: raw._id,
     name: typeof raw.name === "string" ? raw.name : "",
     position,
     span,
+    ratio,
     linkUrl: typeof raw.linkUrl === "string" ? raw.linkUrl : "",
     order: typeof raw.order === "number" ? raw.order : 0,
     banner: {
@@ -400,6 +406,7 @@ export function useHomepageAdsGrouped() {
   const youtubeAds = grouped[AdsPosition.YOUTUBE];
   const reelsAds = grouped[AdsPosition.REELS];
   const popularAds = grouped[AdsPosition.POPULAR];
+  const abovePhotographyAds = grouped[AdsPosition.ABOVE_PHOTOGRAPHY];
   const photographyAds = grouped[AdsPosition.PHOTOGRAPHY];
   const editorChoiceAds = grouped[AdsPosition.EDITOR_CHOICE];
   const featuredAds = grouped[AdsPosition.FEATURED];
@@ -414,6 +421,7 @@ export function useHomepageAdsGrouped() {
     youtubeAds,
     reelsAds,
     popularAds,
+    abovePhotographyAds,
     photographyAds,
     editorChoiceAds,
     featuredAds,

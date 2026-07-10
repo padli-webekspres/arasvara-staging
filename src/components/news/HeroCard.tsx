@@ -43,14 +43,19 @@ const HeroCard = ({
       href={resolvePublicArticleHref(article)}
       className="block group h-full"
       draggable="false"
-      onClick={gaClickLocation ? () => trackSelectContent({
-        article_id: String(article._id ?? ""),
-        article_slug: article.slug ?? "",
-        article_title: article.title ?? "",
-        category_name: article.category?.name ?? "",
-        click_location: gaClickLocation,
-        position: gaPosition,
-      }) : undefined}
+      onClick={
+        gaClickLocation
+          ? () =>
+              trackSelectContent({
+                article_id: String(article._id ?? ""),
+                article_slug: article.slug ?? "",
+                article_title: article.title ?? "",
+                category_name: article.category?.name ?? "",
+                click_location: gaClickLocation,
+                position: gaPosition,
+              })
+          : undefined
+      }
     >
       {" "}
       {/* Tambahkan h-full */}
@@ -88,7 +93,7 @@ const HeroCard = ({
               : "bg-linear-to-r from-white/80 via-white/50 to-transparent"
           }`}
         />
-        <div className="absolute inset-0 flex flex-col justify-center p-6 lg:pl-8 xl:pl-10">
+        <div className="absolute inset-0 flex flex-col justify-center p-6 pl-10 lg:pl-14">
           <div className="w-2/3 max-w-2/3 min-w-0 flex flex-col">
             <div className="flex flex-wrap gap-2 mb-3">
               {article.category && (

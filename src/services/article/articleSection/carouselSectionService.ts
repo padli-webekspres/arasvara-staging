@@ -3,7 +3,7 @@ import { SectionArticleItem } from "@/types/articleSection";
 import { ArticleListResponse } from "@/types/article";
 import logger from "@/lib/logger";
 import type { AuditLogActor } from "@/types/auditLog";
-import { AuditLogAction } from "@/types/auditLog";
+import { AuditLogAction, AuditLogEntity } from "@/types/auditLog";
 import { createAuditLog, requireAuditActor } from "@/services/auditLogService";
 import {
   normalizeFeaturedImage,
@@ -295,7 +295,7 @@ export async function upsertCarouselSection(
 			await createAuditLog(db, {
 				actor: auditActor,
 				action: AuditLogAction.UPDATE,
-				entity: "CAROUSEL_SECTION",
+				entity: AuditLogEntity.CAROUSEL_SECTION,
 				entityId: "carousel_section",
 				details: `Mengganti carousel: ${insertResult.insertedCount} artikel [${idPreview}]${detailsTail}`,
 				oldValue: { articleCount: previousCount },
@@ -305,6 +305,7 @@ export async function upsertCarouselSection(
 						.slice(0, 12)
 						.map((a) => a.article_id),
 				},
+				meta: { sectionType: "carousel" },
 			});
 		} catch (auditErr) {
 			logger.error(

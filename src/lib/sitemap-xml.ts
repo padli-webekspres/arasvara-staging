@@ -1,5 +1,6 @@
 import type { SitemapArticle, SitemapAuthor, SitemapCategory } from "@/types/sitemap";
 import { isStructuredPublicPath } from "@/lib/article-public-path";
+import { buildAuthorPublicPath } from "@/lib/author-public-path";
 
 /** Basis URL publik dari NEXT_PUBLIC_BASE_URL (tanpa trailing slash). */
 export function getSitemapBaseUrl(): string {
@@ -98,7 +99,7 @@ function authorUrlXml(baseUrl: string, authors: SitemapAuthor[]): string {
 		.map(
 			(author) => `
   <url>
-    <loc>${buildLoc(baseUrl, `/author/${encodeURIComponent(author.slug)}`)}</loc>
+    <loc>${buildLoc(baseUrl, buildAuthorPublicPath(author.slug))}</loc>
     <lastmod>${escapeXml(author.updatedAt)}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>

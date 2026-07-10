@@ -62,7 +62,7 @@ export default function CategoryClient() {
 
   return (
     <main className="pt-48 pb-8">
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-4 md:mb-8">
           <h1 className="font-sans uppercase text-4xl md:text-5xl font-bold mb-4 animate-fade-in">

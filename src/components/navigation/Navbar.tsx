@@ -132,7 +132,9 @@ const Navbar = ({ onMenuOpen, active }: NavbarProps) => {
                   <Switch
                     checked={isSubscribed}
                     onCheckedChange={(checked) =>
-                      checked ? subscribe() : unsubscribe()
+                      checked
+                        ? subscribe({ persistToBackend: true })
+                        : unsubscribe({ removeFromBackend: true })
                     }
                     id="push-notif-switch"
                   />
@@ -167,6 +169,7 @@ const Navbar = ({ onMenuOpen, active }: NavbarProps) => {
               alt="Arasvara Logo"
               width={200}
               height={80}
+              unoptimized
             />
           </Link>
 

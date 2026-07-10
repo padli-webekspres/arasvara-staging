@@ -22,6 +22,45 @@ export function buildAuthorCanonicalUrl(authorSlug: string): string {
   return buildAbsoluteUrl(path, getSiteBaseUrl());
 }
 
+/** Title tag halaman profil — format: Arasvara | Profil {nama} */
+export function buildAuthorPageTitle(name: string): string {
+  const trimmed = name.trim();
+  return `Arasvara | Profil ${trimmed}`;
+}
+
+/** Nilai bio placeholder dari DB/CMS yang dianggap kosong. */
+const EMPTY_BIO_PLACEHOLDERS = new Set([
+  "",
+  "-",
+  "null",
+  "undefined",
+  "n/a",
+  "na",
+]);
+
+function isMeaningfulBio(bio: string | undefined | null): bio is string {
+  const trimmed = bio?.trim();
+  if (!trimmed) return false;
+  return !EMPTY_BIO_PLACEHOLDERS.has(trimmed.toLowerCase());
+}
+
+/** Teks bio untuk tampilan UI — pakai bio DB jika ada, else fallback generik. */
+export function buildAuthorBioDisplay(
+  bio: string | undefined | null,
+  name: string,
+): string {
+  if (isMeaningfulBio(bio)) return bio.trim();
+
+  const trimmedName = name.trim() || "Anggota tim";
+  return `${trimmedName} adalah bagian dari tim editorial Arasvara, portal berita digital Indonesia untuk generasi Milenial dan Gen Z.`;
+}
+
+function truncateMetaDescription(text: string, maxLength = 160): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= maxLength) return trimmed;
+  return `${trimmed.slice(0, maxLength - 3).trimEnd()}...`;
+}
+
 export async function fetchAuthorArticlesPage(
   db: Db,
   authorId: string,
@@ -30,6 +69,7 @@ export async function fetchAuthorArticlesPage(
 ): Promise<ArticleSearchResult> {
   return searchArticles(db, {
     authorId,
+    includeEdited: true,
     status: "published",
     sortBy: "date",
     sortOrder: "desc",
@@ -38,11 +78,21 @@ export async function fetchAuthorArticlesPage(
   });
 }
 
+function buildAuthorMetaDescription(
+  user: User,
+  articleMeta: { total: number },
+): string {
+  if (isMeaningfulBio(user.bio)) {
+    return truncateMetaDescription(user.bio.trim());
+  }
+  return buildAuthorDescription(user.name, articleMeta.total);
+}
+
 function buildAuthorDescription(name: string, totalArticles: number): string {
   if (totalArticles > 0) {
-    return `${name} adalah penulis di Arasvara. Baca ${totalArticles} artikel terbaru oleh ${name}, portal berita digital Indonesia.`;
+    return `${name} adalah bagian dari tim editorial Arasvara. Baca ${totalArticles} artikel terbaru terkait ${name}, portal berita digital Indonesia.`;
   }
-  return `${name} adalah penulis di Arasvara. Portal berita digital Indonesia untuk generasi Milenial dan Gen Z.`;
+  return `${name} adalah bagian dari tim editorial Arasvara. Portal berita digital Indonesia untuk generasi Milenial dan Gen Z.`;
 }
 
 function buildAuthorKeywords(name: string): string[] {
@@ -51,10 +101,10 @@ function buildAuthorKeywords(name: string): string[] {
     new Set([
       normalized,
       `${normalized} arasvara`,
-      `penulis ${normalized}`,
+      `tim editorial ${normalized}`,
+      `profil ${normalized}`,
       "arasvara",
-      "penulis arasvara",
-      "jurnalis arasvara",
+      "tim editorial arasvara",
       "portal berita indonesia",
     ]),
   ).filter(Boolean);
@@ -106,32 +156,29 @@ export function buildMetadataFromAuthor(
 ): Metadata {
   const baseUrl = getSiteBaseUrl();
   const canonicalUrl = buildAuthorCanonicalUrl(authorSlug);
-  const title = `${user.name} | Arasvara`;
-  const description = buildAuthorDescription(user.name, articleMeta.total);
+  const title = buildAuthorPageTitle(user.name);
+  const description = buildAuthorMetaDescription(user, articleMeta);
   const keywords = buildAuthorKeywords(user.name);
-  const isIndexable = articleMeta.total > 0;
 
   return {
-    title,
+    title: {
+      absolute: title,
+    },
     description,
     keywords,
     alternates: {
       canonical: canonicalUrl,
     },
     robots: {
-      index: isIndexable,
+      index: true,
       follow: true,
-      ...(isIndexable
-        ? {
-            googleBot: {
-              index: true,
-              follow: true,
-              "max-snippet": -1,
-              "max-image-preview": "large" as const,
-              "max-video-preview": -1,
-            },
-          }
-        : {}),
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-snippet": -1,
+        "max-image-preview": "large" as const,
+        "max-video-preview": -1,
+      },
     },
     openGraph: {
       title,
@@ -175,16 +222,20 @@ export function buildAuthorJsonLd(
     .map(resolveArticleAbsoluteUrl)
     .filter((url): url is string => Boolean(url));
 
+  const bioDescription = buildAuthorBioDisplay(user.bio, user.name);
+
   return {
     "@context": "https://schema.org",
     "@type": "ProfilePage",
     url: canonicalUrl,
     name: user.name,
+    description: bioDescription,
     inLanguage: "id",
     mainEntity: {
       "@type": "Person",
       name: user.name,
       url: canonicalUrl,
+      description: bioDescription,
       ...(image ? { image } : {}),
       worksFor: {
         "@type": "Organization",

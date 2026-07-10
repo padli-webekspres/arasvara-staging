@@ -18,7 +18,7 @@ import { buildAbsoluteUrl, getSiteBaseUrl } from "@/lib/og-image";
 import CategoryPushPrompt from "@/components/notification/CategoryPushPrompt";
 import {
   buildArticleGaParams,
-  getGaClientId,
+  getGaClientIdAsync,
 } from "@/lib/google-analytics";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { trackPushOpen } from "@/lib/ga-events";
@@ -51,7 +51,7 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
     if (typeof window !== "undefined" && !sessionStorage.getItem(key)) {
       (async () => {
         try {
-          const gaClientId = getGaClientId();
+          const gaClientId = await getGaClientIdAsync();
           const gaParams = buildArticleGaParams(
             article,
             isShowAll ? "all" : pageNum,
@@ -174,7 +174,7 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
     : undefined;
 
   return (
-    <main className="pt-40">
+    <main className="pt-48 pb-8">
       <ArticleUi
         related={related}
         article={pagedArticle}

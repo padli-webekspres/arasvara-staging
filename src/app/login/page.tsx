@@ -66,10 +66,12 @@ function LoginPageInner() {
         <div className="text-center mb-8">
           <Link href="/" className="inline-block">
             <Image
-              src={"/logo-arasvara/main-logo/main-logo-hitam-gema.png"}
+              src="/logo-arasvara/main-logo/main-logo-hitam-gema.png"
               width={200}
               height={100}
               alt="Arasvara Logo"
+              unoptimized
+              className="mx-auto h-auto w-[200px] object-contain"
             />
           </Link>
           <p className="text-muted-foreground mt-2">Sign in to your account</p>

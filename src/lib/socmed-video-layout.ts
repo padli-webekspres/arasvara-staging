@@ -1,5 +1,9 @@
 import type { HomepageAdItem } from "@/types/ads";
 import { AdsPosition } from "@/types/ads";
+import {
+  getAdminLandscapeVideoCardGridClass,
+  getAdminPortraitCardGridClass,
+} from "./admin-card-grid";
 
 export type SocmedPlatform = "tiktok" | "instagram" | "youtube";
 export type SocmedVideoLayout = "portrait" | "landscape";
@@ -43,8 +47,8 @@ export const getSharpThumbnailSize = getCropOutputSize;
 
 export function getAdminCardGridClass(layout: SocmedVideoLayout): string {
   return layout === "portrait"
-    ? "grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4"
-    : "grid grid-cols-1 gap-4 md:grid-cols-2";
+    ? getAdminPortraitCardGridClass()
+    : getAdminLandscapeVideoCardGridClass();
 }
 
 export function getAdminCardMaxWidthClass(layout: SocmedVideoLayout): string {

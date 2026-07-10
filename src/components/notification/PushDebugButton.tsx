@@ -38,7 +38,7 @@ export default function PushDebugButton() {
 
     setSending(true);
     try {
-      const subscribeResult = await subscribe();
+      const subscribeResult = await subscribe({ persistToBackend: true });
       if (!subscribeResult.ok) {
         toast.error(subscribeResult.reason);
         return;

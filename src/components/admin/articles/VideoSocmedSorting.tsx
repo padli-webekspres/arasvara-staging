@@ -9,6 +9,7 @@ import { DragDropProvider } from "@dnd-kit/react";
 import { SortableArticleCard } from "@/components/admin/articles/SortableArticleCard";
 import { ArticleListResponse } from "@/types/article";
 import { SectionArticleItem } from "@/types/articleSection";
+import { getAdminStandardCardGridClass } from "@/lib/admin-card-grid";
 
 interface VideoSocmedSortingProps {
   selectedArticles: SectionArticleItem[];
@@ -108,7 +109,7 @@ const VideoSocmedSorting = ({
             ) : (
               // Bungkus seluruh area draggable dengan DragDropProvider
               <DragDropProvider onDragEnd={onSort}>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className={getAdminStandardCardGridClass()}>
                   {selectedArticles.map((item, index) => (
                     <SortableArticleCard
                       key={item.article_id.toString()}

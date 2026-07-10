@@ -36,6 +36,9 @@ export const VideoFormCard = ({
   showPlatformBadge = false,
 }: VideoFormCardProps) => {
   const platformLabel = showPlatformBadge ? getPlatformLabel(item.type) : null;
+  const isPortraitThumbnail =
+    thumbnailAspectClass.includes("9/16") ||
+    thumbnailAspectClass.includes("9/8");
   const { ref, handleRef, isDragging } = useSortable({
     id: item._id ?? `temp-id-${index}`,
     index,
@@ -44,7 +47,7 @@ export const VideoFormCard = ({
   return (
     <div
       ref={ref}
-      className={`relative rounded-lg border border-border bg-card p-3 transition-opacity ${
+      className={`relative min-w-0 overflow-hidden rounded-lg border border-border bg-card p-3 transition-opacity ${
         isDragging ? "opacity-50" : "opacity-100"
       }`}
     >
@@ -96,12 +99,14 @@ export const VideoFormCard = ({
         </p>
       </div>
 
-      {/* Actions */}
-      <div className="mt-3 flex gap-2">
+      {/* Actions — stack vertikal di kartu portrait sempit (MacBook Air) */}
+      <div
+        className={`mt-3 flex flex-col gap-2 ${isPortraitThumbnail ? "" : "md:flex-row"}`}
+      >
         <Button
           size="sm"
           variant="outline"
-          className="flex-1"
+          className={`w-full ${isPortraitThumbnail ? "" : "md:flex-1"}`}
           onClick={() => onEdit(item)}
         >
           <Edit2 className="h-3 w-3 mr-1" /> Edit
@@ -109,7 +114,7 @@ export const VideoFormCard = ({
         <Button
           size="sm"
           variant="outline"
-          className="flex-1 text-destructive hover:text-destructive"
+          className={`w-full text-destructive hover:text-destructive ${isPortraitThumbnail ? "" : "md:flex-1"}`}
           onClick={() => onRemove(item._id ?? `temp-id-${index}`)}
         >
           <Trash2 className="h-3 w-3 mr-1" /> Remove

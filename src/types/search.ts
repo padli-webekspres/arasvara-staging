@@ -33,6 +33,9 @@ export interface ArticleSearchParams {
   /** Filter satu penulis (ObjectId hex) — dipakai CMS untuk role writer/reporter */
   authorId?: string;
 
+  /** Jika true + authorId set: filter authorId OR editorId (halaman profil `/penulis`) */
+  includeEdited?: boolean;
+
   // Filter rentang tanggal berdasarkan publishedAt (AND)
   dateFrom?: string; // ISO date string, e.g. "2024-01-01"
   dateTo?: string;   // ISO date string, e.g. "2024-12-31"

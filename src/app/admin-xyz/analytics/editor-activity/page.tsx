@@ -8,7 +8,7 @@ import {
   useTransition,
 } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Calendar as CalendarIcon, RotateCcw } from "lucide-react";
+import { Calendar as CalendarIcon, Eye, RotateCcw } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import {
@@ -22,6 +22,7 @@ import {
 import {
   Pagination,
   PaginationContent,
+  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
@@ -33,10 +34,17 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import { ListTable, ListTableColumn } from "@/components/table/ListTable";
 import Link from "next/link";
-import { buildAuthorPublicPath } from "@/lib/author-public-path";
+import { resolveAuthorPublicHref } from "@/lib/author-public-path";
 import { fetcher } from "@/lib/fetcher";
 import { DateTime } from "luxon";
 import { EditorActivity } from "@/types/analytics/editorActivity";
@@ -45,6 +53,7 @@ import { DayPicker, type DateRange } from "react-day-picker";
 import { endOfDay, format, isValid, parse, startOfDay } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { ADMIN_PAGINATION_WRAP } from "@/lib/admin-ui";
+import { EDITORIAL_ENTITIES } from "@/types/auditLog";
 
 const LIMIT = 20;
 
@@ -58,6 +67,8 @@ const ACTIONS = [
   "RESTORE",
   "REJECT",
 ];
+
+const ENTITY_OPTIONS = [...EDITORIAL_ENTITIES];
 
 /** Parse tanggal kalender yyyy-MM-dd (URL & day picker output) */
 function parseYmd(value: string | null): Date | undefined {
@@ -96,11 +107,15 @@ export default function EditorActivityPage() {
   const [page, setPage] = useState(1);
   const [userId, setUserId] = useState("");
   const [action, setAction] = useState("");
+  const [entity, setEntity] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [data, setData] = useState<EditorActivity[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [selectedReasonRow, setSelectedReasonRow] = useState<EditorActivity | null>(
+    null,
+  );
   const [, startTransition] = useTransition();
 
   const updateParams = (
@@ -153,11 +168,13 @@ export default function EditorActivityPage() {
     const pageParam = parseInt(searchParams.get("page") || "1", 10);
     const userIdParam = searchParams.get("userId") || "";
     const actionParam = searchParams.get("action") || "";
+    const entityParam = searchParams.get("entity") || "";
     const searchParam = searchParams.get("search") || "";
     Promise.resolve().then(() => {
       setPage(pageParam);
       setUserId(userIdParam);
       setAction(actionParam);
+      setEntity(entityParam);
       setSearchInput(searchParam);
       setSearch(searchParam);
     });
@@ -170,6 +187,7 @@ export default function EditorActivityPage() {
     params.set("skip", String((page - 1) * LIMIT));
     if (userId) params.set("userId", userId);
     if (action) params.set("action", action);
+    if (entity) params.set("entity", entity);
 
     if (dateRange?.from) {
       const end = dateRange.to ?? dateRange.from;
@@ -191,9 +209,16 @@ export default function EditorActivityPage() {
         setTotal(res.total ?? 0);
       })
       .finally(() => setLoading(false));
-  }, [page, userId, action, dateRange, search]);
+  }, [page, userId, action, entity, dateRange, search]);
 
   const totalPages = Math.max(1, Math.ceil((total || data.length) / LIMIT));
+  const visiblePages = useMemo(() => {
+    const start = Math.max(1, page - 4);
+    const end = Math.min(totalPages, page + 4);
+    const pages: number[] = [];
+    for (let p = start; p <= end; p++) pages.push(p);
+    return pages;
+  }, [page, totalPages]);
 
   const dateRangeLabel = () => {
     if (!dateRange?.from) return "Rentang tanggal";
@@ -240,7 +265,7 @@ export default function EditorActivityPage() {
         if (!row.user)
           return <span className="italic text-muted-foreground">-</span>;
         const authorHref = row.user.slug
-          ? buildAuthorPublicPath(row.user.slug)
+          ? resolveAuthorPublicHref(row.user)
           : null;
         if (!authorHref) {
           return <span>{row.user.name}</span>;
@@ -284,13 +309,14 @@ export default function EditorActivityPage() {
     },
     {
       key: "article",
-      header: "Article",
+      header: "Artikel / Target",
       render: (row) => {
-        if (!row.article)
+        const title = row.target || row.article?.title || row.details || "";
+        if (!title)
           return <span className="italic text-muted-foreground">-</span>;
         return (
           <span className="block truncate max-w-[12rem] md:max-w-xs">
-            {row.article.title}
+            {title}
           </span>
         );
       },
@@ -299,21 +325,38 @@ export default function EditorActivityPage() {
       key: "meta",
       header: "Reason",
       className: "hidden lg:table-cell",
-      render: (row) =>
-        row.meta?.reason || (
-          <span className="italic text-muted-foreground">-</span>
-        ),
+      render: (row) => {
+        const reasonText = row.meta?.reason || row.details || "";
+        if (!reasonText) {
+          return <span className="italic text-muted-foreground">-</span>;
+        }
+        return (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setSelectedReasonRow(row)}
+            title="Lihat reason"
+            aria-label="Lihat reason"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+        );
+      },
     },
   ];
 
   const resetFilters = () => {
     setUserId("");
     setAction("");
+    setEntity("");
     setSearchInput("");
     setSearch("");
     updateParams({
       userId: null,
       action: null,
+      entity: null,
       startDate: null,
       endDate: null,
       search: null,
@@ -355,6 +398,32 @@ export default function EditorActivityPage() {
           {ACTIONS.map((a) => (
             <SelectItem key={a} value={a}>
               {a.replace("_", " ")}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
+  const entityFilter = (
+    <div className="space-y-2 flex-1 basis-0 min-w-[10rem] md:flex-none md:basis-auto md:w-[13rem] lg:w-[14rem] md:shrink-0">
+      <Label className="text-xs md:text-sm">Entity</Label>
+      <Select
+        value={entity || "ALL"}
+        onValueChange={(val) => {
+          const mapped = val === "ALL" ? "" : val;
+          setEntity(mapped);
+          updateParams({ entity: mapped || null, page: 1 });
+        }}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Semua Entity" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="ALL">Semua Entity</SelectItem>
+          {ENTITY_OPTIONS.map((item) => (
+            <SelectItem key={item} value={item}>
+              {item}
             </SelectItem>
           ))}
         </SelectContent>
@@ -429,6 +498,7 @@ export default function EditorActivityPage() {
       <div className="flex flex-col gap-4 md:hidden">
         <div className="flex flex-wrap items-end gap-3">
           {actionFilter}
+          {entityFilter}
           {dateFilter}
           <div className="flex items-end shrink-0">{resetButton}</div>
         </div>
@@ -439,6 +509,7 @@ export default function EditorActivityPage() {
       <div className="hidden md:flex md:flex-row md:flex-nowrap md:items-end md:gap-3">
         <div className="min-w-0 flex-1">{searchField}</div>
         {actionFilter}
+        {entityFilter}
         {dateFilter}
         <div className="flex shrink-0 items-end">{resetButton}</div>
       </div>
@@ -459,6 +530,57 @@ export default function EditorActivityPage() {
         />
       </div>
 
+      <Dialog
+        open={Boolean(selectedReasonRow)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedReasonRow(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detail Reason</DialogTitle>
+            <DialogDescription>
+              Informasi lengkap reason dan konteks aktivitas redaksi.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedReasonRow && (
+            <div className="space-y-4">
+              <div className="grid gap-2 text-sm">
+                <div>
+                  <span className="font-semibold">Aksi:</span>{" "}
+                  {String(selectedReasonRow.action).replace("_", " ")}
+                </div>
+                <div>
+                  <span className="font-semibold">Entity:</span>{" "}
+                  {selectedReasonRow.entity || "-"}
+                </div>
+                <div>
+                  <span className="font-semibold">Target:</span>{" "}
+                  {selectedReasonRow.target ||
+                    selectedReasonRow.article?.title ||
+                    "-"}
+                </div>
+                <div>
+                  <span className="font-semibold">Waktu:</span>{" "}
+                  {typeof selectedReasonRow.timestamp === "string"
+                    ? DateTime.fromISO(selectedReasonRow.timestamp, {
+                        zone: "Asia/Jakarta",
+                      }).toFormat("HH:mm, dd-MM-yyyy")
+                    : DateTime.fromJSDate(selectedReasonRow.timestamp, {
+                        zone: "Asia/Jakarta",
+                      }).toFormat("HH:mm, dd-MM-yyyy")}
+                </div>
+              </div>
+              <div className="rounded-md border bg-muted/20 p-3 text-sm whitespace-pre-wrap break-words">
+                {selectedReasonRow.meta?.reason ||
+                  selectedReasonRow.details ||
+                  "-"}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {totalPages > 1 && (
         <Pagination className="my-4 flex-wrap justify-center">
           <PaginationContent className={ADMIN_PAGINATION_WRAP}>
@@ -472,20 +594,62 @@ export default function EditorActivityPage() {
                 className={page <= 1 ? "pointer-events-none opacity-50" : ""}
               />
             </PaginationItem>
-            {Array.from({ length: totalPages }).map((_, idx) => (
-              <PaginationItem key={idx + 1}>
+            {visiblePages[0] > 1 && (
+              <>
+                <PaginationItem>
+                  <PaginationLink
+                    href="#"
+                    isActive={page === 1}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (page !== 1) updateParams({ page: 1 });
+                    }}
+                  >
+                    1
+                  </PaginationLink>
+                </PaginationItem>
+                {visiblePages[0] > 2 && (
+                  <PaginationItem>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                )}
+              </>
+            )}
+            {visiblePages.map((pageNum) => (
+              <PaginationItem key={pageNum}>
                 <PaginationLink
                   href="#"
-                  isActive={page === idx + 1}
+                  isActive={page === pageNum}
                   onClick={(e) => {
                     e.preventDefault();
-                    if (page !== idx + 1) updateParams({ page: idx + 1 });
+                    if (page !== pageNum) updateParams({ page: pageNum });
                   }}
                 >
-                  {idx + 1}
+                  {pageNum}
                 </PaginationLink>
               </PaginationItem>
             ))}
+            {visiblePages[visiblePages.length - 1] < totalPages && (
+              <>
+                {visiblePages[visiblePages.length - 1] < totalPages - 1 && (
+                  <PaginationItem>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                )}
+                <PaginationItem>
+                  <PaginationLink
+                    href="#"
+                    isActive={page === totalPages}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (page !== totalPages) updateParams({ page: totalPages });
+                    }}
+                  >
+                    {totalPages}
+                  </PaginationLink>
+                </PaginationItem>
+              </>
+            )}
             <PaginationItem>
               <PaginationNext
                 href="#"

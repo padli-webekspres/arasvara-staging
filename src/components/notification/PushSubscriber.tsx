@@ -7,7 +7,8 @@
  * - Jika user sudah grant permission & belum punya token → silent auto-subscribe.
  * - Jika belum pernah grant → tidak memunculkan popup (UX best practice).
  *   Subscription pertama dipicu oleh aksi user (misalnya di NotificationButton).
- * - Jika API mengembalikan 401 (belum login) → diabaikan dengan diam.
+ * - Guest dapat subscribe tanpa login; token disimpan di localStorage saja.
+ * - Penyimpanan ke backend (/api/push-token) hanya jika caller set persistToBackend.
  */
 
 import { useEffect } from "react";

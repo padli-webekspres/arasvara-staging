@@ -34,6 +34,7 @@ export enum AdsPosition {
   REELS = "reels",
   POPULAR = "popular",
   PHOTOGRAPHY = "photography",
+  ABOVE_PHOTOGRAPHY = "above_photography",
   EDITOR_CHOICE = "editor_choice",
   FEATURED = "featured",
   HORIZONTAL_FEATURED = "horizontal_featured",
@@ -76,6 +77,7 @@ export const ADS_HOMEPAGE_SECTION_ORDER: readonly AdsPosition[] = [
   AdsPosition.YOUTUBE,
   AdsPosition.REELS,
   AdsPosition.POPULAR,
+  AdsPosition.ABOVE_PHOTOGRAPHY,
   AdsPosition.PHOTOGRAPHY,
   AdsPosition.EDITOR_CHOICE,
 ] as const;
@@ -88,6 +90,7 @@ export function adsHomepagePositionLabel(position: AdsPosition): string {
     [AdsPosition.YOUTUBE]: "YouTube",
     [AdsPosition.REELS]: "Reels",
     [AdsPosition.POPULAR]: "Terpopuler",
+    [AdsPosition.ABOVE_PHOTOGRAPHY]: "Diatas Arah Lensa",
     [AdsPosition.PHOTOGRAPHY]: "Fotografi",
     [AdsPosition.EDITOR_CHOICE]: "Pilihan Editor",
     [AdsPosition.FEATURED]: "Featured",
@@ -106,6 +109,17 @@ export interface AdsBannerCropSpec {
 
 /** Alias untuk backward-compatibility — identik dengan `AdsBannerCropSpec`. */
 export type AdsHomepageBannerCropSpec = AdsBannerCropSpec;
+export type HomepageAdsSectionRatio = "21:9" | "16:9" | "4:3";
+const ADS_HOMEPAGE_RATIO_BASED_POSITIONS: readonly AdsPosition[] = [
+  AdsPosition.ABOVE_PHOTOGRAPHY,
+] as const;
+const ADS_HOMEPAGE_RATIO_BASED_POSITION_SET = new Set<AdsPosition>(
+  ADS_HOMEPAGE_RATIO_BASED_POSITIONS,
+);
+
+export function adsHomepageIsRatioBasedPosition(position: AdsPosition): boolean {
+  return ADS_HOMEPAGE_RATIO_BASED_POSITION_SET.has(position);
+}
 
 function homepageCropSpec(
   aspect: number,
@@ -118,6 +132,7 @@ function homepageCropSpec(
 export function adsHomepageBannerCropSpec(
   position: AdsPosition,
   span: 1 | 2 = 1,
+  ratio: HomepageAdsSectionRatio = "21:9",
 ): AdsBannerCropSpec {
   switch (position) {
     case AdsPosition.HEADLINE:
@@ -144,6 +159,14 @@ export function adsHomepageBannerCropSpec(
         return homepageCropSpec(2, "2:1", "aspect-[2/1]");
       }
       return homepageCropSpec(1, "1:1", "aspect-square");
+    case AdsPosition.ABOVE_PHOTOGRAPHY:
+      if (ratio === "16:9") {
+        return homepageCropSpec(16 / 9, "16:9", "aspect-video");
+      }
+      if (ratio === "4:3") {
+        return homepageCropSpec(4 / 3, "4:3", "aspect-[4/3]");
+      }
+      return homepageCropSpec(21 / 9, "21:9", "aspect-[21/9]");
     case AdsPosition.FEATURED:
       return homepageCropSpec(9 / 16, "9:16", "aspect-[9/16]");
     case AdsPosition.HORIZONTAL_FEATURED:
@@ -204,6 +227,7 @@ export interface CreateAdsHomepagePayload {
   name: string;
   variant?: string;
   span?: number;
+  ratio?: HomepageAdsSectionRatio;
   /** Satu banner per dokumen (variant disimpan di level dokumen, bukan di banner). */
   banner: AdsBannerFileFields;
   linkUrl: string;
@@ -259,6 +283,7 @@ export interface BulkUpsertAdsItem {
   endedAt: string | Date;
   variant?: string;
   span?: number;
+  ratio?: HomepageAdsSectionRatio;
   isActive?: boolean;
 }
 
@@ -498,6 +523,7 @@ export interface HomepageAdItem {
   name: string;
   position: AdsPosition;
   span: 1 | 2;
+  ratio?: HomepageAdsSectionRatio;
   linkUrl: string;
   order: number;
   banner: AdsBannerFileFields;

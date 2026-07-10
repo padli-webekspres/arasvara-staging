@@ -49,6 +49,8 @@ export async function GET(req: NextRequest) {
     const search = sp.get("search") ?? undefined;
     const actionVal = sp.get("action")?.trim();
     const action = actionVal && actionVal !== "ALL" ? actionVal : undefined;
+    const entityVal = sp.get("entity")?.trim();
+    const entity = entityVal && entityVal !== "ALL" ? entityVal : undefined;
     const userId = sp.get("userId")?.trim() || undefined;
 
     const startDate = parseIsoDate(sp.get("startDate"));
@@ -59,6 +61,7 @@ export async function GET(req: NextRequest) {
       limit: limitRaw,
       search,
       action,
+      entity,
       userId,
       createdFrom: startDate ?? undefined,
       createdTo: endDate ?? undefined,

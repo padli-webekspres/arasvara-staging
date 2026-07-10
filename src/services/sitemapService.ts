@@ -1,5 +1,6 @@
 import { connectToDatabase } from "@/lib/db/db";
 import { ArticleStatus } from "@/types/article";
+import { buildActiveUserFilter } from "@/lib/user-validation";
 import {
 	SitemapArticle,
 	SitemapAuthor,
@@ -64,51 +65,53 @@ export async function getSitemapCategories(): Promise<SitemapCategory[]> {
 export async function getSitemapAuthors(): Promise<SitemapAuthor[]> {
 	const db = await connectToDatabase();
 	const rows = await db
-		.collection("articles")
+		.collection("users")
 		.aggregate<{
 			slug: string;
 			name: string;
 			updatedAt: Date | string;
+			latestArticleAt?: Date | string | null;
 		}>([
 			{
 				$match: {
-					status: ArticleStatus.PUBLISHED,
-					$or: [{ deletedAt: { $exists: false } }, { deletedAt: null }],
-					authorId: { $exists: true, $ne: null },
-				},
-			},
-			{
-				$group: {
-					_id: "$authorId",
-					updatedAt: { $max: "$publishedAt" },
+					slug: { $exists: true, $nin: [null, ""] },
+					isActive: { $ne: false },
+					role: { $in: ["writer", "editor"] },
+					...buildActiveUserFilter(),
 				},
 			},
 			{
 				$lookup: {
-					from: "users",
-					localField: "_id",
-					foreignField: "_id",
-					as: "user",
-				},
-			},
-			{ $unwind: "$user" },
-			{
-				$match: {
-					"user.slug": { $exists: true, $nin: [null, ""] },
-					$or: [
-						{ "user.deletedAt": { $exists: false } },
-						{ "user.deletedAt": null },
-						{ "user.deletedAt": "" },
+					from: "articles",
+					let: { userId: "$_id" },
+					pipeline: [
+						{
+							$match: {
+								$expr: {
+									$or: [
+										{ $eq: ["$authorId", "$$userId"] },
+										{ $eq: ["$editorId", "$$userId"] },
+									],
+								},
+								status: ArticleStatus.PUBLISHED,
+								$or: [{ deletedAt: { $exists: false } }, { deletedAt: null }],
+							},
+						},
+						{ $group: { _id: null, latest: { $max: "$publishedAt" } } },
 					],
-					"user.isActive": { $ne: false },
+					as: "articleStats",
 				},
 			},
 			{
 				$project: {
 					_id: 0,
-					slug: "$user.slug",
-					name: "$user.name",
+					slug: 1,
+					name: 1,
 					updatedAt: 1,
+					createdAt: 1,
+					latestArticleAt: {
+						$arrayElemAt: ["$articleStats.latest", 0],
+					},
 				},
 			},
 		])
@@ -117,8 +120,11 @@ export async function getSitemapAuthors(): Promise<SitemapAuthor[]> {
 	return rows.flatMap((row) => {
 		const slug = String(row.slug ?? "").trim().toLowerCase();
 		const name = String(row.name ?? "").trim();
-		const updatedAt = toIsoString(row.updatedAt);
-		if (!slug || !updatedAt) return [];
+		const updatedAt =
+			toIsoString(row.latestArticleAt) ??
+			toIsoString(row.updatedAt) ??
+			new Date().toISOString();
+		if (!slug) return [];
 		return [{ slug, name, updatedAt }];
 	});
 }

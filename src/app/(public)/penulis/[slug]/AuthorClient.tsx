@@ -27,6 +27,7 @@ function buildAuthorArticlesSearchUrl(
   const params = new URLSearchParams({
     type: "ARTICLES",
     authorId,
+    includeEdited: "true",
     status: "published",
     limit: String(limit),
     page: "1",
@@ -43,6 +44,7 @@ interface AuthorClientProps {
   authorId: string;
   authorSlug: string;
   authorName: string;
+  authorBio: string;
   authorAvatar?: User["avatar"];
   initialArticleCount?: number;
 }
@@ -51,6 +53,7 @@ export default function AuthorClient({
   authorId,
   authorSlug,
   authorName,
+  authorBio,
   authorAvatar,
   initialArticleCount,
 }: AuthorClientProps) {
@@ -104,7 +107,7 @@ export default function AuthorClient({
 
   return (
     <main className="pt-48 pb-8">
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
         <div className="text-center mb-4 md:mb-8 py-4">
           <UserAvatar
             avatar={authorAvatar}
@@ -115,12 +118,15 @@ export default function AuthorClient({
           <h1 className="font-sans uppercase text-4xl md:text-5xl font-bold mb-4 animate-fade-in">
             {authorName}
           </h1>
+          <p className="text-muted-foreground max-w-2xl mx-auto text-base md:text-lg leading-relaxed px-2">
+            {authorBio}
+          </p>
         </div>
 
         {!hasArticles && !isFetching ? (
           <div className="text-center py-12">
             <p className="text-muted-foreground">
-              Belum ada artikel yang dipublikasikan oleh penulis ini.
+              Belum ada artikel yang dipublikasikan.
             </p>
           </div>
         ) : articles.length === 0 && isFetching ? (

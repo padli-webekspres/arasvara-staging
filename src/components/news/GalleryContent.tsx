@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
+import "@/styles/swiper";
 import { GalleryItem } from "@/types/article";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation, Scrollbar, Mousewheel } from "swiper/modules";

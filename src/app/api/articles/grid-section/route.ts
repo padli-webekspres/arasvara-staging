@@ -92,7 +92,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     // Upsert grid section menggunakan service generik dengan limit 5
-    await upsertSectionArticlesWithType(db, body, user._id?.toString() || user._id, "featured", 5);
+    await upsertSectionArticlesWithType(
+      db,
+      body,
+      {
+        _id: user._id?.toString() || user._id,
+        name: String(user.name ?? ""),
+        email: String(user.email ?? ""),
+      },
+      "featured",
+      5,
+    );
 
     // Fetch populated grid section after upsert
     const populatedSection = await getSectionArticlesWithType(db, "featured");

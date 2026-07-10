@@ -50,7 +50,7 @@ const ArticleApprovalSchema = z
   })
   .refine(
     (data) => {
-      // Jika status SCHEDULED, scheduledAt harus ada dan harus valid future date
+      // Jika status SCHEDULED, scheduledAt harus ada dan valid (backdate diizinkan)
       if (data.status === ArticleStatus.SCHEDULED) {
         if (!data.scheduledAt || data.scheduledAt.trim() === "") {
           return false;
@@ -59,15 +59,12 @@ const ArticleApprovalSchema = z
         if (isNaN(date.getTime())) {
           return false;
         }
-        if (date <= new Date()) {
-          return false;
-        }
       }
       return true;
     },
     {
       message:
-        "Tanggal terjadwal harus di masa depan dan tidak boleh kosong untuk status SCHEDULED",
+        "Tanggal jadwal tidak valid atau tidak boleh kosong untuk status SCHEDULED",
       path: ["scheduledAt"],
     },
   );

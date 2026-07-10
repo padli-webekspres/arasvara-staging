@@ -139,6 +139,44 @@ export function getGaClientId(): string {
 }
 
 /**
+ * Ambil GA client_id — tunggu gtag siap jika cookie `_ga` belum ada.
+ * Mencegah race condition: useEffect artikel sering jalan sebelum gtag menulis cookie.
+ */
+export function getGaClientIdAsync(timeoutMs = 2500): Promise<string> {
+  if (typeof window === "undefined") return Promise.resolve("");
+
+  const fromCookie = getGaClientId();
+  if (fromCookie) return Promise.resolve(fromCookie);
+
+  const measurementId = GA_MEASUREMENT_ID;
+  if (!measurementId || typeof window.gtag !== "function") {
+    return Promise.resolve("");
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (value: string) => {
+      if (settled) return;
+      settled = true;
+      resolve(value || getGaClientId());
+    };
+
+    const timer = window.setTimeout(() => finish(getGaClientId()), timeoutMs);
+
+    try {
+      window.gtag!("get", measurementId, "client_id", (clientId: string) => {
+        window.clearTimeout(timer);
+        finish(clientId);
+      });
+    } catch {
+      window.clearTimeout(timer);
+      finish(getGaClientId());
+    }
+  });
+}
+
+/**
  * Klasifikasikan referrer URL menjadi tipe sumber traffic.
  * Dipanggil hanya dari browser (butuh document.referrer).
  */

@@ -17,6 +17,39 @@ export enum AuditLogAction {
   REJECT = "REJECT",
 }
 
+/** Metadata tambahan untuk audit log editorial */
+export interface AuditLogMeta {
+  statusFrom?: string;
+  statusTo?: string;
+  articleTitle?: string;
+  sectionType?: string;
+  platform?: string;
+  reason?: string;
+  articleCount?: number;
+  /** ID dokumen asal saat migrasi dari koleksi lain */
+  originalId?: string;
+  /** Nama koleksi sumber migrasi, mis. `editor_activities` */
+  migratedFrom?: string;
+}
+
+/** Nama entity audit log — single source of truth */
+export const AuditLogEntity = {
+  ARTICLES: "articles",
+  SECTION_FEATURED: "section_featured",
+  SECTION_EDITOR_CHOICES: "section_editor_choices",
+  SECTION_POPULAR: "section_popular",
+  SECTION_HEADLINE: "section_headline",
+  CAROUSEL_SECTION: "CAROUSEL_SECTION",
+  SOCMED_VIDEO_SECTION: "SOCMED_VIDEO_SECTION",
+} as const;
+
+export type AuditLogEntityValue =
+  (typeof AuditLogEntity)[keyof typeof AuditLogEntity];
+
+/** Semua entity yang termasuk aktivitas editorial */
+export const EDITORIAL_ENTITIES: readonly AuditLogEntityValue[] =
+  Object.values(AuditLogEntity);
+
 export interface AuditLogPayload {
   actor: AuditLogActor;
   action: AuditLogAction;
@@ -25,6 +58,7 @@ export interface AuditLogPayload {
   details?: string;
   oldValue?: any;
   newValue?: any;
+  meta?: AuditLogMeta;
   createdAt: string | Date;
   ipAddress?: string;
 }

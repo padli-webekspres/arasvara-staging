@@ -11,6 +11,7 @@ import { AUTHOR_PAGE_INITIAL_LIMIT } from "@/lib/author-public-path";
 import {
   buildAuthorCanonicalUrl,
   buildAuthorJsonLd,
+  buildAuthorBioDisplay,
   buildMetadataFromAuthor,
   fetchAuthorArticlesPage,
 } from "@/lib/server/author-page";
@@ -33,7 +34,7 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
   const user = await getAuthor(decodedSlug);
 
   if (!user) {
-    return { title: "Penulis tidak ditemukan" };
+    return { title: "Profil tidak ditemukan" };
   }
 
   const db = await connectToDatabase();
@@ -48,7 +49,7 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
   return buildMetadataFromAuthor(user, articlesResult.meta, authorSlug);
 }
 
-export default async function AuthorPage(props: PageProps) {
+export default async function PenulisPage(props: PageProps) {
   const { slug } = await props.params;
   const decodedSlug = decodeURIComponent(slug).trim().toLowerCase();
   const db = await connectToDatabase();
@@ -101,6 +102,7 @@ export default async function AuthorPage(props: PageProps) {
           authorSlug={authorSlug}
           authorAvatar={user.avatar}
           authorName={user.name}
+          authorBio={buildAuthorBioDisplay(user.bio, user.name)}
           initialArticleCount={articlesResult.meta.total}
         />
       </HydrationBoundary>

@@ -11,7 +11,7 @@ export const SITE_OG_IMAGE = {
   alt: "Logo Arasvara — Portal Berita Digital Indonesia",
 } as const;
 
-/** Logo monogram asli untuk JSON-LD / favicon (dimensi file PNG sebenarnya). */
+/** Logo monogram asli untuk JSON-LD / favicon. */
 export const SITE_LOGO = {
   path: "/logo-arasvara/monogram/contained-monogram-putih-naskah.png",
   width: 1821,

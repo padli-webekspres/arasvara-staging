@@ -146,7 +146,7 @@ export default function NewsIndeksClient({
 
   return (
     <main className="pt-32">
-      <section className="container mx-auto px-4 md:px-0 py-8 flex gap-6 min-h-[70vh] relative flex-col md:flex-row">
+      <section className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 py-8 flex gap-6 min-h-[70vh] relative flex-col md:flex-row">
         {/* Sidebar Filter Indeks */}
         <SidebarIndeks
           className="w-full md:w-64 shrink-0 md:sticky md:top-40 h-fit bg-background z-10"

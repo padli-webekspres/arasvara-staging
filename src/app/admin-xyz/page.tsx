@@ -116,7 +116,7 @@ export default function UnifiedAdminDashboard() {
     if (permission === "unsupported" || permission === "denied") return;
     if (isSubscribed || isLoading) return;
 
-    void subscribe();
+    void subscribe({ persistToBackend: true });
   }, [
     authLoading,
     currentUser,

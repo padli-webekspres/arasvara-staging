@@ -5,7 +5,7 @@ const KetentuanKontenPage = () => {
   return (
     <main className="min-h-screen bg-background py-24 lg:py-32">
       {/* Header Halaman */}
-      <section className="container xl:max-w-6xl mx-auto px-4 md:px-0 mb-16 md:mb-24">
+      <section className="container xl:max-w-6xl mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 mb-16 md:mb-24">
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground tracking-tight mb-4">
           Disclaimer
         </h1>
@@ -17,7 +17,7 @@ const KetentuanKontenPage = () => {
 
       <div className="flex flex-col gap-16 md:gap-24">
         {/* 1. Informasi Umum */}
-        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-6 md:gap-12">
+        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-6 md:gap-12">
           <h2 className="text-2xl md:text-3xl font-bold w-full md:w-1/3 text-primary shrink-0  h-fit">
             1. Informasi Umum
           </h2>
@@ -41,7 +41,7 @@ const KetentuanKontenPage = () => {
         />
 
         {/* 2. Akurasi dan Validitas Data */}
-        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-6 md:gap-12">
+        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-6 md:gap-12">
           <h2 className="text-2xl md:text-3xl font-bold w-full md:w-1/3 text-primary shrink-0  h-fit">
             2. Akurasi dan Validitas Data
           </h2>
@@ -71,7 +71,7 @@ const KetentuanKontenPage = () => {
         />
 
         {/* 3. Opini dan Editorial */}
-        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-6 md:gap-12">
+        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-6 md:gap-12">
           <h2 className="text-2xl md:text-3xl font-bold w-full md:w-1/3 text-primary shrink-0  h-fit">
             3. Opini dan Editorial
           </h2>
@@ -94,7 +94,7 @@ const KetentuanKontenPage = () => {
         />
 
         {/* 4. Perubahan Konten */}
-        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-6 md:gap-12">
+        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-6 md:gap-12">
           <h2 className="text-2xl md:text-3xl font-bold w-full md:w-1/3 text-primary shrink-0  h-fit">
             4. Perubahan Konten
           </h2>
@@ -119,7 +119,7 @@ const KetentuanKontenPage = () => {
         />
 
         {/* 5. Tautan ke Pihak Ketiga */}
-        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-6 md:gap-12">
+        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-6 md:gap-12">
           <h2 className="text-2xl md:text-3xl font-bold w-full md:w-1/3 text-primary shrink-0  h-fit">
             5. Tautan ke Pihak Ketiga (External Links)
           </h2>
@@ -142,7 +142,7 @@ const KetentuanKontenPage = () => {
         />
 
         {/* 6. Konten Sponsor, Advertorial, dan Iklan */}
-        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-6 md:gap-12">
+        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-6 md:gap-12">
           <h2 className="text-2xl md:text-3xl font-bold w-full md:w-1/3 text-primary shrink-0  h-fit">
             6. Konten Sponsor, Advertorial, dan Iklan
           </h2>
@@ -165,7 +165,7 @@ const KetentuanKontenPage = () => {
         />
 
         {/* 7. Tanggung Jawab Penggunaan Informasi */}
-        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-6 md:gap-12">
+        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-6 md:gap-12">
           <h2 className="text-2xl md:text-3xl font-bold w-full md:w-1/3 text-primary shrink-0  h-fit">
             7. Tanggung Jawab Penggunaan Informasi
           </h2>
@@ -193,7 +193,7 @@ const KetentuanKontenPage = () => {
         />
 
         {/* 8. Hak Cipta & Distribusi */}
-        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-6 md:gap-12">
+        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-6 md:gap-12">
           <h2 className="text-2xl md:text-3xl font-bold w-full md:w-1/3 text-primary shrink-0  h-fit">
             8. Hak Cipta & Distribusi
           </h2>
@@ -212,7 +212,7 @@ const KetentuanKontenPage = () => {
         />
 
         {/* 9. Ketentuan Hukum */}
-        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto px-4 md:px-0 gap-6 md:gap-12">
+        <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-6 md:gap-12">
           <h2 className="text-2xl md:text-3xl font-bold w-full md:w-1/3 text-primary shrink-0  h-fit">
             9. Ketentuan Hukum
           </h2>

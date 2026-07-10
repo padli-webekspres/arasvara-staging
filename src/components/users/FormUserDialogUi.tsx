@@ -185,7 +185,7 @@ const FormUserDialogUi: React.FC<FormUserDialogUiProps> = ({
               )}
               {values.name.trim() && (
                 <p className="text-xs text-muted-foreground">
-                  URL penulis: /author/
+                  URL penulis: /penulis/
                   {generateUserSlug(values.name) || "—"}
                   <span className="block mt-0.5">
                     Preview; slug final bisa berbeda jika nama bentrok (mis.

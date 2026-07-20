@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef } from "react";
+import React, { useRef } from "react";
 import "@/styles/swiper";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation, Scrollbar, Mousewheel, FreeMode } from "swiper/modules";
@@ -51,10 +51,11 @@ function VideoCarouselSkeleton({
 }
 
 /**
- * Carousel video sosial media — rasio & jumlah slide mengikuti layout + iklan (lg+).
+ * Carousel video sosial media — semua video masuk Swiper;
+ * lebar slide / jumlah terlihat per viewport mengikuti layout + iklan.
  */
 export const VideoSocmedCarousel = ({
-  videos: rawVideos = [],
+  videos = [],
   isLoading = false,
   isError = false,
   ads = [],
@@ -64,13 +65,9 @@ export const VideoSocmedCarousel = ({
   const containerRef = useCarouselShiftScroll(swiperRef);
   const isLgUp = useIsLgUp();
 
+  // maxVisible hanya untuk skeleton, bukan membatasi data carousel
   const maxVisibleLg = getSocmedMaxVisibleVideos(layout, ads);
   const skeletonCount = isLgUp ? maxVisibleLg : 4;
-
-  const videos = useMemo(() => {
-    if (!isLgUp) return rawVideos;
-    return rawVideos.slice(0, maxVisibleLg);
-  }, [rawVideos, isLgUp, maxVisibleLg]);
 
   const span1Classes = getSocmedSlideWidthClasses(layout, 1);
   const span2Classes = getSocmedSlideWidthClasses(layout, 2);

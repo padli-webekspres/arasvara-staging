@@ -22,14 +22,26 @@ export async function getSitemapArticles(): Promise<SitemapArticle[]> {
 			status: ArticleStatus.PUBLISHED,
 			$or: [{ deletedAt: { $exists: false } }, { deletedAt: null }],
 		})
-		.project({ slug: 1, publicPath: 1, title: 1, publishedAt: 1, updatedAt: 1, _id: 0 })
+		.project({
+			slug: 1,
+			publicPath: 1,
+			title: 1,
+			publishedAt: 1,
+			updatedAt: 1,
+			contentUpdatedAt: 1,
+			_id: 0,
+		})
 		.sort({ publishedAt: -1 })
 		.toArray();
 
 	return articles.flatMap((article): SitemapArticle[] => {
 		const publishedAt = toIsoString(article.publishedAt);
+		const contentUpdatedAt = toIsoString(article.contentUpdatedAt);
 		const updatedAt =
-			toIsoString(article.updatedAt) ?? publishedAt ?? new Date().toISOString();
+			contentUpdatedAt ??
+			toIsoString(article.updatedAt) ??
+			publishedAt ??
+			new Date().toISOString();
 		const slug = String(article.slug ?? "").trim();
 
 		if (!publishedAt || !slug) return [];
@@ -41,6 +53,7 @@ export async function getSitemapArticles(): Promise<SitemapArticle[]> {
 				title: String(article.title ?? article.slug ?? "").trim(),
 				publishedAt,
 				updatedAt,
+				contentUpdatedAt,
 			},
 		];
 	});

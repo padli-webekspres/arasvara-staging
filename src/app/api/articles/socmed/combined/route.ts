@@ -4,18 +4,21 @@ import { connectToDatabase } from "@/lib/db/db";
 import logger from "@/lib/logger";
 import {
   getCombinedSocmedVideoSection,
+  resolveSocmedSort,
   upsertCombinedSocmedVideoSection,
 } from "@/services/article/articleSection/socmed/videoSocmedService";
 
 /**
  * GET /api/articles/socmed/combined
  *
- * Ambil daftar video TikTok + Instagram dengan order global.
+ * Ambil daftar video TikTok + Instagram.
+ * Query: ?sort=order (default) | ?sort=createdAt
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const sort = resolveSocmedSort(req.nextUrl.searchParams.get("sort"));
     const db = await connectToDatabase();
-    const result = await getCombinedSocmedVideoSection(db);
+    const result = await getCombinedSocmedVideoSection(db, sort);
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     const message = (error as Error).message;

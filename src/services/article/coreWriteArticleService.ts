@@ -59,6 +59,38 @@ import {
 } from "@/services/article/articlePublicPathService";
 import { resolveArticleDenormFields } from "@/lib/article-denorm";
 
+/**
+ * Deteksi perubahan substantif (title / excerpt / content) untuk SEO dateModified.
+ */
+function detectSubstantiveContentChange(
+  existing: Record<string, unknown>,
+  payload: UpdateArticleFormData,
+): boolean {
+  if (payload.title !== undefined && payload.title !== null) {
+    const trimmed = String(payload.title).trim();
+    if (
+      normalizeArticleTitle(trimmed) !==
+      normalizeArticleTitle(String(existing.title ?? ""))
+    ) {
+      return true;
+    }
+  }
+
+  if (payload.excerpt !== undefined) {
+    const next = String(payload.excerpt ?? "").trim();
+    const prev = String(existing.excerpt ?? "").trim();
+    if (next !== prev) return true;
+  }
+
+  if (payload.content !== undefined) {
+    const next = String(payload.content ?? "");
+    const prev = String(existing.content ?? "");
+    if (next !== prev) return true;
+  }
+
+  return false;
+}
+
 export function safeRevalidateArticlePublicPage(
   publicPath: string | null | undefined,
   previousPublicPath?: string | null | undefined,
@@ -734,6 +766,7 @@ export async function createArticle(
       metaDesc: excerpt,
       scheduledAt: validScheduledAt,
       publishedAt: createPublishedAt,
+      contentUpdatedAt: createPublishedAt,
       publishedBy: status === "PUBLISHED" ? actorOid : null,
       submittedAt: status !== "DRAFT" ? new Date() : null,
       createdAt: new Date(),
@@ -1202,7 +1235,15 @@ export async function updateArticle(
       finalStatus === ArticleStatus.PUBLISHED &&
       existing.status !== ArticleStatus.PUBLISHED
     ) {
-      updates.publishedAt = new Date();
+      const publishNow = new Date();
+      updates.publishedAt = publishNow;
+      updates.contentUpdatedAt = publishNow;
+    } else if (
+      finalStatus === ArticleStatus.PUBLISHED &&
+      detectSubstantiveContentChange(existing as Record<string, unknown>, payload)
+    ) {
+      // Hanya update dateModified SEO saat title/excerpt/content berubah
+      updates.contentUpdatedAt = new Date();
     }
 
     // dari PENDING_REVIEW ke published / scheduled / rejected: editor dapat mengisi editorId

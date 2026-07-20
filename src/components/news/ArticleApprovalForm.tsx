@@ -32,6 +32,11 @@ import { canPickArticleAttribution } from "@/lib/editorialPublicationAccess";
 import type { AttributionUserOption } from "@/components/admin/articles/ArticleEditorFormUi";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import type { option } from "@/types/general";
+import {
+  formatDatetimeLocalFromUtc,
+  parseDatetimeLocalAsWib,
+  roundDatetimeLocalTo5Minutes,
+} from "@/lib/datetime-jakarta";
 
 // ─── Zod Schema ────────────────────────────────────────────────────────────
 
@@ -50,15 +55,12 @@ const ArticleApprovalSchema = z
   })
   .refine(
     (data) => {
-      // Jika status SCHEDULED, scheduledAt harus ada dan valid (backdate diizinkan)
+      // Jika status SCHEDULED, scheduledAt harus ada dan valid sebagai wall-clock WIB
       if (data.status === ArticleStatus.SCHEDULED) {
         if (!data.scheduledAt || data.scheduledAt.trim() === "") {
           return false;
         }
-        const date = new Date(data.scheduledAt);
-        if (isNaN(date.getTime())) {
-          return false;
-        }
+        return parseDatetimeLocalAsWib(data.scheduledAt) != null;
       }
       return true;
     },
@@ -77,30 +79,6 @@ interface ArticleApprovalFormProps {
   article: Article;
   userRole: string;
   onSuccess?: () => void;
-}
-
-// ─── Helper: Convert date to datetime-local format ──────────────────────────
-
-function dateToDatetimeLocalString(date: Date | null | undefined): string {
-  if (!date) return "";
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return "";
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-// ─── Helper: Round datetime to 5-minute intervals ──────────────────────────
-
-function roundTo5Minutes(isoString: string): string {
-  const date = new Date(isoString);
-  if (isNaN(date.getTime())) return isoString;
-
-  date.setSeconds(0, 0);
-  const minutes = date.getMinutes();
-  date.setMinutes(Math.floor(minutes / 5) * 5);
-
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────
@@ -142,7 +120,7 @@ export default function ArticleApprovalForm({
       status: article.status || ArticleStatus.DRAFT,
       scheduledAt:
         article.scheduledAt && article.status === ArticleStatus.SCHEDULED
-          ? dateToDatetimeLocalString(article.scheduledAt)
+          ? formatDatetimeLocalFromUtc(article.scheduledAt)
           : "",
       reason: undefined,
       authorId: article.authorId ?? "",
@@ -266,7 +244,7 @@ export default function ArticleApprovalForm({
         form.setValue("scheduledAt", "");
         return;
       }
-      const rounded = roundTo5Minutes(value);
+      const rounded = roundDatetimeLocalTo5Minutes(value);
       form.setValue("scheduledAt", rounded);
     },
     [form],
@@ -288,11 +266,26 @@ export default function ArticleApprovalForm({
       setIsSubmitting(true);
 
       try {
-        // Prepare payload
+        // datetime-local = wall-clock WIB → kirim ISO UTC ke API
+        let scheduledAtIso: string | null = null;
+        if (
+          data.status === ArticleStatus.SCHEDULED &&
+          data.scheduledAt?.trim()
+        ) {
+          const parsed = parseDatetimeLocalAsWib(data.scheduledAt, {
+            roundTo5Minutes: true,
+          });
+          if (!parsed) {
+            toast.error("Tanggal jadwal tidak valid");
+            setIsSubmitting(false);
+            return;
+          }
+          scheduledAtIso = parsed.toISOString();
+        }
+
         const payload: Record<string, unknown> = {
           status: data.status,
-          scheduledAt:
-            data.status === ArticleStatus.SCHEDULED ? data.scheduledAt : null,
+          scheduledAt: scheduledAtIso,
           reason: data.reason || undefined,
         };
 

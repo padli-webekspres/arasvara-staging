@@ -49,7 +49,7 @@ const VideoCarouselItem: React.FC<VideoCarouselItemProps> = ({
   const platformBadge =
     showPlatformBadge && video.type !== "youtube" ? (
       <div
-        className="flex justify-center pt-2 md:pt-4 transition-transform duration-300 ease-out group-hover:-translate-y-1.5"
+        className="flex justify-center py-2 md:py-4 transition-transform duration-300 ease-out group-hover:-translate-y-1.5"
         aria-label={video.type === "tiktok" ? "TikTok" : "Instagram"}
       >
         {video.type === "tiktok" ? (

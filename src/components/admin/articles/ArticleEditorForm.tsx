@@ -1,6 +1,7 @@
 "use client";
 
 import { getMediaPreviewUrl } from "@/lib/utils";
+import { parseDatetimeLocalAsWib } from "@/lib/datetime-jakarta";
 import {
   extractContentMediaFromEditor,
   autoInsertPageBreaks,
@@ -1230,22 +1231,12 @@ export default function ArticleEditorForm({
         fdStart.scheduledAt &&
         fdStart.scheduledAt.trim() !== ""
       ) {
-        const val = fdStart.scheduledAt;
-        const [datePart, timePart] = val.split("T");
-        if (datePart && timePart) {
-          const [year, month, day] = datePart.split("-").map(Number);
-          const [hour, minute] = timePart.split(":").map(Number);
-          const wibDate = new Date(
-            Date.UTC(year, month - 1, day, hour, minute),
-          );
-          wibDate.setUTCHours(wibDate.getUTCHours() - 7);
-          wibDate.setUTCSeconds(0, 0);
-          const min = wibDate.getUTCMinutes();
-          wibDate.setUTCMinutes(Math.floor(min / 5) * 5);
-          if (!isNaN(wibDate.getTime())) {
-            finalScheduledAt = wibDate.toISOString();
-            finalStatus = ArticleStatus.SCHEDULED;
-          }
+        const wibDate = parseDatetimeLocalAsWib(fdStart.scheduledAt, {
+          roundTo5Minutes: true,
+        });
+        if (wibDate) {
+          finalScheduledAt = wibDate.toISOString();
+          finalStatus = ArticleStatus.SCHEDULED;
         }
       }
 

@@ -4,6 +4,8 @@ export interface SitemapArticle {
 	title: string;
 	publishedAt: string;
 	updatedAt: string;
+	/** Preferensi lastmod SEO jika ada (substantive content edit). */
+	contentUpdatedAt?: string | null;
 }
 
 export interface SitemapCategory {

@@ -72,6 +72,8 @@ export interface BaseArticle {
 	publishedAt: Date;
 	publishedBy?: string | ObjectId;
 	scheduledAt?: Date | null;
+	/** Terakhir title/excerpt/content berubah setelah publish (untuk SEO dateModified). */
+	contentUpdatedAt?: Date | null;
 	createdAt: Date;
 	createdBy?: UserProfile | null;
 	submittedAt?: Date;

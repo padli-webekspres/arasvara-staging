@@ -56,11 +56,13 @@ export function useSocmedVideos(platform: SocmedPlatform) {
 }
 
 /**
- * Hook untuk mengambil video TikTok + Instagram dengan order global.
+ * Hook untuk mengambil video TikTok + Instagram, terbaru dulu (createdAt).
  */
 async function fetchCombinedSocmedVideos(): Promise<SectionVideoItem[]> {
   try {
-    const { data } = await api.get("/articles/socmed/combined");
+    const { data } = await api.get("/articles/socmed/combined", {
+      params: { sort: "createdAt" },
+    });
     return parseSocmedVideoListResponse(data);
   } catch (error) {
     if (error instanceof AxiosError) {
@@ -75,7 +77,7 @@ async function fetchCombinedSocmedVideos(): Promise<SectionVideoItem[]> {
 
 export function useCombinedSocmedVideos() {
   return useQuery<SectionVideoItem[], Error>({
-    queryKey: ["socmed-videos", "combined"],
+    queryKey: ["socmed-videos", "combined", "createdAt"],
     queryFn: fetchCombinedSocmedVideos,
     staleTime: 1000 * 60 * 5,
     retry: 2,

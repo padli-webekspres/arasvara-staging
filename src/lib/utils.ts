@@ -1,63 +1,40 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { DateTime } from "luxon";
 import { resolveCmsArticleViewHref } from "@/lib/article-public-path";
 import type { ArticleStatus } from "@/types/article";
 import { resolvePublicMediaUrl } from "@/lib/media/public-media-url";
+import {
+  formatDateReadableJakarta,
+  formatDatetimeLocalFromUtc,
+  formatDateTimeReadableJakarta,
+  formatTimeReadableJakarta,
+} from "@/lib/datetime-jakarta";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Helper untuk konversi date ke waktu Jakarta dan format ke input datetime-local
+/** Konversi UTC ISO → string input datetime-local (wall-clock Asia/Jakarta). */
 export function toJakartaDatetimeLocal(dateValue: string) {
-  if (!dateValue) return "";
-  // Luxon: konversi ke Asia/Jakarta dan format sesuai input datetime-local
-  const dt = DateTime.fromISO(dateValue, { zone: "Asia/Jakarta" });
-  // Format ke yyyy-MM-dd'T'HH:mm
-  return dt.toFormat("yyyy-MM-dd'T'HH:mm");
+  return formatDatetimeLocalFromUtc(dateValue);
 }
 
-// Format tanggal ke format readable (misal: 24 February 2026)
+/** Format tanggal di Asia/Jakarta (mis. 19 Juli 2026). */
 export function formatDateReadable(dateValue: string | Date, locale = "id-ID") {
-  if (!dateValue) return "";
-  const dt =
-    typeof dateValue === "string"
-      ? DateTime.fromISO(dateValue)
-      : DateTime.fromJSDate(dateValue);
-
-  if (!dt.isValid) return "";
-
-  return dt.setLocale(locale).toLocaleString(DateTime.DATE_FULL);
+  return formatDateReadableJakarta(dateValue, locale);
 }
 
-// function get date time readable (sample: 17 Maret 2026 08:30)
+/** Format tanggal + jam di Asia/Jakarta (mis. 19 Juli 2026, 22:35). */
 export function formatDateTimeReadable(
   dateValue: string | Date,
   locale = "id-ID",
 ) {
-  if (!dateValue) return "";
-  const dt =
-    typeof dateValue === "string"
-      ? DateTime.fromISO(dateValue)
-      : DateTime.fromJSDate(dateValue);
-
-  if (!dt.isValid) return "";
-
-  return dt.setLocale(locale).toFormat("d MMMM yyyy, HH:mm");
+  return formatDateTimeReadableJakarta(dateValue, locale);
 }
 
-// function get time readable. misalnya: 08:30. input nya adalah Date dari mongodb
+/** Format jam di Asia/Jakarta dengan suffix WIB (mis. 22:35 WIB). */
 export function formatTimeReadable(dateValue: string | Date, locale = "id-ID") {
-  if (!dateValue) return "";
-  const dt =
-    typeof dateValue === "string"
-      ? DateTime.fromISO(dateValue)
-      : DateTime.fromJSDate(dateValue);
-
-  if (!dt.isValid) return "";
-
-  return dt.setLocale(locale).toFormat("HH:mm") + " WIB";
+  return formatTimeReadableJakarta(dateValue, locale);
 }
 
 /** URL absolut dari publicPath kanonik artikel. */

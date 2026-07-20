@@ -11,6 +11,19 @@ import { createAuditLog, requireAuditActor } from "@/services/auditLogService";
 export const COMBINED_PLATFORMS = ["tiktok", "instagram"] as const;
 export type CombinedSocmedPlatform = (typeof COMBINED_PLATFORMS)[number];
 
+/** Urutan daftar video GET socmed. Default: order (dashboard). */
+export type SocmedVideoSort = "order" | "createdAt";
+
+export function resolveSocmedSort(raw: string | null | undefined): SocmedVideoSort {
+	return raw === "createdAt" ? "createdAt" : "order";
+}
+
+function mongoSortForSocmed(
+	sort: SocmedVideoSort,
+): Record<string, 1 | -1> {
+	return sort === "createdAt" ? { createdAt: -1 } : { order: 1 };
+}
+
 export interface UpsertSocmedVideoSectionPayload {
 	videos: Array<{
 		video_url: string;
@@ -75,12 +88,13 @@ function validateUpsertSocmedVideoSectionInput(
 export async function getSocmedVideoSectionWithItems(
 	db: Db,
 	platform: "tiktok" | "instagram" | "youtube",
+	sort: SocmedVideoSort = "order",
 ): Promise<SectionVideoItem[]> {
 	try {
 		const collection = db.collection("video_section");
 		const docs = await collection
 			.find({ type: platform })
-			.sort({ order: 1 })
+			.sort(mongoSortForSocmed(sort))
 			.toArray();
 		return docs.map((doc) => ({
 			_id: doc._id?.toString(),
@@ -307,17 +321,19 @@ async function deleteUnusedThumbnails(
 }
 
 /**
- * Ambil video TikTok + Instagram dengan order global.
- * Fallback read-time: jika belum ada data gabungan, gabungkan tiktok lalu instagram.
+ * Ambil video TikTok + Instagram.
+ * `sort=order` (default): urutan dashboard. `sort=createdAt`: terbaru dulu.
+ * Fallback read-time: jika belum ada data gabungan, gabungkan tiktok + instagram.
  */
 export async function getCombinedSocmedVideoSection(
 	db: Db,
+	sort: SocmedVideoSort = "order",
 ): Promise<SectionVideoItem[]> {
 	try {
 		const collection = db.collection("video_section");
 		const docs = await collection
 			.find({ type: { $in: [...COMBINED_PLATFORMS] } })
-			.sort({ order: 1 })
+			.sort(mongoSortForSocmed(sort))
 			.toArray();
 
 		if (docs.length > 0) {
@@ -325,11 +341,20 @@ export async function getCombinedSocmedVideoSection(
 		}
 
 		const [tiktokItems, instagramItems] = await Promise.all([
-			getSocmedVideoSectionWithItems(db, "tiktok"),
-			getSocmedVideoSectionWithItems(db, "instagram"),
+			getSocmedVideoSectionWithItems(db, "tiktok", sort),
+			getSocmedVideoSectionWithItems(db, "instagram", sort),
 		]);
 
-		return [...tiktokItems, ...instagramItems].map((item, idx) => ({
+		const merged = [...tiktokItems, ...instagramItems];
+		if (sort === "createdAt") {
+			return merged.sort((a, b) => {
+				const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+				const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+				return bTime - aTime;
+			});
+		}
+
+		return merged.map((item, idx) => ({
 			...item,
 			order: idx,
 		}));

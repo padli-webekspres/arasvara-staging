@@ -17,6 +17,8 @@
     "audit:article-titles": "tsx scripts/audit-article-titles.ts",
     "audit:article-paths": "tsx scripts/audit-article-paths.ts",
     "audit:article-paths:prod": "tsx scripts/audit-article-paths.ts --env-file=.env.migrate-prod",
+    "audit:article-publish-dates": "tsx scripts/audit-article-publish-dates.ts",
+    "audit:article-publish-dates:prod": "tsx scripts/audit-article-publish-dates.ts --env-file=.env.migrate-prod",
     "backfill:article-paths": "tsx scripts/backfill-article-public-path.ts",
     "backfill:article-paths:prod": "tsx scripts/backfill-article-public-path.ts --env-file=.env.migrate-prod",
     "upgrade:article-paths": "tsx scripts/upgrade-articles-to-structured-path.ts",

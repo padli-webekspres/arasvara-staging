@@ -8,6 +8,7 @@ import {
   buildMetadataFromArticle,
   prepareArticleDetailPayload,
 } from "@/lib/server/article-detail-page";
+import ArticleJsonLd from "@/components/news/ArticleJsonLd";
 import type { Metadata } from "next";
 
 type StructuredPageParams = {
@@ -48,6 +49,18 @@ export async function generateMetadata({
     }
     return buildMetadataFromArticle(data.article);
   } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "digest" in error &&
+      typeof (error as { digest?: unknown }).digest === "string" &&
+      ((error as { digest: string }).digest.startsWith("NEXT_REDIRECT") ||
+        (error as { digest: string }).digest.startsWith(
+          "NEXT_HTTP_ERROR_FALLBACK",
+        ))
+    ) {
+      throw error;
+    }
     console.error("Gagal mengambil metadata untuk artikel structured:", error);
     return {};
   }
@@ -60,24 +73,25 @@ export default async function StructuredArticlePage({
 }) {
   const resolved = await params;
 
-  try {
-    const data = await fetchArticleForStructuredParams(resolved);
+  const data = await fetchArticleForStructuredParams(resolved);
 
-    if (!data?.article) {
-      return notFound();
-    }
+  if (!data?.article) {
+    notFound();
+  }
 
-    const payload = prepareArticleDetailPayload(data);
+  const payload = prepareArticleDetailPayload(data);
 
-    return (
+  return (
+    <>
+      <ArticleJsonLd
+        article={payload.article}
+        shareUrl={payload.canonicalShareUrl}
+      />
       <NewsDetailClient
         article={payload.article}
         related={payload.related}
         canonicalShareUrl={payload.canonicalShareUrl}
       />
-    );
-  } catch (err) {
-    console.error("Gagal mengambil artikel structured:", err);
-    return notFound();
-  }
+    </>
+  );
 }

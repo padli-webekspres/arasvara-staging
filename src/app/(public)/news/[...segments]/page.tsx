@@ -1,16 +1,19 @@
 // Route legacy artikel: /news/{slug}
+// PUBLISHED → permanentRedirect ke publicPath structured (301)
 
 import NewsDetailClient from "@/components/news/NewsDetailClient";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { parseLegacyNewsSegments } from "@/lib/article-public-path";
 import {
   fetchArticleBySlugForNewsPage,
   fetchPublishedArticleByPath,
+  fetchPublishedArticleBySlug,
 } from "@/lib/server/fetchArticleServer";
 import {
   buildMetadataFromArticle,
   prepareArticleDetailPayload,
 } from "@/lib/server/article-detail-page";
+import ArticleJsonLd from "@/components/news/ArticleJsonLd";
 import type { Metadata } from "next";
 
 function buildNewsCategoryStructuredPath(segments: string[]): string | null {
@@ -29,14 +32,27 @@ function buildNewsCategoryStructuredPath(segments: string[]): string | null {
   return `/news/${year}/${month.padStart(2, "0")}/${day.padStart(2, "0")}/${encodeURIComponent(slug)}`;
 }
 
+/**
+ * Resolve artikel dari segmen /news/...
+ * - 1 segmen (legacy slug): PUBLISHED → redirect ke publicPath; non-published → preview staf
+ * - 4 segmen: structured kategori "news"
+ */
 async function fetchArticleFromNewsRouteSegments(segments: string[]) {
-  // Legacy URL: /news/{slug}
   const parsed = parseLegacyNewsSegments(segments);
   if (parsed) {
+    const published = await fetchPublishedArticleBySlug(parsed.slug);
+    if (published?.article) {
+      const publicPath = published.article.publicPath?.trim();
+      if (publicPath) {
+        permanentRedirect(publicPath);
+      }
+      // Fallback: render di /news/{slug} jika belum punya publicPath
+      return published;
+    }
+
     return fetchArticleBySlugForNewsPage(parsed.slug);
   }
 
-  // Structured URL for category "news": /news/{yyyy}/{mm}/{dd}/{slug}
   const structuredPath = buildNewsCategoryStructuredPath(segments);
   if (!structuredPath) return null;
   return fetchPublishedArticleByPath(structuredPath);
@@ -56,6 +72,19 @@ export async function generateMetadata({
     }
     return buildMetadataFromArticle(data.article);
   } catch (error) {
+    // permanentRedirect / notFound melempar — biarkan propagate
+    if (
+      error &&
+      typeof error === "object" &&
+      "digest" in error &&
+      typeof (error as { digest?: unknown }).digest === "string" &&
+      ((error as { digest: string }).digest.startsWith("NEXT_REDIRECT") ||
+        (error as { digest: string }).digest.startsWith(
+          "NEXT_HTTP_ERROR_FALLBACK",
+        ))
+    ) {
+      throw error;
+    }
     console.error("Gagal mengambil metadata untuk artikel legacy:", error);
     return {};
   }
@@ -68,24 +97,25 @@ export default async function LegacyNewsDetailPage({
 }) {
   const { segments } = await params;
 
-  try {
-    const data = await fetchArticleFromNewsRouteSegments(segments);
+  const data = await fetchArticleFromNewsRouteSegments(segments);
 
-    if (!data?.article) {
-      return notFound();
-    }
+  if (!data?.article) {
+    notFound();
+  }
 
-    const payload = prepareArticleDetailPayload(data);
+  const payload = prepareArticleDetailPayload(data);
 
-    return (
+  return (
+    <>
+      <ArticleJsonLd
+        article={payload.article}
+        shareUrl={payload.canonicalShareUrl}
+      />
       <NewsDetailClient
         article={payload.article}
         related={payload.related}
         canonicalShareUrl={payload.canonicalShareUrl}
       />
-    );
-  } catch (err) {
-    console.error("Gagal mengambil artikel legacy:", err);
-    return notFound();
-  }
+    </>
+  );
 }

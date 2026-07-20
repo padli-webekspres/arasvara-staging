@@ -257,6 +257,7 @@ export async function publishScheduledArticles(
         $set: {
           status: ArticleStatus.PUBLISHED,
           publishedAt: article.scheduledAt,
+          contentUpdatedAt: article.scheduledAt,
           updatedAt: now,
         },
       },
@@ -601,7 +602,9 @@ function buildApprovalStatusUpdates(
     updates.publishedAt = null;
     updates.publishedBy = actorOid;
   } else if (payload.status === ArticleStatus.PUBLISHED) {
-    updates.publishedAt = new Date();
+    const publishNow = new Date();
+    updates.publishedAt = publishNow;
+    updates.contentUpdatedAt = publishNow;
     updates.scheduledAt = null;
     updates.publishedBy = actorOid;
   } else {

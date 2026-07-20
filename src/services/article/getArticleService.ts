@@ -460,6 +460,7 @@ async function hydrateArticleAggregateDoc(
     metaDesc: doc.metaDesc,
     publishedAt: doc.publishedAt,
     scheduledAt: doc.scheduledAt ?? null,
+    contentUpdatedAt: doc.contentUpdatedAt ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     format: doc.format,

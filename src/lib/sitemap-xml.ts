@@ -70,7 +70,9 @@ function articleUrlXml(baseUrl: string, articles: SitemapArticle[]): string {
 			const path = article.publicPath?.trim();
 			if (!path || !isStructuredPublicPath(path)) return [];
 
-			const lastmod = escapeXml(article.updatedAt);
+			const lastmod = escapeXml(
+				article.contentUpdatedAt || article.updatedAt,
+			);
 			const newsBlock = isRecentNewsArticle(article.publishedAt)
 				? `
     <news:news>

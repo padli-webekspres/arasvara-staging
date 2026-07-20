@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { roundDatetimeLocalTo5Minutes } from "@/lib/datetime-jakarta";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -880,22 +881,10 @@ const ArticleEditorFormUi: React.FC<ArticleEditorFormUiProps> = ({
                           setFormData({ ...formData, scheduledAt: "" });
                           return;
                         }
-                        const [datePart, timePart] = val.split("T");
-                        if (!datePart || !timePart) {
-                          setFormData({ ...formData, scheduledAt: val });
-                          return;
-                        }
-                        const [year, month, day] = datePart
-                          .split("-")
-                          .map(Number);
-                        const [hour, minuteOrig] = timePart
-                          .split(":")
-                          .map(Number);
-                        const minute = Math.floor(minuteOrig / 5) * 5;
-                        const pad = (n: number) =>
-                          n.toString().padStart(2, "0");
-                        const rounded = `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
-                        setFormData({ ...formData, scheduledAt: rounded });
+                        setFormData({
+                          ...formData,
+                          scheduledAt: roundDatetimeLocalTo5Minutes(val),
+                        });
                       }}
                     />
                     <p className="text-xs text-muted-foreground">

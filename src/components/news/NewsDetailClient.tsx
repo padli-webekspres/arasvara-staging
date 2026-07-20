@@ -13,8 +13,6 @@ import { Article, ArticleListResponse } from "@/types/article";
 import { useLatestArticles } from "@/hooks/useLatestArticles";
 import { useArticlePageAds } from "@/hooks/useAds";
 import { useArticleTracking } from "@/hooks/useArticleTracking";
-import { resolveAuthorPublicHref } from "@/lib/author-public-path";
-import { buildAbsoluteUrl, getSiteBaseUrl } from "@/lib/og-image";
 import CategoryPushPrompt from "@/components/notification/CategoryPushPrompt";
 import {
   buildArticleGaParams,
@@ -168,11 +166,6 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
 
   useArticleTracking(article, isShowAll ? "all" : pageNum);
 
-  const authorProfilePath = resolveAuthorPublicHref(article.author);
-  const authorProfileUrl = authorProfilePath
-    ? buildAbsoluteUrl(authorProfilePath, getSiteBaseUrl())
-    : undefined;
-
   return (
     <main className="pt-48 pb-8">
       <ArticleUi
@@ -207,39 +200,6 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
           categoryName={article.category.name}
         />
       ) : null}
-
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "NewsArticle",
-            headline: article.title,
-            description: article.excerpt,
-            image: article.featuredImage,
-            datePublished: article.publishedAt,
-            dateModified: article.updatedAt,
-            url: canonicalShareUrl,
-            mainEntityOfPage: {
-              "@type": "WebPage",
-              "@id": canonicalShareUrl,
-            },
-            author: {
-              "@type": "Person",
-              name: article.author?.name || "Unknown Author",
-              ...(authorProfileUrl ? { url: authorProfileUrl } : {}),
-            },
-            publisher: {
-              "@type": "Organization",
-              name: "ARASVARA",
-              logo: {
-                "@type": "ImageObject",
-                url: "https://arasvara.id/logo.png",
-              },
-            },
-          }),
-        }}
-      />
     </main>
   );
 };

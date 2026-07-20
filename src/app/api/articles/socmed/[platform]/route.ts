@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
-import { upsertSocmedVideoSection } from "@/services/article/articleSection/socmed/videoSocmedService";
+import {
+  getSocmedVideoSectionWithItems,
+  resolveSocmedSort,
+  upsertSocmedVideoSection,
+} from "@/services/article/articleSection/socmed/videoSocmedService";
 import logger from "@/lib/logger";
 import { connectToDatabase } from "@/lib/db/db";
-import { getSocmedVideoSectionWithItems } from "@/services/article/articleSection/socmed/videoSocmedService";
 
 const ALLOWED_PLATFORMS = ["tiktok", "instagram", "youtube"] as const;
 type Platform = (typeof ALLOWED_PLATFORMS)[number];
@@ -12,6 +15,7 @@ type Platform = (typeof ALLOWED_PLATFORMS)[number];
  * GET /api/articles/socmed/[platform]
  *
  * Ambil daftar video section untuk platform socmed (tiktok, instagram, youtube)
+ * Query: ?sort=order (default) | ?sort=createdAt
  *
  * Response: Array video section
  * Authorization: Logged in user (any role)
@@ -21,19 +25,19 @@ export async function GET(
   context: { params: Promise<{ platform: string }> },
 ) {
   try {
-
     const { platform } = await context.params;
     if (!ALLOWED_PLATFORMS.includes(platform as Platform)) {
       logger.warn({ platform }, "Invalid platform for get video section");
       return NextResponse.json({ error: "Invalid platform" }, { status: 400 });
     }
 
+    const sort = resolveSocmedSort(req.nextUrl.searchParams.get("sort"));
     const db = await connectToDatabase();
     const result = await getSocmedVideoSectionWithItems(
       db,
       platform as Platform,
+      sort,
     );
-
 
     return NextResponse.json(result, { status: 200 });
   } catch (error) {

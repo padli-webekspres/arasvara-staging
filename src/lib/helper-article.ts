@@ -335,6 +335,7 @@ export async function mapDocToArticle(doc: any): Promise<Article> {
     publishedAt: doc.publishedAt,
     publishedBy: doc.publishedBy?.toString?.() ?? doc.publishedBy,
     scheduledAt: doc.scheduledAt ?? null,
+    contentUpdatedAt: doc.contentUpdatedAt ?? null,
     createdAt: doc.createdAt,
     submittedAt: doc.submittedAt,
     updatedAt: doc.updatedAt,

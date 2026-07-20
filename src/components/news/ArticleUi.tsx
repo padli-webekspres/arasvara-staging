@@ -22,7 +22,6 @@ import {
 } from "../icon/SocmedIcon";
 import { getArticleShareLinks } from "@/lib/article-share";
 import { resolveAuthorPublicHref } from "@/lib/author-public-path";
-import { buildAbsoluteUrl, getSiteBaseUrl } from "@/lib/og-image";
 import { useState, useCallback, useMemo } from "react";
 import Image from "next/image";
 import GalleryContent from "./GalleryContent";
@@ -157,9 +156,6 @@ const ArticleUi = ({
 
   const authorHref = resolveAuthorPublicHref(article.author);
   const editorHref = resolveAuthorPublicHref(article.editor);
-  const authorProfileUrl = authorHref
-    ? buildAbsoluteUrl(authorHref, getSiteBaseUrl())
-    : undefined;
   const authorMetaContent = (
     <>
       <UserAvatar
@@ -681,43 +677,6 @@ const ArticleUi = ({
           />
         </section>
       )}
-
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "NewsArticle",
-            headline: article.title,
-            description: article.excerpt,
-            image: article.featuredImage,
-            datePublished: article.publishedAt,
-            dateModified: article.updatedAt,
-            ...(shareUrl
-              ? {
-                  url: shareUrl,
-                  mainEntityOfPage: {
-                    "@type": "WebPage",
-                    "@id": shareUrl,
-                  },
-                }
-              : {}),
-            author: {
-              "@type": "Person",
-              name: article.author.name,
-              ...(authorProfileUrl ? { url: authorProfileUrl } : {}),
-            },
-            publisher: {
-              "@type": "Organization",
-              name: "ARASVARA",
-              logo: {
-                "@type": "ImageObject",
-                url: "https://arasvara.id/logo.png",
-              },
-            },
-          }),
-        }}
-      />
     </>
   );
 };

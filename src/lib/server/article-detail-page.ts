@@ -6,6 +6,10 @@ import {
   buildArticleTwitterImages,
   getSiteBaseUrl,
 } from "@/lib/og-image";
+import {
+  resolveArticleDateModified,
+  toIsoStringOrNull,
+} from "@/lib/datetime-jakarta";
 import { buildArticleUrl } from "@/lib/utils";
 import type { ArticleDetailFetchResult } from "@/lib/server/fetchArticleServer";
 
@@ -94,9 +98,10 @@ export function buildMetadataFromArticle(article: Article): Metadata {
       locale: "id_ID",
       images: buildArticleOpenGraphImages(article.featuredImage, title, baseUrl),
       publishedTime:
-        article.publishedAt || article.createdAt
-          ? new Date(article.publishedAt || article.createdAt).toISOString()
-          : undefined,
+        toIsoStringOrNull(article.publishedAt) ??
+        toIsoStringOrNull(article.createdAt) ??
+        undefined,
+      modifiedTime: resolveArticleDateModified(article) ?? undefined,
       authors: article.author ? [article.author.name] : [],
     },
     twitter: {

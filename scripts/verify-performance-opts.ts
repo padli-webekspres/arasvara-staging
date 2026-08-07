@@ -9,6 +9,10 @@ import {
 } from "../src/lib/cache/article-cache-config";
 import { injectLazyLoadOnArticleImages } from "../src/lib/article-html";
 import { shouldUnoptimizeNewsCardImage } from "../src/lib/utils";
+import {
+  buildSrcSet,
+  resolveMediaVariantUrl,
+} from "../src/lib/media/public-media-url";
 
 let passed = 0;
 let failed = 0;
@@ -73,6 +77,17 @@ assert(
 assert(
   shouldUnoptimizeNewsCardImage("http://192.168.0.191:9000/x.webp"),
   "http MinIO lokal → unoptimized",
+);
+
+assert(
+  resolveMediaVariantUrl("https://media.arasvara.id/featured/x.webp", 640) ===
+    "https://media.arasvara.id/featured/x-w640.webp",
+  "URL varian w640 konsisten",
+);
+assert(
+  buildSrcSet("https://media.arasvara.id/featured/x.webp").includes("640w") &&
+    buildSrcSet("https://media.arasvara.id/featured/x.webp").includes("1280w"),
+  "srcset menghasilkan varian 640w dan 1280w",
 );
 
 console.log(`\n${passed} passed, ${failed} failed`);

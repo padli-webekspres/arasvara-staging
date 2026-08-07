@@ -5,7 +5,6 @@ import {
 	deleteConfigurationFile,
 } from "@/lib/configuration/s3-configuration";
 import { getImageDimensionsFromBuffer } from "@/lib/image/getImageDimensions";
-import { compressImageWithSharp } from "@/lib/image/compressImageWithSharp";
 import logger from "@/lib/logger";
 import type { AuditLogActor } from "@/types/auditLog";
 import { AuditLogAction } from "@/types/auditLog";
@@ -203,72 +202,24 @@ export async function createOrUpdateConfiguration(
 					// Determine file type for naming
 					const fileTypeForNaming = config.key.replace("_config", "");
 
-					// ── Compress and convert image to WebP if applicable ───────────
-					let fileToUpload: File = file;
+					// Image WebP + varian -w640/-w1280 di-handle uploadConfigurationFile
 					let uploadedWidth: number | undefined;
 					let uploadedHeight: number | undefined;
 					let uploadedMimeType = file.type;
 
-					// Check if this is an image file (bg = background, thumbnail = thumbnail)
 					const isImageFile =
 						config.key.includes("bg") ||
 						config.key.includes("thumbnail") ||
 						file.type.startsWith("image/");
 
-					if (isImageFile) {
-						try {
-							logger.info(
-								{ key: config.key, originalSize: file.size },
-								"Starting image compression to WebP",
-							);
-
-							// Convert file to buffer
-							const arrayBuffer = await file.arrayBuffer();
-							const inputBuffer = Buffer.from(arrayBuffer);
-
-							// Compress and convert to WebP
-							const compressResult = await compressImageWithSharp(
-								inputBuffer,
-								1920,
-								1080,
-							);
-
-							logger.info(
-								{
-									key: config.key,
-									originalSize: file.size,
-									compressedSize: compressResult.fileSize,
-									width: compressResult.width,
-									height: compressResult.height,
-								},
-								"Image compressed and converted to WebP",
-							);
-
-							// Create File object from compressed buffer (with .webp extension)
-							const webpFileName = `${fileTypeForNaming}_${Date.now()}.webp`;
-							fileToUpload = new File(
-								[new Uint8Array(compressResult.buffer)],
-								webpFileName,
-								{ type: compressResult.mimeType },
-							);
-
-							uploadedWidth = compressResult.width;
-							uploadedHeight = compressResult.height;
-							uploadedMimeType = compressResult.mimeType;
-						} catch (compressionError) {
-							logger.error(
-								{ key: config.key, compressionError },
-								"Failed to compress image, will continue with original",
-							);
-							// Continue with original file if compression fails
-						}
-					}
-
-					// Upload new file to S3 (compressed WebP if image, original if not)
 					const uploadResult = await uploadConfigurationFile(
-						fileToUpload,
+						file,
 						fileTypeForNaming,
 					);
+
+					uploadedMimeType = uploadResult.mimeType;
+					uploadedWidth = uploadResult.width;
+					uploadedHeight = uploadResult.height;
 
 					// Delete old file if exists
 					if (oldStorageKey) {
@@ -287,7 +238,6 @@ export async function createOrUpdateConfiguration(
 					// ── Prepare file value with dimensions ────────────────────────
 					let imageDimensions: { width?: number; height?: number } = {};
 
-					// Use dimensions from compression if available, otherwise extract
 					if (uploadedWidth && uploadedHeight) {
 						imageDimensions = {
 							width: uploadedWidth,
@@ -298,7 +248,6 @@ export async function createOrUpdateConfiguration(
 							"Using dimensions from compressed image",
 						);
 					} else if (isImageFile) {
-						// Extract dimensions from original file if not compressed
 						try {
 							const arrayBuffer = await file.arrayBuffer();
 							const buffer = Buffer.from(arrayBuffer);

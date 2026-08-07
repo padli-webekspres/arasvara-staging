@@ -1,106 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useQuery } from "@tanstack/react-query";
-import { fetcher } from "@/lib/fetcher";
-import Image from "next/image";
-import { Loader2 } from "lucide-react";
-import HeadlineSlider from "@/components/news/HeadlineSlider";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
 import HeroCard from "@/components/news/HeroCard";
 import SecondaryNewsCard from "@/components/news/SecondaryNewsCard";
 import NewsCard from "@/components/news/NewsCard";
-import TopicNewsCard from "@/components/news/TopicNewsCard";
 import LoadMoreButton from "@/components/ui/LoadMoreButton";
-
-const SELECTED_TOPICS_MOCK = [
-  {
-    topicName: "Gulf War",
-    topicSlug: "gulf-war",
-    articles: [
-      {
-        title:
-          "Big Tech is moving data out of the Gulf through Iraqi oil pipelines",
-        slug: "big-tech-is-moving-data-out-of-the-gulf-through-iraqi-oil-pipelines",
-        author: "INDRANIL GHOSH",
-        imageUrl:
-          "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=600&auto=format&fit=crop",
-      },
-      {
-        title: "War in the Gulf could tilt the cloud race toward China",
-        slug: "war-in-the-gulf-could-tilt-the-cloud-race-toward-china",
-        author: "KINLING LO",
-        imageUrl:
-          "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=600&auto=format&fit=crop",
-      },
-      {
-        title:
-          '"Data embassies" and safeguarding digital assets during wartime',
-        slug: "data-embassies-and-safeguarding-digital-assets-during-wartime",
-        author: "RINA CHANDRAN",
-        imageUrl:
-          "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?q=80&w=600&auto=format&fit=crop",
-      },
-    ],
-  },
-  {
-    topicName: "Big Tech pushback",
-    topicSlug: "big-tech-pushback",
-    articles: [
-      {
-        title: "Meta's Oversight Board races to govern the AI surge",
-        slug: "metas-oversight-board-races-to-govern-the-ai-surge",
-        author: "ANANYA BHATTACHARYA",
-        imageUrl:
-          "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop",
-      },
-      {
-        title:
-          "Countries are outlawing online gambling ads. Meta is selling them anyway",
-        slug: "countries-are-outlawing-online-gambling-ads-meta-is-selling-them-anyway",
-        author: "HAZEL GANDHI",
-        imageUrl:
-          "https://images.unsplash.com/photo-1596838132731-3301c3fd4317?q=80&w=600&auto=format&fit=crop",
-      },
-      {
-        title:
-          "Indigenous creators are clashing with YouTube's and Instagram's sensitive content bans",
-        slug: "indigenous-creators-are-clashing-with-youtubes-and-instagrams-sensitive-content-bans",
-        author: "GABRIEL DAROS",
-        imageUrl:
-          "https://images.unsplash.com/photo-1528605248644-14dd04022da1?q=80&w=600&auto=format&fit=crop",
-      },
-    ],
-  },
-  {
-    topicName: "The AI Race",
-    topicSlug: "the-ai-race",
-    articles: [
-      {
-        title: "Silicon Valley keeps misreading China's role in tech",
-        slug: "silicon-valley-keeps-misreading-chinas-role-in-tech",
-        author: "LEX ZHAO",
-        imageUrl:
-          "https://images.unsplash.com/photo-1508672019048-805c876b67e2?q=80&w=600&auto=format&fit=crop",
-      },
-      {
-        title:
-          'The Filipino virtual assistants behind LinkedIn\'s "thought leadership" content mill',
-        slug: "the-filipino-virtual-assistants-behind-linkedins-thought-leadership-content-mill",
-        author: "MICHAEL BELTRAN",
-        imageUrl:
-          "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?q=80&w=600&auto=format&fit=crop",
-      },
-      {
-        title: "What's at stake for tech at the Trump-Xi meeting",
-        slug: "whats-at-stake-for-tech-at-the-trump-xi-meeting",
-        author: "VIOLA ZHOU and KINLING LO",
-        imageUrl:
-          "https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=600&auto=format&fit=crop",
-      },
-    ],
-  },
-];
-
 import { Article } from "@/types/article";
 import { useLatestArticles } from "@/hooks/useLatestArticles";
 import TitleHomepage from "@/components/homepage/TitleHomepage";
@@ -108,7 +13,6 @@ import SnapWrapper from "@/components/homepage/SnapWrapper";
 import LoadingOverlay from "@/components/loading/LoadingOverlay";
 import { type ReactNode } from "react";
 import {
-  useCarouselSection,
   useGridSection,
   useFeaturedCategoriesSection,
 } from "@/hooks/useSectionsHomepage";
@@ -194,8 +98,11 @@ function toHomepageAdsSectionItems(
  */
 export default function HomePageClient({
   lcpMonogram,
+  lcpPoster,
 }: {
   lcpMonogram: ReactNode;
+  /** Server-rendered hero poster untuk LCP (ada di HTML awal). */
+  lcpPoster?: ReactNode;
 }) {
   // Fetch semua konfigurasi situs
   // Data ini sudah tersedia dari prefetch server — tidak ada loading delay
@@ -215,59 +122,39 @@ export default function HomePageClient({
   const headlines = headlinesData || [];
 
   // Semua iklan homepage (aktif, dalam rentang tanggal, semua posisi)
-  const { isLoading: isLoadingAds, headlineAds, abovePhotographyAds } =
-    useHomepageAdsGrouped();
+  const { headlineAds, abovePhotographyAds } = useHomepageAdsGrouped();
   const abovePhotographyAdsItems = toHomepageAdsSectionItems(
     abovePhotographyAds,
   );
   const abovePhotographyRatio: HomepageAdsSectionRatio =
     abovePhotographyAds?.[0]?.ratio ?? "21:9";
 
-  const { data: gridSectionData, isLoading: isLoadingGridSection } =
-    useGridSection();
+  const { data: gridSectionData } = useGridSection();
   const featuredArticles = gridSectionData || [];
 
   const gridSectionCategorySlug =
     getStringValue("grid_section_category_slug", "lifestyle").trim() ||
     "lifestyle";
 
-  const { data: carouselArticles, isLoading: isLoadingCarousel } =
-    useCarouselSection();
-
-  const { data: featuredCategories, isLoading: isLoadingFeaturedCategories } =
-    useFeaturedCategoriesSection();
+  const { data: featuredCategories } = useFeaturedCategoriesSection();
 
   // Fetch artikel terbaru (infinite scroll)
   // Halaman pertama sudah di-prefetch di server — tampil instan tanpa skeleton
-  const {
-    data: latestPages,
-    isLoading: isLoadingLatest,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useLatestArticles();
+  const { data: latestPages } = useLatestArticles();
 
   const latestArticles =
     latestPages?.pages?.flatMap((p: { articles: Article[] }) => p.articles) ||
     [];
-  const hasMore = hasNextPage;
-  const isLoadingMore = isFetchingNextPage;
 
-  // Kumpulkan semua state loading yang mempengaruhi tampilan utama
-  const isLoadingAll = [
-    isLoadingConfig,
-    isLoadingHeadlines,
-    isLoadingLatest,
-    isLoadingAds,
-    isLoadingFeaturedCategories,
-  ].some(Boolean);
+  // Overlay hanya menunggu data kritis di atas fold — jangan blok LCP
+  // karena fetch latest (sudah di-prefetch; section di bawah fold).
+  const isLoadingAll = [isLoadingConfig, isLoadingHeadlines].some(Boolean);
 
   // --- Ambil konfigurasi URL gambar/video dari konfigurasi situs ---
   const heroVideoUrl = getMediaUrl("hero_video_config");
   const heroVideoPosterUrl = getMediaUrl("hero_video_poster_bg");
   const fotografiSectionBgUrl = getMediaUrl("fotografi_section_bg");
   const legacyVideoSectionBgUrl = getMediaUrl("video_section_bg");
-  const videoSectionBgUrl = legacyVideoSectionBgUrl;
   const youtubeSectionBgUrl =
     getMediaUrl("youtube_section_bg") || legacyVideoSectionBgUrl;
   const socmedSectionBgUrl =
@@ -300,20 +187,21 @@ export default function HomePageClient({
     : getBooleanValue("section_tiktok_active", true) ||
       getBooleanValue("section_instagram_active", false);
 
-  const handleLoadMore = () => fetchNextPage();
-
   return (
     <>
       <LoadingOverlay isLoading={isLoadingAll} />
       {!isLoadingAll && <FloatingSearchButton />}
       <main>
+        <h1 className="sr-only">
+          Arasvara — Portal Berita Digital Terkini, Akurat & Terpercaya
+        </h1>
         <SnapWrapper
           heroVideoUrl={heroVideoUrl}
           heroVideoPosterUrl={heroVideoPosterUrl}
           headlines={headlines}
-          videoSectionBgUrl={videoSectionBgUrl}
           headlineCarouselAds={headlineAds}
           lcpMonogram={lcpMonogram}
+          lcpPoster={lcpPoster}
         />
 
         {!isLoadingAll && (
@@ -388,26 +276,15 @@ export default function HomePageClient({
 
             {/* Seksi Socmed (TikTok + Instagram) */}
             {SectionSocmedIsActive && (
-              <section
-                className="relative bg-cover bg-center bg-no-repeat bg-fixed py-16 lg:py-24 z-10 flex justify-center items-center"
-                style={{
-                  backgroundImage: socmedSectionBgUrl
-                    ? `url('${socmedSectionBgUrl}')`
-                    : undefined,
-                }}
-              >
+              <section className="relative overflow-hidden py-16 lg:py-24 z-10 flex justify-center items-center">
                 {socmedSectionBgUrl && (
-                  <div
+                  <ResponsiveMediaImage
+                    src={socmedSectionBgUrl}
                     aria-hidden="true"
-                    className="absolute inset-0 z-0 pointer-events-none"
-                    style={{
-                      backgroundImage: `url('${socmedSectionBgUrl}')`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                      backgroundRepeat: "no-repeat",
-                      filter: "blur(8px) brightness(0.7)",
-                      WebkitFilter: "blur(8px) brightness(0.7)",
-                    }}
+                    alt=""
+                    loading="lazy"
+                    sizes="(max-width: 768px) 100vw, 1280px"
+                    className="absolute inset-0 h-full w-full object-cover object-center blur-md brightness-70"
                   />
                 )}
                 <div className="absolute inset-0 bg-black/60 z-0 pointer-events-none" />
@@ -538,26 +415,16 @@ export default function HomePageClient({
 
             {/* Seksi Fotografi */}
             <section
-              className="relative bg-cover bg-center bg-no-repeat bg-fixed py-16 lg:py-24"
-              style={{
-                backgroundImage: fotografiSectionBgUrl
-                  ? `url('${fotografiSectionBgUrl}')`
-                  : undefined,
-              }}
+              className="relative overflow-hidden py-16 lg:py-24"
             >
-              {/* Overlay blur untuk background image */}
               {fotografiSectionBgUrl && (
-                <div
+                <ResponsiveMediaImage
+                  src={fotografiSectionBgUrl}
                   aria-hidden="true"
-                  className="absolute inset-0 z-0 pointer-events-none"
-                  style={{
-                    backgroundImage: `url('${fotografiSectionBgUrl}')`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    backgroundRepeat: "no-repeat",
-                    filter: "blur(8px) brightness(0.7)",
-                    WebkitFilter: "blur(8px) brightness(0.7)",
-                  }}
+                  alt=""
+                  loading="lazy"
+                  sizes="(max-width: 768px) 100vw, 1280px"
+                  className="absolute inset-0 h-full w-full object-cover object-center blur-md brightness-70"
                 />
               )}
               <div className="absolute inset-0 bg-black/60 z-0 pointer-events-none" />
@@ -580,26 +447,16 @@ export default function HomePageClient({
             {/* Seksi YouTube */}
             {SectionYoutubeIsActive && (
               <section
-                className="relative bg-cover bg-center bg-no-repeat bg-fixed py-16 lg:py-24"
-                style={{
-                  backgroundImage: youtubeSectionBgUrl
-                    ? `url('${youtubeSectionBgUrl}')`
-                    : undefined,
-                }}
+                className="relative overflow-hidden py-16 lg:py-24"
               >
-                {/* Overlay blur untuk background image */}
                 {youtubeSectionBgUrl && (
-                  <div
+                  <ResponsiveMediaImage
+                    src={youtubeSectionBgUrl}
                     aria-hidden="true"
-                    className="absolute inset-0 z-0 pointer-events-none"
-                    style={{
-                      backgroundImage: `url('${youtubeSectionBgUrl}')`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                      backgroundRepeat: "no-repeat",
-                      filter: "blur(8px) brightness(0.7)",
-                      WebkitFilter: "blur(8px) brightness(0.7)",
-                    }}
+                    alt=""
+                    loading="lazy"
+                    sizes="(max-width: 768px) 100vw, 1280px"
+                    className="absolute inset-0 h-full w-full object-cover object-center blur-md brightness-70"
                   />
                 )}
                 <div className="absolute inset-0 bg-black/60 z-0 pointer-events-none" />

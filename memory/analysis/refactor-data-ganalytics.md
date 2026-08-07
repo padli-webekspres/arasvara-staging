@@ -109,6 +109,9 @@ Event paling penting. Dikirim **hybrid**: browser saat halaman load + server via
 | `article_title`  | string | `"Judul Artikel"`           |
 | `author_id`      | string | `"683def..."`               |
 | `author_name`    | string | `"Budi Santoso"`            |
+| `editor_id`      | string | `"683abc..."` (kosong jika tanpa editor) |
+| `editor_name`    | string | `"Siti Editor"`             |
+| `editor_slug`    | string | `"siti-editor"`             |
 | `category_id`    | string | `"683ghi..."`               |
 | `category_name`  | string | `"Politik"`                 |
 | `category_slug`  | string | `"politik"`                 |
@@ -157,6 +160,9 @@ Dikirim saat user mencapai **80% scroll** ke bawah pada halaman artikel. Ini ind
 | `article_title`        |                                                   |
 | `category_name`        |                                                   |
 | `article_format`       |                                                   |
+| `editor_id`            | Kosong jika artikel tanpa editor                  |
+| `editor_name`          |                                                   |
+| `editor_slug`          |                                                   |
 | `scroll_depth`         | `80` (angka fixed, penanda threshold)             |
 | `time_on_page_seconds` | Detik sejak halaman di-load sampai trigger scroll |
 
@@ -267,6 +273,9 @@ Daftarkan di **Admin → Custom Definitions** pada property staging (mp) dulu, l
 | Author ID           | `author_id`           | `view_article`, `author_profile_view`                                                   | Wajib     |
 | Author Name         | `author_name`         | `view_article`, `author_profile_view`                                                   | Wajib     |
 | Author Slug         | `author_slug`         | `author_profile_view`                                                                   | Fase 2    |
+| Editor ID           | `editor_id`           | `view_article`, `article_read_complete`                                                 | Wajib     |
+| Editor Name         | `editor_name`         | `view_article`, `article_read_complete`                                                 | Wajib     |
+| Editor Slug         | `editor_slug`         | `view_article`, `article_read_complete`                                                 | Wajib     |
 | Category ID         | `category_id`         | `view_article`                                                                          | Wajib     |
 | Category Name       | `category_name`       | `view_article`, `article_read_complete`, `article_share`, `select_content`, `push_open` | Wajib     |
 | Category Slug       | `category_slug`       | `view_article`                                                                          | Wajib     |
@@ -330,7 +339,7 @@ Jangan daftarkan sebagai Custom Dimension kecuali ingin memakainya di event non-
 
 **Batch 1 — sebelum deploy Fase 1** (semua parameter `view_article`):
 
-`article_id`, `article_slug`, `article_title`, `article_format`, `author_id`, `author_name`, `category_id`, `category_name`, `category_slug`, `tag_1`, `tag_2`, `tag_3`, `is_breaking`, `is_headline`, `content_page`, `has_video`, `has_gallery`, `publish_day_of_week`, `user_type`, `referrer_type`, `session_source` + metrics: `article_age_days`, `word_count`, `publish_hour`
+`article_id`, `article_slug`, `article_title`, `article_format`, `author_id`, `author_name`, `editor_id`, `editor_name`, `editor_slug`, `category_id`, `category_name`, `category_slug`, `tag_1`, `tag_2`, `tag_3`, `is_breaking`, `is_headline`, `content_page`, `has_video`, `has_gallery`, `publish_day_of_week`, `user_type`, `referrer_type`, `session_source` + metrics: `article_age_days`, `word_count`, `publish_hour`
 
 **Batch 2 — Fase 2–3 interaksi:**
 
@@ -344,9 +353,9 @@ Jangan daftarkan sebagai Custom Dimension kecuali ingin memakainya di event non-
 
 | Tipe                      | Terpakai            | Batas (free) |
 | ------------------------- | ------------------- | ------------ |
-| Custom Dimensions (Event) | 34                  | 50           |
+| Custom Dimensions (Event) | 37                  | 50           |
 | Custom Metrics (Event)    | 6                   | 50           |
-| Parameter per event       | `view_article` ≈ 22 | 25           |
+| Parameter per event       | `view_article` ≈ 25 | 25           |
 
 > Setelah didaftarkan di property staging (mp), **copy konfigurasi identik** ke property production v2 (arasvaranews) saat cutover — nama parameter harus sama persis dengan yang dikirim dari kode.
 

@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
+    "analyze": "ANALYZE=true next build",
+    "lighthouse:mobile": "node scripts/lighthouse-mobile.mjs",
     "start": "next start",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
@@ -14,6 +16,7 @@
     "migrate:webp-audit": "tsx scripts/migrate-webp-audit.ts",
     "migrate:webp-audit:prod": "tsx scripts/migrate-webp-audit.ts --env-file=.env.migrate-prod",
     "verify:perf-opts": "tsx scripts/verify-performance-opts.ts",
+    "backfill:image-variants": "node --env-file=${DOTENV_CONFIG_PATH:-.env} --import tsx scripts/backfill-image-variants.ts",
     "audit:article-titles": "tsx scripts/audit-article-titles.ts",
     "audit:article-paths": "tsx scripts/audit-article-paths.ts",
     "audit:article-paths:prod": "tsx scripts/audit-article-paths.ts --env-file=.env.migrate-prod",
@@ -117,6 +120,7 @@
   },
   "devDependencies": {
     "@google-analytics/admin": "^9.2.0",
+    "@next/bundle-analyzer": "^16.3.0",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/fluent-ffmpeg": "^2.1.28",
     "@types/jsonwebtoken": "^9.0.10",
@@ -127,6 +131,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "lighthouse": "^13.4.1",
     "shadcn": "^4.8.0",
     "tailwindcss": "^4.2.1",
     "tsx": "^4.21.0",

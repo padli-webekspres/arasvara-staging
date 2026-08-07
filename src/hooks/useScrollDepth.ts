@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { trackArticleReadComplete } from "@/lib/google-analytics";
 import type { Article } from "@/types/article";
+import { shouldCountArticleView } from "@/lib/articleViewAccess";
 
 const MARKER_ID = "article-end-marker";
 const SESSION_KEY_PREFIX = "read_complete_";
@@ -44,6 +45,7 @@ export function useScrollDepth(
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!articleId) return;
+    if (!shouldCountArticleView(article.status)) return;
 
     // Reset timer setiap kali article/page berubah
     mountTimeRef.current = Date.now();

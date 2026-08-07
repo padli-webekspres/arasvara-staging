@@ -56,7 +56,7 @@ function categoryUrlXml(baseUrl: string, categories: SitemapCategory[]): string 
 		.map(
 			(category) => `
   <url>
-    <loc>${buildLoc(baseUrl, `/category/${encodeURIComponent(category.slug)}`)}</loc>
+    <loc>${buildLoc(baseUrl, `/${encodeURIComponent(category.slug)}`)}</loc>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>`,
@@ -73,24 +73,13 @@ function articleUrlXml(baseUrl: string, articles: SitemapArticle[]): string {
 			const lastmod = escapeXml(
 				article.contentUpdatedAt || article.updatedAt,
 			);
-			const newsBlock = isRecentNewsArticle(article.publishedAt)
-				? `
-    <news:news>
-      <news:publication>
-        <news:name>Arasvara</news:name>
-        <news:language>id</news:language>
-      </news:publication>
-      <news:publication_date>${escapeXml(article.publishedAt)}</news:publication_date>
-      <news:title>${escapeXml(article.title || article.slug)}</news:title>
-    </news:news>`
-				: "";
 
 			return `
   <url>
     <loc>${buildLoc(baseUrl, path)}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.7</priority>${newsBlock}
+    <priority>0.7</priority>
   </url>`;
 		})
 		.join("");
@@ -117,7 +106,41 @@ export function buildSitemapXml(
 	authors: SitemapAuthor[] = [],
 ): string {
 	return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${staticUrlXml(baseUrl)}${categoryUrlXml(baseUrl, categories)}${authorUrlXml(baseUrl, authors)}${articleUrlXml(baseUrl, articles)}
+</urlset>`;
+}
+
+/**
+ * Sitemap Google News khusus (/sitemap_news.xml):
+ * hanya berisi artikel terbaru (recency ditentukan pemanggil), maksimal 1000 URL,
+ * dengan metadata news:publication, news:publication_date, dan news:title.
+ */
+export function buildNewsSitemapXml(
+	baseUrl: string,
+	articles: SitemapArticle[],
+): string {
+	const entries = articles
+		.flatMap((article) => {
+			const path = article.publicPath?.trim();
+			if (!path || !isStructuredPublicPath(path)) return [];
+
+			return `
+  <url>
+    <loc>${buildLoc(baseUrl, path)}</loc>
+    <news:news>
+      <news:publication>
+        <news:name>Arasvara</news:name>
+        <news:language>id</news:language>
+      </news:publication>
+      <news:publication_date>${escapeXml(article.publishedAt)}</news:publication_date>
+      <news:title>${escapeXml(article.title || article.slug)}</news:title>
+    </news:news>
+  </url>`;
+		})
+		.join("");
+
+	return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">${staticUrlXml(baseUrl)}${categoryUrlXml(baseUrl, categories)}${authorUrlXml(baseUrl, authors)}${articleUrlXml(baseUrl, articles)}
+        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">${entries}
 </urlset>`;
 }

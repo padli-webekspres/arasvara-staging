@@ -201,7 +201,8 @@ export interface DraftGalleryItem {
 	caption: string;
 	credit: string;
 	order: number;
-	idbKey?: string;
+	/** ID media temp di object storage (`temp/`) untuk item yang belum di-promote. */
+	tempMediaId?: string;
 	isPending?: boolean;
 }
 
@@ -232,12 +233,11 @@ export interface DraftArticle {
 	isPopular?: boolean;
 	isEditorChoices?: boolean;
 
-	/** IDB key untuk featured image yang belum diunggah ke server. */
-	pendingFeaturedIdbKey?: string | null;
-	/** Pasangan blobUrl ↔ idbKey untuk gambar body editor yang belum diunggah. */
+	/** Temp media ID untuk featured image yang belum dipromosikan ke server. */
+	pendingFeaturedTempId?: string | null;
+	/** Temp media ID untuk gambar body editor yang belum dipromosikan. */
 	editorImageKeys?: Array<{
-		blobUrl: string;
-		idbKey: string;
+		tempMediaId: string;
 		meta?: { caption?: string; credit?: string; watermark?: boolean };
 	}>;
 

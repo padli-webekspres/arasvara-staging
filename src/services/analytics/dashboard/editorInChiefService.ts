@@ -1,4 +1,63 @@
-import { Db } from "mongodb";
+import { Db, ObjectId } from "mongodb";
+
+/** Normalisasi id Mongo (ObjectId | string) ke string untuk map key. */
+function idKey(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (value instanceof ObjectId) return value.toString();
+  if (typeof value === "object" && value !== null && "toString" in value) {
+    return String((value as { toString: () => string }).toString());
+  }
+  return String(value);
+}
+
+/** Format durasi SLA (menit) ke string ringkas. */
+function formatSlaMinutes(rawMinutes: number): string {
+  if (rawMinutes >= 1440) return `${(rawMinutes / 1440).toFixed(1)}d`;
+  if (rawMinutes >= 60) return `${(rawMinutes / 60).toFixed(1)}h`;
+  return `${rawMinutes.toFixed(1)}m`;
+}
+
+/** Pipeline bersama: views per artikel → join articles. */
+function viewsByArticlePipeline(from: Date, to?: Date) {
+  const viewedAt: Record<string, Date> = { $gte: from };
+  if (to) viewedAt.$lt = to;
+
+  return [
+    {
+      $match: {
+        viewedAt,
+        deletedAt: { $in: [null, undefined] },
+      },
+    },
+    {
+      $group: {
+        _id: "$articleId",
+        viewsCount: { $sum: 1 },
+      },
+    },
+    {
+      $addFields: {
+        articleObjectId: {
+          $cond: {
+            if: { $eq: [{ $type: "$_id" }, "string"] },
+            then: { $toObjectId: "$_id" },
+            else: "$_id",
+          },
+        },
+      },
+    },
+    {
+      $lookup: {
+        from: "articles",
+        localField: "articleObjectId",
+        foreignField: "_id",
+        as: "article",
+      },
+    },
+    { $unwind: "$article" },
+  ];
+}
 
 export interface ChiefDashboardStats {
   pembacaBulanIni: number;
@@ -25,17 +84,27 @@ export interface ChiefDashboardStats {
     articleCount: number;
     totalViews30d: number;
   }>;
-  topAuthors: Array<{
+  authorPerformance14d: Array<{
     rank: number;
     name: string;
     articles: number;
     views: number;
+    avgViews: number;
+    deltaPct: number | null;
   }>;
-  topEditors: Array<{
+  editorPerformance14d: Array<{
     rank: number;
     name: string;
+    views: number;
     articles: number;
     sla: string;
+  }>;
+  topArticles14d: Array<{
+    rank: number;
+    id: string;
+    title: string;
+    author: string;
+    views: number;
   }>;
   scheduledArticles: Array<{
     id: string;
@@ -43,6 +112,16 @@ export interface ChiefDashboardStats {
     publishedAt: string;
     channel: string;
     author: string;
+  }>;
+  productionLast14d: Array<{
+    date: string;
+    count: number;
+  }>;
+  unpublishedByStatus: Array<{
+    status: string;
+    label: string;
+    count: number;
+    color: string;
   }>;
 }
 
@@ -58,6 +137,8 @@ export async function getChiefDashboardStats(db: Db): Promise<ChiefDashboardStat
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+  const twentyEightDaysAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
   
   // Format periode bulanan YYYY-MM
   const period = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, "0")}`;
@@ -71,9 +152,15 @@ export async function getChiefDashboardStats(db: Db): Promise<ChiefDashboardStat
     produksiArtikelBulanIni,
     trendingRaw,
     channelRaw,
-    topAuthorsRaw,
-    topEditorsRaw,
-    scheduledRaw
+    authorViews14dRaw,
+    authorArticles14dRaw,
+    authorViewsPrev14dRaw,
+    editorViews14dRaw,
+    editorArticlesSla14dRaw,
+    topArticles14dRaw,
+    scheduledRaw,
+    productionRaw,
+    unpublishedRaw,
   ] = await Promise.all([
     // A. Total pageviews bulan ini
     db.collection("article_views").countDocuments({
@@ -216,95 +303,124 @@ export async function getChiefDashboardStats(db: Db): Promise<ChiefDashboardStat
       },
       { $unwind: "$category" }
     ]).toArray(),
-    // H. Top 5 Penulis Terproduktif (Artikel Terbit & Views)
-    db.collection("articles").aggregate([
-      {
-        $match: {
-          status: "PUBLISHED",
-          $or: [{ deletedAt: { $exists: false } }, { deletedAt: null }]
-        }
-      },
-      {
-        $group: {
-          _id: "$authorId",
-          articlesCount: { $sum: 1 },
-          totalViews: { $sum: "$viewCount" }
-        }
-      },
-      { $sort: { articlesCount: -1 } },
-      { $limit: 5 },
-      {
-        $addFields: {
-          authorObjectId: {
-            $cond: {
-              if: { $eq: [{ $type: "$_id" }, "string"] },
-              then: { $toObjectId: "$_id" },
-              else: "$_id"
-            }
-          }
-        }
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "authorObjectId",
-          foreignField: "_id",
-          as: "author"
-        }
-      },
-      { $unwind: "$author" }
-    ]).toArray(),
-    // I. Top 5 Editor Teraktif (Naskah Diproses & SLA)
-    db.collection("articles").aggregate([
-      {
-        $match: {
-          status: "PUBLISHED",
-          editorId: { $ne: null },
-          publishedAt: { $ne: null },
-          $or: [{ deletedAt: { $exists: false } }, { deletedAt: null }]
-        }
-      },
-      {
-        $project: {
-          editorId: 1,
-          duration: {
-            $divide: [
-              { $subtract: ["$publishedAt", "$createdAt"] },
-              60 * 1000
-            ]
-          }
-        }
-      },
-      {
-        $group: {
-          _id: "$editorId",
-          articlesCount: { $sum: 1 },
-          avgSla: { $avg: "$duration" }
-        }
-      },
-      { $sort: { articlesCount: -1 } },
-      { $limit: 5 },
-      {
-        $addFields: {
-          editorObjectId: {
-            $cond: {
-              if: { $eq: [{ $type: "$_id" }, "string"] },
-              then: { $toObjectId: "$_id" },
-              else: "$_id"
-            }
-          }
-        }
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "editorObjectId",
-          foreignField: "_id",
-          as: "editor"
-        }
-      },
-      { $unwind: "$editor" }
-    ]).toArray(),
+    // H. Views 14 hari per author (dari article_views)
+    db.collection("article_views")
+      .aggregate([
+        ...viewsByArticlePipeline(fourteenDaysAgo),
+        {
+          $group: {
+            _id: "$article.authorId",
+            views: { $sum: "$viewsCount" },
+          },
+        },
+      ])
+      .toArray(),
+    // H2. Artikel terbit 14 hari per author
+    db.collection("articles")
+      .aggregate([
+        {
+          $match: {
+            status: "PUBLISHED",
+            publishedAt: { $gte: fourteenDaysAgo },
+            $or: [{ deletedAt: { $exists: false } }, { deletedAt: null }],
+          },
+        },
+        {
+          $group: {
+            _id: "$authorId",
+            articlesCount: { $sum: 1 },
+          },
+        },
+      ])
+      .toArray(),
+    // H3. Views 14 hari sebelumnya (hari 15–28) per author — untuk %Δ
+    db.collection("article_views")
+      .aggregate([
+        ...viewsByArticlePipeline(twentyEightDaysAgo, fourteenDaysAgo),
+        {
+          $group: {
+            _id: "$article.authorId",
+            views: { $sum: "$viewsCount" },
+          },
+        },
+      ])
+      .toArray(),
+    // I. Views 14 hari per editor (artikel ber-editorId)
+    db.collection("article_views")
+      .aggregate([
+        ...viewsByArticlePipeline(fourteenDaysAgo),
+        {
+          $match: {
+            "article.editorId": { $ne: null, $exists: true },
+          },
+        },
+        {
+          $group: {
+            _id: "$article.editorId",
+            views: { $sum: "$viewsCount" },
+          },
+        },
+      ])
+      .toArray(),
+    // I2. Naskah terbit 14 hari + SLA per editor
+    db.collection("articles")
+      .aggregate([
+        {
+          $match: {
+            status: "PUBLISHED",
+            editorId: { $ne: null },
+            publishedAt: { $gte: fourteenDaysAgo, $ne: null },
+            $or: [{ deletedAt: { $exists: false } }, { deletedAt: null }],
+          },
+        },
+        {
+          $project: {
+            editorId: 1,
+            duration: {
+              $divide: [
+                { $subtract: ["$publishedAt", "$createdAt"] },
+                60 * 1000,
+              ],
+            },
+          },
+        },
+        {
+          $group: {
+            _id: "$editorId",
+            articlesCount: { $sum: 1 },
+            avgSla: { $avg: "$duration" },
+          },
+        },
+      ])
+      .toArray(),
+    // I3. Top 5 artikel by views 14 hari
+    db.collection("article_views")
+      .aggregate([
+        ...viewsByArticlePipeline(fourteenDaysAgo),
+        { $sort: { viewsCount: -1 } },
+        { $limit: 5 },
+        {
+          $addFields: {
+            authorObjectId: {
+              $cond: {
+                if: { $eq: [{ $type: "$article.authorId" }, "string"] },
+                then: { $toObjectId: "$article.authorId" },
+                else: "$article.authorId",
+              },
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "authorObjectId",
+            foreignField: "_id",
+            as: "author",
+          },
+        },
+        { $unwind: { path: "$author", preserveNullAndEmptyArrays: true } },
+      ])
+      .toArray(),
     // J. 5 Artikel Terjadwal Terbit Terdekat (SCHEDULED)
     db.collection("articles").aggregate([
       {
@@ -351,7 +467,47 @@ export async function getChiefDashboardStats(db: Db): Promise<ChiefDashboardStat
         }
       },
       { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } }
-    ]).toArray()
+    ]).toArray(),
+    // K. Produksi artikel terbit per hari (14 hari, Asia/Jakarta)
+    db.collection("articles").aggregate([
+      {
+        $match: {
+          status: "PUBLISHED",
+          publishedAt: { $gte: fourteenDaysAgo },
+          $or: [{ deletedAt: { $exists: false } }, { deletedAt: null }],
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: "$publishedAt",
+              timezone: "Asia/Jakarta",
+            },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]).toArray(),
+    // L. Komposisi artikel non-publish (exclude PUBLISHED & TAKEN_DOWN)
+    db.collection("articles").aggregate([
+      {
+        $match: {
+          status: {
+            $in: ["DRAFT", "PENDING_REVIEW", "SCHEDULED", "REJECTED"],
+          },
+          $or: [{ deletedAt: { $exists: false } }, { deletedAt: null }],
+        },
+      },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+    ]).toArray(),
   ]);
 
   // Target Pageviews bulanan
@@ -544,52 +700,152 @@ export async function getChiefDashboardStats(db: Db): Promise<ChiefDashboardStat
     }
   ];
 
-  // 5. Pemrosesan Data Top Authors Leaderboard
-  let topAuthors = topAuthorsRaw.map((row: any, idx: number) => ({
-    rank: idx + 1,
-    name: row.author.name || "Penulis",
-    articles: row.articlesCount,
-    views: row.totalViews || 0
-  }));
-
-  if (topAuthors.length === 0) {
-    topAuthors = [
-      { rank: 1, name: "Budiman Santoso", articles: 24, views: 142800 },
-      { rank: 2, name: "Siti Rahma", articles: 19, views: 98400 },
-      { rank: 3, name: "Guntur Satria", articles: 15, views: 85100 },
-      { rank: 4, name: "Rian Hidayat", articles: 12, views: 64200 },
-      { rank: 5, name: "Aditya Perkasa", articles: 10, views: 48900 }
-    ];
+  // 5. Performa Author 14 hari (views, artikel, rerata, %Δ)
+  const authorViewsMap = new Map<string, number>();
+  for (const row of authorViews14dRaw) {
+    const key = idKey(row._id);
+    if (key) authorViewsMap.set(key, row.views || 0);
+  }
+  const authorArticlesMap = new Map<string, number>();
+  for (const row of authorArticles14dRaw) {
+    const key = idKey(row._id);
+    if (key) authorArticlesMap.set(key, row.articlesCount || 0);
+  }
+  const authorPrevViewsMap = new Map<string, number>();
+  for (const row of authorViewsPrev14dRaw) {
+    const key = idKey(row._id);
+    if (key) authorPrevViewsMap.set(key, row.views || 0);
   }
 
-  // 6. Pemrosesan Data Top Editors Leaderboard
-  let topEditors = topEditorsRaw.map((row: any, idx: number) => {
-    const rawMinutes = row.avgSla || 0;
-    let slaStr = "0m";
-    if (rawMinutes >= 1440) {
-      slaStr = `${(rawMinutes / 1440).toFixed(1)}d`;
-    } else if (rawMinutes >= 60) {
-      slaStr = `${(rawMinutes / 60).toFixed(1)}h`;
-    } else {
-      slaStr = `${rawMinutes.toFixed(1)}m`;
+  const authorIdSet = new Set<string>([
+    ...authorViewsMap.keys(),
+    ...authorArticlesMap.keys(),
+  ]);
+
+  const authorMerged = Array.from(authorIdSet).map((id) => {
+    const views = authorViewsMap.get(id) || 0;
+    const articles = authorArticlesMap.get(id) || 0;
+    const prevViews = authorPrevViewsMap.get(id) || 0;
+    const avgViews =
+      articles > 0 ? Math.round(views / articles) : views > 0 ? views : 0;
+    const deltaPct =
+      prevViews > 0
+        ? parseFloat((((views - prevViews) / prevViews) * 100).toFixed(1))
+        : null;
+    return { id, views, articles, avgViews, deltaPct };
+  });
+
+  authorMerged.sort((a, b) => b.views - a.views || b.articles - a.articles);
+  const topAuthorRows = authorMerged.slice(0, 5);
+
+  const authorObjectIds = topAuthorRows
+    .map((row) => {
+      try {
+        return new ObjectId(row.id);
+      } catch {
+        return null;
+      }
+    })
+    .filter((id): id is ObjectId => id != null);
+
+  const authorUsers =
+    authorObjectIds.length > 0
+      ? await db
+          .collection("users")
+          .find({ _id: { $in: authorObjectIds } })
+          .project({ name: 1 })
+          .toArray()
+      : [];
+  const authorNameMap = new Map(
+    authorUsers.map((u) => [idKey(u._id), u.name || "Penulis"]),
+  );
+
+  const authorPerformance14d = topAuthorRows.map((row, idx) => ({
+    rank: idx + 1,
+    name: authorNameMap.get(row.id) || "Penulis",
+    articles: row.articles,
+    views: row.views,
+    avgViews: row.avgViews,
+    deltaPct: row.deltaPct,
+  }));
+
+  // 6. Performa Editor 14 hari (views + naskah + SLA)
+  const editorViewsMap = new Map<string, number>();
+  for (const row of editorViews14dRaw) {
+    const key = idKey(row._id);
+    if (key) editorViewsMap.set(key, row.views || 0);
+  }
+  const editorMetaMap = new Map<
+    string,
+    { articlesCount: number; avgSla: number }
+  >();
+  for (const row of editorArticlesSla14dRaw) {
+    const key = idKey(row._id);
+    if (key) {
+      editorMetaMap.set(key, {
+        articlesCount: row.articlesCount || 0,
+        avgSla: row.avgSla || 0,
+      });
     }
+  }
+
+  const editorIdSet = new Set<string>([
+    ...editorViewsMap.keys(),
+    ...editorMetaMap.keys(),
+  ]);
+
+  const editorMerged = Array.from(editorIdSet).map((id) => {
+    const views = editorViewsMap.get(id) || 0;
+    const meta = editorMetaMap.get(id);
     return {
-      rank: idx + 1,
-      name: row.editor.name || "Editor",
-      articles: row.articlesCount,
-      sla: slaStr
+      id,
+      views,
+      articles: meta?.articlesCount || 0,
+      avgSla: meta?.avgSla || 0,
     };
   });
 
-  if (topEditors.length === 0) {
-    topEditors = [
-      { rank: 1, name: "Editor Budiman", articles: 42, sla: "14.2m" },
-      { rank: 2, name: "Editor Sarah", articles: 38, sla: "16.5m" },
-      { rank: 3, name: "Editor Ahmad", articles: 31, sla: "18.0m" },
-      { rank: 4, name: "Editor Lestari", articles: 25, sla: "21.4m" },
-      { rank: 5, name: "Editor Dwi", articles: 22, sla: "22.8m" }
-    ];
-  }
+  editorMerged.sort((a, b) => b.views - a.views || b.articles - a.articles);
+  const topEditorRows = editorMerged.slice(0, 5);
+
+  const editorObjectIds = topEditorRows
+    .map((row) => {
+      try {
+        return new ObjectId(row.id);
+      } catch {
+        return null;
+      }
+    })
+    .filter((id): id is ObjectId => id != null);
+
+  const editorUsers =
+    editorObjectIds.length > 0
+      ? await db
+          .collection("users")
+          .find({ _id: { $in: editorObjectIds } })
+          .project({ name: 1 })
+          .toArray()
+      : [];
+  const editorNameMap = new Map(
+    editorUsers.map((u) => [idKey(u._id), u.name || "Editor"]),
+  );
+
+  const editorPerformance14d = topEditorRows.map((row, idx) => ({
+    rank: idx + 1,
+    name: editorNameMap.get(row.id) || "Editor",
+    views: row.views,
+    articles: row.articles,
+    sla: formatSlaMinutes(row.avgSla),
+  }));
+
+  // 6b. Top artikel by views 14 hari
+  const topArticles14d = topArticles14dRaw.map((row: any, idx: number) => ({
+    rank: idx + 1,
+    id: idKey(row.article?._id || row._id),
+    title: row.article?.title || "Untitled Article",
+    author: row.author?.name || "Penulis Anonim",
+    views: row.viewsCount || 0,
+  }));
 
   // 7. Pemrosesan Data Artikel Terjadwal (SCHEDULED)
   let scheduledArticles = scheduledRaw.map((art: any) => ({
@@ -599,6 +855,64 @@ export async function getChiefDashboardStats(db: Db): Promise<ChiefDashboardStat
     channel: art.category?.name || "Umum",
     author: art.author?.name || "Anonim"
   }));
+
+  // 8. Produksi artikel terbit 14 hari (isi hari kosong dengan 0)
+  const productionMap = new Map(
+    productionRaw.map((row: any) => [row._id, row.count as number]),
+  );
+  const productionLast14d: Array<{ date: string; count: number }> = [];
+  const indonesianMonths = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "Mei",
+    "Jun",
+    "Jul",
+    "Agt",
+    "Sep",
+    "Okt",
+    "Nov",
+    "Des",
+  ];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const y = d.getFullYear();
+    const m = (d.getMonth() + 1).toString().padStart(2, "0");
+    const day = d.getDate().toString().padStart(2, "0");
+    const dbKey = `${y}-${m}-${day}`;
+    productionLast14d.push({
+      date: `${d.getDate()} ${indonesianMonths[d.getMonth()]}`,
+      count: productionMap.get(dbKey) || 0,
+    });
+  }
+
+  // 9. Komposisi status non-publish
+  const unpublishedLabelColor: Record<
+    string,
+    { label: string; color: string }
+  > = {
+    DRAFT: { label: "Draft", color: "#64748B" },
+    PENDING_REVIEW: { label: "Pending Review", color: "#F59E0B" },
+    SCHEDULED: { label: "Scheduled", color: "#10B981" },
+    REJECTED: { label: "Rejected", color: "#E05A47" },
+  };
+  const unpublishedByStatus = unpublishedRaw
+    .map((row: any) => {
+      const status = String(row._id || "");
+      const meta = unpublishedLabelColor[status] || {
+        label: status,
+        color: "#94A3B8",
+      };
+      return {
+        status,
+        label: meta.label,
+        count: row.count || 0,
+        color: meta.color,
+      };
+    })
+    .filter((row) => row.count > 0)
+    .sort((a, b) => b.count - a.count);
 
   // Mengembalikan data asli kosong [] jika tidak ada artikel terjadwal di basis data
 
@@ -611,8 +925,11 @@ export async function getChiefDashboardStats(db: Db): Promise<ChiefDashboardStat
     trendingArticles,
     channels,
     homepageSections,
-    topAuthors,
-    topEditors,
-    scheduledArticles
+    authorPerformance14d,
+    editorPerformance14d,
+    topArticles14d,
+    scheduledArticles,
+    productionLast14d,
+    unpublishedByStatus,
   };
 }

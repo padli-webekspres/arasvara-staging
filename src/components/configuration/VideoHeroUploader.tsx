@@ -146,10 +146,6 @@ const VideoHeroUploader: React.FC<VideoHeroUploaderProps> = ({
       setVideo((prev) => ({ ...prev, isLoading: true }));
 
       try {
-        console.log(
-          "[VideoHeroUploader] Starting file selection process for:",
-          selectedFile.name,
-        );
         
         // Cek durasi setelah UI menampilkan loading
         const durationSec = await getVideoDurationSeconds(selectedFile);
@@ -171,20 +167,13 @@ const VideoHeroUploader: React.FC<VideoHeroUploaderProps> = ({
 
       try {
         // Save to IndexedDB
-        console.log("[VideoHeroUploader] Saving video to IndexedDB...");
         await saveVideoToIndexedDB(defaultKey, selectedFile, selectedFile.type);
 
         // Extract and generate thumbnail
-        console.log("[VideoHeroUploader] Extracting thumbnail...");
         let thumbnailUrl: string | null = null;
         try {
           const thumbnail = await extractVideoThumbnail(selectedFile);
           thumbnailUrl = await blobToDataUrl(thumbnail);
-          console.log(
-            "[VideoHeroUploader] Thumbnail generated:",
-            thumbnailUrl ? "SUCCESS" : "NULL",
-          );
-          console.log("thumbnail url:", thumbnailUrl);
           if (!thumbnailUrl) {
             console.warn(
               "[VideoHeroUploader] Thumbnail URL is empty after blobToDataUrl",
@@ -208,9 +197,6 @@ const VideoHeroUploader: React.FC<VideoHeroUploaderProps> = ({
         // Notify parent component
         onVideoSelect?.(selectedFile);
 
-        console.log(
-          "[VideoHeroUploader] File selection completed successfully",
-        );
         toast.success("Video uploaded successfully!");
       } catch (error) {
         console.error("[VideoHeroUploader] Error processing video:", error);
@@ -275,9 +261,6 @@ const VideoHeroUploader: React.FC<VideoHeroUploaderProps> = ({
 
   const handleRemoveVideo = useCallback(async () => {
     try {
-      console.log(
-        "[VideoHeroUploader] Attempting to remove video from IndexedDB",
-      );
       await removeVideoFromIndexedDB(defaultKey);
 
       setVideo({
@@ -287,7 +270,6 @@ const VideoHeroUploader: React.FC<VideoHeroUploaderProps> = ({
       });
       onVideoSelect?.(null);
 
-      console.log("[VideoHeroUploader] Video removed successfully");
       toast.success("Video removed successfully");
     } catch (error) {
       // This should rarely happen now due to silent fallback in removeVideoFromIndexedDB

@@ -3,6 +3,10 @@
 import { useSortable } from "@dnd-kit/react/sortable";
 import { GripVertical, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  sortableDragHandleClass,
+  sortableRemoveButtonClass,
+} from "@/lib/admin/sortableStyles";
 import type { FeaturedCategorySortItem } from "./featuredOrderPayload";
 
 interface SortableFeaturedCategoryCardProps {
@@ -30,7 +34,7 @@ export function SortableFeaturedCategoryCard({
     >
       <div
         ref={handleRef}
-        className="absolute top-2 left-2 z-10 rounded-md bg-background/90 p-1.5 shadow-sm backdrop-blur cursor-grab active:cursor-grabbing opacity-0 transition-opacity group-hover:opacity-100"
+        className={sortableDragHandleClass}
         aria-label="Seret untuk mengubah urutan"
         title="Seret untuk mengubah urutan"
       >
@@ -41,7 +45,7 @@ export function SortableFeaturedCategoryCard({
         type="button"
         variant="destructive"
         size="icon"
-        className="absolute top-2 right-2 z-10 h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
+        className={sortableRemoveButtonClass}
         aria-label={`Hapus ${category.name} dari daftar unggulan`}
         onClick={() => onRemove(category._id)}
       >

@@ -1,3 +1,5 @@
+import { checkWebpSupport } from "@/lib/image/detectImageFormat";
+
 export interface PixelCropArea {
   x: number;
   y: number;
@@ -84,6 +86,8 @@ export async function getCroppedImg(
         }
 
         const maxSizeBytes = maxSizeMB * 1024 * 1024;
+        const supportWebp = checkWebpSupport();
+        const exportMime = supportWebp ? "image/webp" : "image/jpeg";
 
         // Hybrid scaling & quality configuration list
         const attempts = [
@@ -122,7 +126,7 @@ export async function getCroppedImg(
           );
 
           finalBlob = await new Promise<Blob | null>((res) =>
-            canvas.toBlob((b) => res(b), "image/webp", attempt.quality),
+            canvas.toBlob((b) => res(b), exportMime, attempt.quality),
           );
 
           if (finalBlob && finalBlob.size <= maxSizeBytes) {

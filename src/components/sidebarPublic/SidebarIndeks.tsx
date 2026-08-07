@@ -1,15 +1,23 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { DayPicker } from "react-day-picker";
+import { format, isValid, parse } from "date-fns";
+import { id as idLocale } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useCategoryOptions } from "@/hooks/useCategory";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronRight, LayoutGrid, RotateCcw } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarIcon, ChevronRight, RotateCcw } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -17,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import "react-day-picker/dist/style.css";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +49,13 @@ function buildCategoryHref(slug: string, currentDate: string | null): string {
   return `/indeks${queryString ? `?${queryString}` : ""}`;
 }
 
+/** Parse YYYY-MM-DD ke Date lokal (hindari shift timezone dari ISO string). */
+function parseDateParam(value: string): Date | undefined {
+  if (!value) return undefined;
+  const parsed = parse(value, "yyyy-MM-dd", new Date());
+  return isValid(parsed) ? parsed : undefined;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SidebarIndeks({
@@ -50,14 +66,23 @@ export default function SidebarIndeks({
   const searchParams = useSearchParams();
   const activeCategory = searchParams.get("category") ?? "";
   const currentDate = searchParams.get("date") ?? "";
+  const [dateOpen, setDateOpen] = useState(false);
 
   // ── Ambil daftar kategori dari API (cached via React Query) ──
   const { data: categoryOptions, isLoading: loadingCategories } =
     useCategoryOptions();
 
-  // ── Handler: Perubahan input tanggal ──
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onDateChange?.(e.target.value);
+  const selectedDate = parseDateParam(currentDate);
+  const dateLabel =
+    selectedDate != null
+      ? format(selectedDate, "dd MMM yyyy", { locale: idLocale })
+      : "Pilih tanggal";
+
+  // ── Handler: Pilih tanggal dari DayPicker (bukan native date — iOS Safari overflow) ──
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    onDateChange?.(format(date, "yyyy-MM-dd"));
+    setDateOpen(false);
   };
 
   // ── Handler: Reset filter tanggal ──
@@ -74,17 +99,21 @@ export default function SidebarIndeks({
     router.push(href);
   };
 
+  // Class trigger disetarakan: tanggal (Button) & kategori (SelectTrigger)
+  const filterTriggerClassName =
+    "h-9 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs";
+
   return (
-    <aside className={cn("flex flex-col gap-4 md:gap-6 md:overflow-y-auto md:max-h-[calc(100vh-200px)] md:pr-4", className)}>
+    <aside className={cn("flex flex-col gap-4 md:gap-6 md:overflow-y-auto md:max-h-[calc(100vh-200px)] md:pr-4 min-w-0", className)}>
       {/* ── Header ── */}
-      <div className="flex justify-between items-center">
-        <div className="w-full">
+      <div className="flex justify-between items-center min-w-0 gap-2">
+        <div className="min-w-0 flex-1">
           <h2 className="text-xl font-bold mb-1">Indeks Berita</h2>
           <p className="text-xs text-muted-foreground">
             Telusuri artikel berdasarkan kategori dan tanggal
           </p>
         </div>
-        <Link href="/indeks" className="w-fit md:mt-8">
+        <Link href="/indeks" className="shrink-0 w-fit md:mt-8">
           <Button variant={"outline"} className="w-fit">
             <RotateCcw className="h-4 w-4" />
           </Button>
@@ -92,24 +121,54 @@ export default function SidebarIndeks({
       </div>
 
       {/* ── Filter Tanggal ── */}
-      <div className="flex flex-col gap-2">
+      {/*
+        Native input[type=date] di Safari iOS punya min intrinsic width yang
+        tidak bisa dikekang CSS (overflow halaman). Ganti ke Button + DayPicker
+        seperti SidebarSearch agar lebar/tinggi bisa diset sama dengan Select.
+      */}
+      <div className="flex w-full min-w-0 flex-col gap-2">
         <Label htmlFor="indeks-date" className="text-sm font-semibold">
           Tanggal
         </Label>
-        <Input
-          id="indeks-date"
-          type="date"
-          value={currentDate}
-          max={new Date().toISOString().split("T")[0]}
-          onChange={handleDateChange}
-          className="w-full rounded-lg"
-        />
+        <Popover open={dateOpen} onOpenChange={setDateOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              id="indeks-date"
+              type="button"
+              variant="outline"
+              className={cn(
+                filterTriggerClassName,
+                "justify-between font-normal hover:bg-background",
+              )}
+            >
+              <span
+                className={cn(
+                  "truncate",
+                  !currentDate && "text-muted-foreground",
+                )}
+              >
+                {dateLabel}
+              </span>
+              <CalendarIcon className="size-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <DayPicker
+              mode="single"
+              selected={selectedDate}
+              onSelect={handleDateSelect}
+              disabled={{ after: new Date() }}
+              locale={idLocale}
+              showOutsideDays
+            />
+          </PopoverContent>
+        </Popover>
         {currentDate && (
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="self-start text-xs text-muted-foreground px-1 h-auto"
+            className="h-auto self-start px-1 text-xs text-muted-foreground"
             onClick={handleResetDate}
           >
             Reset tanggal
@@ -180,12 +239,12 @@ export default function SidebarIndeks({
       </div>
 
       {/* ── Dropdown Kategori (Mobile View) ── */}
-      <div className="md:hidden flex flex-col gap-2">
+      <div className="flex w-full min-w-0 flex-col gap-2 md:hidden">
         <Label htmlFor="mobile-category" className="text-sm font-semibold">
           Kategori
         </Label>
         {loadingCategories ? (
-          <Skeleton className="h-10 w-full rounded-md" />
+          <Skeleton className="h-9 w-full rounded-md" />
         ) : (
           <Select
             value={activeCategory || "all"}
@@ -193,7 +252,7 @@ export default function SidebarIndeks({
           >
             <SelectTrigger
               id="mobile-category"
-              className="w-full bg-background"
+              className={filterTriggerClassName}
             >
               <SelectValue placeholder="Pilih Kategori" />
             </SelectTrigger>
@@ -224,7 +283,7 @@ export function SidebarIndeksSkeleton({ className }: { className?: string }) {
       </div>
       <div className="flex flex-col gap-2">
         <Skeleton className="h-4 w-16" />
-        <Skeleton className="h-9 w-full rounded-lg" />
+        <Skeleton className="h-9 w-full rounded-md" />
       </div>
       <div className="border-t border-muted" />
       <div className="flex flex-col gap-1">

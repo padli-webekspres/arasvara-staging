@@ -1,5 +1,5 @@
 import React from "react";
-import Image from "next/image";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
 import { SectionVideoItem } from "@/types/articleSection";
 import Link from "next/link";
 import {
@@ -7,7 +7,6 @@ import {
   type SocmedVideoLayout,
 } from "@/lib/socmed-video-layout";
 import { ImageNotFound } from "@/components/image-notfound/ImageNotFound";
-import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { InstagramIcon, TikTokIcon } from "@/components/icon/SocmedIcon";
 
 interface VideoCarouselItemProps {
@@ -50,12 +49,12 @@ const VideoCarouselItem: React.FC<VideoCarouselItemProps> = ({
     showPlatformBadge && video.type !== "youtube" ? (
       <div
         className="flex justify-center py-2 md:py-4 transition-transform duration-300 ease-out group-hover:-translate-y-1.5"
-        aria-label={video.type === "tiktok" ? "TikTok" : "Instagram"}
+        aria-hidden="true"
       >
         {video.type === "tiktok" ? (
-          <TikTokIcon className="h-8 w-8 text-white/80" />
+          <TikTokIcon className="h-8 w-8 text-white" />
         ) : (
-          <InstagramIcon className="h-8 w-8 text-white/80" />
+          <InstagramIcon className="h-8 w-8 text-white" />
         )}
       </div>
     ) : null;
@@ -78,14 +77,12 @@ const VideoCarouselItem: React.FC<VideoCarouselItemProps> = ({
               className="border-0 shadow-none rounded-2xl"
             />
           ) : (
-            <Image
+            <ResponsiveMediaImage
               src={thumbnailUrl}
-              alt={video.title}
-              fill
-              className="object-cover"
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 28vw"
               onError={() => setImageFailed(true)}
-              unoptimized={shouldUnoptimizeNewsCardImage(thumbnailUrl)}
             />
           )}
         </div>

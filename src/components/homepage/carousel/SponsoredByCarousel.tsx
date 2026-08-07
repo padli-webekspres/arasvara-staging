@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import Image from "next/image";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
 import { useSponsors } from "@/hooks/useSponsor";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -96,12 +96,11 @@ const SponsoredByCarousel: React.FC<SponsoredByCarouselProps> = ({
               key={`row1-${index}`}
               className="w-[25vw] sm:w-[18vw] md:w-[12vw] lg:w-[9vw] shrink-0 flex items-center justify-center relative aspect-square group cursor-pointer"
             >
-              <Image
-                unoptimized
+              <ResponsiveMediaImage
                 src={logo.image_url}
                 alt={logo.name}
-                fill
-                className="object-cover grayscale transition-all duration-300 group-hover:grayscale-0 group-hover:scale-110 group-hover:-rotate-2"
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-cover grayscale transition-all duration-300 group-hover:grayscale-0 group-hover:scale-110 group-hover:-rotate-2"
                 sizes="(max-width: 640px) 25vw, (max-width: 768px) 18vw, (max-width: 1024px) 12vw, 9vw"
               />
             </div>
@@ -118,12 +117,11 @@ const SponsoredByCarousel: React.FC<SponsoredByCarouselProps> = ({
                 key={`row2-${index}`}
                 className="w-[25vw] sm:w-[18vw] md:w-[12vw] lg:w-[9vw] shrink-0 flex items-center justify-center relative aspect-square group cursor-pointer"
               >
-                <Image
-                  unoptimized
+                <ResponsiveMediaImage
                   src={logo.image_url}
                   alt={logo.name}
-                  fill
-                  className="object-cover bg-amber-200 grayscale transition-all duration-300 group-hover:grayscale-0 group-hover:scale-110 group-hover:rotate-2"
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover bg-amber-200 grayscale transition-all duration-300 group-hover:grayscale-0 group-hover:scale-110 group-hover:rotate-2"
                   sizes="(max-width: 640px) 25vw, (max-width: 768px) 18vw, (max-width: 1024px) 12vw, 9vw"
                 />
               </div>

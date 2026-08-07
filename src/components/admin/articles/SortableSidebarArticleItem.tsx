@@ -4,6 +4,7 @@ import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, X } from "lucide-react";
+import { sortableInlineRemoveClass } from "@/lib/admin/sortableStyles";
 import { SectionArticleItem } from "@/types/articleSection";
 
 interface SortableSidebarArticleItemProps {
@@ -58,7 +59,7 @@ export function SortableSidebarArticleItem({
       <div className="flex items-center gap-2 flex-1 min-w-0">
         <button
           type="button"
-          className="p-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+          className="touch-none p-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
           {...attributes}
           {...listeners}
         >
@@ -89,7 +90,7 @@ export function SortableSidebarArticleItem({
       <button
         type="button"
         onClick={() => onRemove(id)}
-        className="p-1.5 ml-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+        className={`p-1.5 ml-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md ${sortableInlineRemoveClass}`}
         title="Hapus dari daftar"
       >
         <X className="h-3.5 w-3.5" />

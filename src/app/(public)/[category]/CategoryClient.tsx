@@ -11,10 +11,20 @@ import { Article } from "@/types/article";
 import React from "react";
 import LoadMoreButton from "@/components/ui/LoadMoreButton";
 
-export default function CategoryClient() {
+interface CategoryClientProps {
+  initialCategory?: { slug: string; name: string } | null;
+}
+
+export default function CategoryClient({ initialCategory }: CategoryClientProps) {
   const params = useParams();
-  const categorySlug = params.category;
-  const category = CATEGORIES.find((c) => c.slug === categorySlug);
+  const categorySlug =
+    (typeof params?.category === "string" ? params.category : "") ||
+    initialCategory?.slug ||
+    "";
+  const category =
+    initialCategory || CATEGORIES.find((c) => c.slug === categorySlug);
+  const categoryTitle =
+    category?.name || (categorySlug ? categorySlug.toUpperCase() : "");
 
   // Infinite Query for articles by category
   const {
@@ -23,8 +33,6 @@ export default function CategoryClient() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-    status,
-    error,
   } = useInfiniteQuery<
     { articles: Article[]; nextCursor: string | null },
     Error
@@ -33,7 +41,6 @@ export default function CategoryClient() {
     queryFn: (context) => {
       const pageParam =
         typeof context.pageParam === "string" ? context.pageParam : "";
-      // Menambahkan status=PUBLISHED agar hanya mengambil artikel yang dipublikasikan pada halaman kategori publik
       return fetcher<{ articles: Article[]; nextCursor: string | null }>(
         `/articles?category=${categorySlug}&limit=10&status=PUBLISHED${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""}`,
       );
@@ -55,22 +62,23 @@ export default function CategoryClient() {
     <div className="animate-pulse bg-muted rounded-lg h-48" />
   );
 
-  // Sederhanakan: jika loading, langsung return LoadingOverlay
-  if (loading) {
-    return <LoadingOverlay />;
-  }
-
   return (
     <main className="pt-48 pb-8">
       <div className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-4 md:mb-8">
           <h1 className="font-sans uppercase text-4xl md:text-5xl font-bold mb-4 animate-fade-in">
-            {category?.name || categorySlug}
+            {categoryTitle}
           </h1>
         </div>
 
-        {articles.length === 0 ? (
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-y-4 gap-x-8 py-8">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        ) : articles.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-muted-foreground">
               No articles found in this category.

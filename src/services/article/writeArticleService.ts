@@ -226,11 +226,23 @@ function scheduledPublishTimesMatch(
   );
 }
 
+function coerceStoredDate(value: unknown): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (value == null || value === "") return null;
+  const d = new Date(String(value));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /**
  * Publish semua artikel yang statusnya SCHEDULED dan scheduledAt <= now.
  * Mengembalikan jumlah artikel yang dipublish dan total yang ditemukan.
  * Alur: satu bulkWrite MongoDB, satu query users untuk penulis unik,
  * bulk insert notifikasi in-app (fallback per-doc jika gagal), audit & push paralel.
+ *
+ * publishedAt: pertahankan nilai lama jika artikel pernah publish; jika belum,
+ * pakai scheduledAt (termasuk jadwal waktu lampau yang menunggu cron berikutnya).
  */
 export async function publishScheduledArticles(
   db: Db,
@@ -250,19 +262,24 @@ export async function publishScheduledArticles(
     return { published: 0, total: 0 };
   }
 
-  const ops: AnyBulkWriteOperation<Document>[] = scheduled.map((article) => ({
-    updateOne: {
-      filter: { _id: article._id, status: "SCHEDULED" },
-      update: {
-        $set: {
-          status: ArticleStatus.PUBLISHED,
-          publishedAt: article.scheduledAt,
-          contentUpdatedAt: article.scheduledAt,
-          updatedAt: now,
+  const ops: AnyBulkWriteOperation<Document>[] = scheduled.map((article) => {
+    const priorPublishedAt = coerceStoredDate(article.publishedAt);
+    const publishAt = priorPublishedAt ?? article.scheduledAt;
+    const contentUpdatedAt = priorPublishedAt ? now : article.scheduledAt;
+    return {
+      updateOne: {
+        filter: { _id: article._id, status: "SCHEDULED" },
+        update: {
+          $set: {
+            status: ArticleStatus.PUBLISHED,
+            publishedAt: publishAt,
+            contentUpdatedAt,
+            updatedAt: now,
+          },
         },
       },
-    },
-  }));
+    };
+  });
 
   await db.collection("articles").bulkWrite(ops, { ordered: false });
 
@@ -282,8 +299,14 @@ export async function publishScheduledArticles(
     const orig = scheduledById.get(key);
     if (!orig) continue;
     if (doc.status !== ArticleStatus.PUBLISHED) continue;
-    if (!scheduledPublishTimesMatch(doc.publishedAt, orig.scheduledAt))
+
+    const priorPublishedAt = coerceStoredDate(orig.publishedAt);
+    const expectedPublishedAt = priorPublishedAt ?? orig.scheduledAt;
+    // First publish: publishedAt === scheduledAt.
+    // Republish: publishedAt dipertahankan = publishedAt asli.
+    if (!scheduledPublishTimesMatch(doc.publishedAt, expectedPublishedAt)) {
       continue;
+    }
     succeeded.push(doc);
   }
 
@@ -570,7 +593,9 @@ function approvalUserToObjectId(user: ApprovalFlowUser): ObjectId {
   return typeof user._id === "string" ? new ObjectId(user._id) : user._id;
 }
 
-/** Validasi tanggal jadwal sebelum update dokumen. */
+/** Validasi tanggal jadwal sebelum update dokumen.
+ * Backdate / waktu lampau diizinkan — cron memakai scheduledAt <= now.
+ */
 function assertApprovalScheduledDateValid(payload: ApprovalPayload): void {
   if (payload.status !== ArticleStatus.SCHEDULED || !payload.scheduledAt)
     return;
@@ -597,13 +622,16 @@ function buildApprovalStatusUpdates(
     updatedAt: new Date(),
   };
 
+  const priorPublishedAt = coerceStoredDate(articleDoc.publishedAt);
+
   if (payload.status === ArticleStatus.SCHEDULED && payload.scheduledAt) {
     updates.scheduledAt = new Date(payload.scheduledAt);
-    updates.publishedAt = null;
+    // Jangan hapus publishedAt asli; biarkan null hanya jika belum pernah publish
+    updates.publishedAt = priorPublishedAt;
     updates.publishedBy = actorOid;
   } else if (payload.status === ArticleStatus.PUBLISHED) {
     const publishNow = new Date();
-    updates.publishedAt = publishNow;
+    updates.publishedAt = priorPublishedAt ?? publishNow;
     updates.contentUpdatedAt = publishNow;
     updates.scheduledAt = null;
     updates.publishedBy = actorOid;

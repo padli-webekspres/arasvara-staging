@@ -14,9 +14,13 @@ Disallow: /${adminPanelBasePath}/
 Disallow: /api/
 Disallow: /login
 Disallow: /register
+Disallow: /search
+Disallow: /search/
 
 # Sitemaps
 Sitemap: ${baseUrl}/sitemap.xml
+Sitemap: ${baseUrl}/sitemap-news.xml
+Sitemap: ${baseUrl}/sitemap_news.xml
 
 # Crawl-delay
 Crawl-delay: 1

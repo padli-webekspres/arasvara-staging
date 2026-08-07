@@ -358,3 +358,92 @@ Mobile PSI mensimulasikan **Moto G Power + Slow 4G** → masalah di atas terampl
   - `Gunakan durasi cache yang efisien`
   - `Permintaan pemblokiran render`
   - `Hierarki dependensi jaringan`
+
+---
+
+## Checklist Ops — Responsive Image Variants + Security Headers
+
+Setelah deploy kode PageSpeed (varian `-w640`/`-w1280` + a11y):
+
+### 1. Backfill varian gambar existing (R2 / MinIO)
+
+```bash
+# Dry-run media bucket
+npm run backfill:image-variants
+
+# Execute media bucket
+npm run backfill:image-variants -- --execute
+
+# Configuration bucket (hero poster + section BG) — kritis untuk LCP mobile
+npm run backfill:image-variants -- --bucket=configuration
+npm run backfill:image-variants -- --bucket=configuration --execute
+```
+
+Script mem-paginate bucket, melewati objek yang sudah punya kedua varian, dan menulis `Cache-Control: immutable` pada varian baru. Upload konfigurasi baru juga otomatis menulis `-w640`/`-w1280`.
+
+### 2. Cloudflare Cache Rules (media + configuration)
+
+Untuk origin `media.arasvara.id` dan `configuration.arasvara.id`:
+
+- Cache Rule: path `*.webp`, `*.woff2`, `*.mp4` (dan PNG logo jika versioned)
+- Edge TTL / Cache-Control efektif: `public, max-age=31536000, immutable`
+- Pastikan edge **mengikuti** origin `Cache-Control` (jangan override TTL 4 jam)
+
+### 3. HSTS (Cloudflare SSL/TLS)
+
+Di Cloudflare dashboard → SSL/TLS → Edge Certificates:
+
+- Enable HSTS: `max-age=31536000; includeSubDomains; preload`
+- Enable "Always Use HTTPS"
+
+### 4. Re-test PageSpeed
+
+Setelah deploy + backfill + cache rules:
+
+1. PageSpeed Insights desktop homepage → target Performance ≥90, Accessibility ≥90
+2. PageSpeed Insights mobile homepage
+3. Spot-check 1 artikel detail (galeri + featured image)
+
+---
+
+## Mobile Recovery (Slow 4G / LCP)
+
+Kode yang sudah diterapkan di app:
+
+- Font Rubik preload dikurangi (hapus italic)
+- GA/GTM `lazyOnload`; Firebase PushSubscriber dynamic
+- GSAP snap-scroll dinonaktifkan di mobile; HeadlineSlider CSS transform
+- Hero video mobile ditunda (poster = LCP) sampai idle/scroll
+- Preload LCP poster memakai `imagesrcset`/`imagesizes` selaras `ResponsiveMediaImage` (hindari double-fetch)
+- Hero poster di-SSR lewat `HeroLcpPoster` (ada di HTML awal)
+- Loading overlay tidak menunggu `latest` articles
+- LogoLoader CSS-only; section BG + sponsor logos + artikel featured pakai `ResponsiveMediaImage`
+- Configuration + ads upload menulis varian `-w640`/`-w1280`
+- Gallery dialog GSAP di-import dinamis saat dibuka
+- Bundle analyzer: `npm run analyze`
+- Lighthouse mobile: `LIGHTHOUSE_URL=https://arasvara.id npm run lighthouse:mobile`
+- Target modern: `tsconfig` ES2020 + `.browserslistrc` (tanpa polyfill spekulatif)
+- Cache headers app: `/_next/static`, `/fonts`, `/logo-arasvara` → `public, max-age=31536000, immutable` di `next.config.ts`
+
+Dead / legacy (tidak di-bundle homepage aktif):
+
+- `HorizontalFeaturedCarousel.tsx` + `useHorizontalScroll.ts` — tidak di-import
+- `components/navigation/Navbar.tsx` (GSAP) — diganti `NavbarContainer`
+
+Setelah deploy, jalankan kembali PSI mobile dan pastikan:
+
+1. LCP element = hero poster (bukan video MP4 / overlay logo); satu request selaras preload/srcset
+2. Tidak ada long task GSAP di initial load mobile
+3. Backfill varian **media + configuration** + Cloudflare immutable cache sudah aktif
+4. Skor 90+ tidak dijamin dari kode saja — butuh TTFB/CDN origin yang sehat
+
+### Verifikasi lokal (pre-deploy)
+
+```bash
+npx tsc --noEmit
+npm run verify:perf-opts
+npm run build
+# opsional: ANALYZE=true npm run analyze
+```
+
+PSI/Lighthouse terhadap produksi + backfill R2 + Cloudflare tetap checklist manual ops.

@@ -2,8 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
 import { resolvePublicArticleHref } from "@/lib/article-public-path";
 
 interface FeaturedCardProps {
@@ -25,15 +24,12 @@ const FeaturedCard = ({ article }: FeaturedCardProps) => {
         <div className="relative aspect-4/3 overflow-hidden">
           {(() => {
             const src = article.featuredImage || "/placeholder.jpg";
-            const isUnoptimized = shouldUnoptimizeNewsCardImage(src);
             return (
-              <Image
+              <ResponsiveMediaImage
                 src={src}
-                alt={article.title}
-                fill
-                className="object-cover transition-transform duration-300 group-hover:scale-105 rounded-lg"
-                sizes="(max-width: 768px) 100vw, 25vw"
-                {...(isUnoptimized ? { unoptimized: true } : {})}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105 rounded-lg"
+                sizes="(max-width: 768px) 50vw, 25vw"
               />
             );
           })()}

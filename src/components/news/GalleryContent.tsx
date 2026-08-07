@@ -6,14 +6,13 @@ import { GalleryItem } from "@/types/article";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation, Scrollbar, Mousewheel } from "swiper/modules";
 import type { Swiper as SwiperType } from "swiper";
-import Image from "next/image";
 import { useCarouselShiftScroll } from "@/hooks/carousel/useCarouselShiftScroll";
 import { ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
 import GalleryImageDialog from "./GalleryImageDialog";
 import ArticleContent from "./ArticleContent";
 import type { Media } from "@/types/media";
 import type { ArticleMedia } from "@/types/article";
-import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
 
 interface GalleryContentProps {
   /** Featured image bisa berupa ArticleMedia (skema baru) atau Media legacy. */
@@ -187,17 +186,15 @@ const GalleryContent = (props: GalleryContentProps) => {
                   }
                 >
                   <div className="gallery-image relative w-full aspect-video overflow-hidden rounded-lg">
-                    <Image
+                    <ResponsiveMediaImage
                       src={imageUrl}
                       alt={
                         galleryItem.caption?.trim()
                           ? galleryItem.caption
                           : "Gambar galeri"
                       }
-                      fill
-                      className="object-cover transition-transform duration-300 group-hover:scale-105 m-0"
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105 m-0"
                       sizes="(max-width: 1280px) 100vw, 1080px"
-                      unoptimized={shouldUnoptimizeNewsCardImage(imageUrl)}
                       priority={shouldPrioritize}
                       loading={shouldPrioritize ? "eager" : "lazy"}
                     />

@@ -54,6 +54,13 @@ function getConfigValue(configs: Configuration[], key: string): string {
   return config ? String(config.value || "") : "";
 }
 
+// ── Helper: ambil URL file dari konfigurasi bertipe file ─────────────────────
+function getFileUrl(configs: Configuration[], key: string): string | undefined {
+  const config = configs.find((c) => c.key === key && c.type === "file");
+  const value = config?.value as { url?: string } | undefined;
+  return value?.url || undefined;
+}
+
 // ── Helper: parse JSON array dari konfigurasi ────────────────────────────────
 function parseJsonConfig<T>(
   configs: Configuration[],
@@ -87,6 +94,10 @@ export default async function AboutUsPage() {
     const rawPhone = getConfigValue(configs, "contact_phone");
 
     aboutUsData = {
+      // Hero video (sama dengan homepage)
+      heroVideoUrl: getFileUrl(configs, "hero_video_config"),
+      heroVideoPosterUrl: getFileUrl(configs, "hero_video_poster_bg"),
+
       // Profil & Deskripsi
       tagline: getConfigValue(configs, "tagline_about_us") || undefined,
       subTagline: getConfigValue(configs, "sub_tagline_about_us") || undefined,

@@ -59,7 +59,7 @@ services:
       [
         "sh",
         "-c",
-        'while true; do curl -X POST -H "x-scheduler-secret: ${SCHEDULER_SECRET}" http://host.docker.internal:3000/api/publish-scheduled; sleep 300; done',
+        'while true; do curl -X POST -H "x-scheduler-secret: ${SCHEDULER_SECRET}" http://host.docker.internal:3000/api/publish-scheduled; sleep 300; done & while true; do curl -X POST -H "x-scheduler-secret: ${SCHEDULER_SECRET}" http://host.docker.internal:3000/api/media/cleanup-temp; sleep 3600; done & wait',
       ]
 
 # Ini untuk menyimpan data permanen (agar tidak hilang saat laptop mati)

@@ -1,11 +1,35 @@
 import DividerHorizontal from "@/components/homepage/DividerHorizontal";
 import React from "react";
+import type { Metadata } from "next";
+
+/**
+ * SEO Metadata khusus halaman Disclaimer & Batasan Tanggung Jawab.
+ * Mencegah bentrokan Duplicate Title Tag dengan Halaman Utama (Homepage).
+ */
+export const metadata: Metadata = {
+  title: "Disclaimer & Batasan Tanggung Jawab",
+  description:
+    "Pernyataan penting mengenai batasan tanggung jawab, penggunaan informasi, serta kebijakan konten di platform Arasvara.",
+  openGraph: {
+    title: "Disclaimer & Batasan Tanggung Jawab | Arasvara",
+    description:
+      "Pernyataan penting mengenai batasan tanggung jawab, penggunaan informasi, serta kebijakan konten di platform Arasvara.",
+    type: "website",
+    locale: "id_ID",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Disclaimer & Batasan Tanggung Jawab | Arasvara",
+    description:
+      "Pernyataan penting mengenai batasan tanggung jawab, penggunaan informasi, serta kebijakan konten di platform Arasvara.",
+  },
+};
 
 const KetentuanKontenPage = () => {
   return (
     <main className="min-h-screen bg-background py-24 lg:py-32">
       {/* Header Halaman */}
-      <section className="container xl:max-w-6xl mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 mb-16 md:mb-24">
+      <section className="container xl:max-w-6xl mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 mb-8 md:mb-12">
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground tracking-tight mb-4">
           Disclaimer
         </h1>
@@ -15,7 +39,7 @@ const KetentuanKontenPage = () => {
         </p>
       </section>
 
-      <div className="flex flex-col gap-16 md:gap-24">
+      <div className="flex flex-col gap-8 md:gap-12">
         {/* 1. Informasi Umum */}
         <section className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-6 md:gap-12">
           <h2 className="text-2xl md:text-3xl font-bold w-full md:w-1/3 text-primary shrink-0  h-fit">

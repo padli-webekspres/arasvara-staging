@@ -1,3 +1,8 @@
+import {
+  RESPONSIVE_IMAGE_WIDTHS,
+  type ResponsiveImageWidth,
+} from "@/lib/media/cropPresets";
+
 const MEDIA_VIEW_PROXY_REGEX = /\/api\/media\/view\?key=([^&]+)/i;
 
 /** Base URL publik untuk bucket images (tanpa trailing slash). */
@@ -49,6 +54,21 @@ export function resolvePublicMediaUrl(input?: string | null): string {
 
   const normalizedKey = key.replace(/^\//, "");
   return `${base}/${normalizedKey}`;
+}
+
+export function resolveMediaVariantUrl(
+  input: string,
+  width: ResponsiveImageWidth,
+): string {
+  const url = resolvePublicMediaUrl(input);
+  if (!url) return "";
+  return url.replace(/\.webp($|[?#])/i, `-w${width}.webp$1`);
+}
+
+export function buildSrcSet(input: string): string {
+  return RESPONSIVE_IMAGE_WIDTHS
+    .map((width) => `${resolveMediaVariantUrl(input, width)} ${width}w`)
+    .join(", ");
 }
 
 /** Regex untuk src proxy relatif atau absolut di HTML artikel. */

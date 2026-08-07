@@ -6,16 +6,22 @@ import {
   scaleDownDimensions,
   type CompressImageOptions,
 } from "@/lib/image/compressImageShared";
+import { checkWebpSupport } from "@/lib/image/detectImageFormat";
 
-const OUTPUT_MIME_TYPE = "image/webp";
-const OUTPUT_EXTENSION = ".webp";
+function getOutputMimeType(): string {
+  return checkWebpSupport() ? "image/webp" : "image/jpeg";
+}
+
+function getOutputExtension(): string {
+  return checkWebpSupport() ? ".webp" : ".jpg";
+}
 
 function canvasToWebpBlob(
   canvas: HTMLCanvasElement,
   quality: number,
 ): Promise<Blob | null> {
   return new Promise((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), OUTPUT_MIME_TYPE, quality / 100);
+    canvas.toBlob((blob) => resolve(blob), getOutputMimeType(), quality / 100);
   });
 }
 
@@ -65,7 +71,7 @@ export async function compressImageFile(
   });
 
   const img = await loadImageFromFile(file);
-  const baseName = file.name.replace(/\.[^.]+$/, "") + OUTPUT_EXTENSION;
+  const baseName = file.name.replace(/\.[^.]+$/, "") + getOutputExtension();
 
   let { width: targetWidth, height: targetHeight } = computeFitInsideDimensions(
     img.width,
@@ -132,7 +138,7 @@ export async function compressImageFile(
     atMinDimensions = scaled.reachedMin;
   }
 
-  return new File([bestBlob], baseName, { type: OUTPUT_MIME_TYPE });
+  return new File([bestBlob], baseName, { type: getOutputMimeType() });
 }
 
 export type { CompressImageOptions };

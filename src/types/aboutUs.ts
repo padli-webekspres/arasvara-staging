@@ -40,6 +40,10 @@ export interface Contact {
 
 // ── Kumpulan data About Us yang di-fetch dari konfigurasi ─────────────────────
 export interface AboutUsData {
+  // Hero video (sama dengan homepage)
+  heroVideoUrl?: string;
+  heroVideoPosterUrl?: string;
+
   // Profil & Deskripsi
   tagline?: string;
   subTagline?: string;

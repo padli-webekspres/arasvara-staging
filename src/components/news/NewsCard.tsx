@@ -2,11 +2,10 @@
 
 import React from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
 import { Article, ArticleListResponse } from "@/types/article";
 import { ImageNotFound } from "@/components/image-notfound/ImageNotFound";
 import { formatPublishedAtForUi } from "@/lib/format-published-at";
-import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { resolvePublicArticleHref } from "@/lib/article-public-path";
 import { resolveAuthorPublicHref } from "@/lib/author-public-path";
 import { trackSelectContent } from "@/lib/ga-events";
@@ -53,14 +52,12 @@ const NewsCard = ({
                 className="border-0 shadow-none"
               />
             ) : (
-              <Image
+              <ResponsiveMediaImage
                 src={imageUrl}
-                alt={article.title}
-                fill
-                className="object-cover transition-transform duration-300 group-hover:scale-105"
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 40vw, 500px"
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                sizes="(max-width: 768px) 92vw, (max-width: 1200px) 40vw, 500px"
                 onError={() => setImageFailed(true)}
-                unoptimized={shouldUnoptimizeNewsCardImage(imageUrl)}
               />
             )}
           </div>

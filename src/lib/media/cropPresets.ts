@@ -10,3 +10,7 @@ export const FEATURED_CROP_HEIGHT = 800;
 export const FEATURED_CROP_ASPECT =
   FEATURED_CROP_WIDTH / FEATURED_CROP_HEIGHT;
 export const FEATURED_WEBP_QUALITY = 0.82;
+
+/** Lebar responsif CDN (suffix `-w{width}.webp` pada storage key). */
+export const RESPONSIVE_IMAGE_WIDTHS = [640, 1280] as const;
+export type ResponsiveImageWidth = (typeof RESPONSIVE_IMAGE_WIDTHS)[number];

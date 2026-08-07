@@ -58,7 +58,6 @@ function validateUpsertSocmedVideoSectionInput(
 		(err as any).status = 400;
 		throw err;
 	}
-	const seenUrls = new Set<string>();
 	for (let i = 0; i < payload.videos.length; i++) {
 		const video = payload.videos[i];
 		if (!video.video_url) {
@@ -76,12 +75,6 @@ function validateUpsertSocmedVideoSectionInput(
 			(err as any).status = 400;
 			throw err;
 		}
-		if (seenUrls.has(video.video_url)) {
-			const err = new Error(`videos[${i}].video_url duplikat dalam array`);
-			(err as any).status = 400;
-			throw err;
-		}
-		seenUrls.add(video.video_url);
 	}
 }
 
@@ -136,11 +129,16 @@ export async function upsertSocmedVideoSection(
 		const oldThumbnails: string[] = oldDocs
 			.map((doc) => doc.thumbnail_url)
 			.filter(Boolean);
+		const existingCreatedAtByUrl = new Map<string, Date>(
+			oldDocs
+				.filter((doc) => doc.video_url && doc.createdAt)
+				.map((doc) => [doc.video_url as string, doc.createdAt as Date]),
+		);
 
 		// 2. Hapus semua video lama untuk platform ini
 		await collection.deleteMany({ type: platform });
 
-		// 3. Siapkan dokumen baru
+		// 3. Siapkan dokumen baru (preserve createdAt untuk URL yang sudah ada)
 		const now = new Date();
 		const docsToInsert = payload.videos.map((video, idx) => ({
 			_id: new ObjectId(),
@@ -150,7 +148,7 @@ export async function upsertSocmedVideoSection(
 			thumbnail: video.thumbnail ?? undefined,
 			order: idx,
 			type: platform,
-			createdAt: now,
+			createdAt: existingCreatedAtByUrl.get(video.video_url) ?? now,
 			createdBy: new ObjectId(String(auditActor._id)),
 		}));
 		await collection.insertMany(docsToInsert);
@@ -260,7 +258,6 @@ function validateUpsertCombinedSocmedVideoSectionInput(
 		throw err;
 	}
 
-	const seenUrls = new Set<string>();
 	for (let i = 0; i < payload.videos.length; i++) {
 		const video = payload.videos[i];
 		if (!video.video_url) {
@@ -285,12 +282,6 @@ function validateUpsertCombinedSocmedVideoSectionInput(
 			(err as { status?: number }).status = 400;
 			throw err;
 		}
-		if (seenUrls.has(video.video_url)) {
-			const err = new Error(`videos[${i}].video_url duplikat dalam array`);
-			(err as { status?: number }).status = 400;
-			throw err;
-		}
-		seenUrls.add(video.video_url);
 	}
 }
 
@@ -385,9 +376,15 @@ export async function upsertCombinedSocmedVideoSection(
 		const oldThumbnails = oldDocs
 			.map((doc) => doc.thumbnail_url as string)
 			.filter(Boolean);
+		const existingCreatedAtByUrl = new Map<string, Date>(
+			oldDocs
+				.filter((doc) => doc.video_url && doc.createdAt)
+				.map((doc) => [doc.video_url as string, doc.createdAt as Date]),
+		);
 
 		await collection.deleteMany({ type: { $in: [...COMBINED_PLATFORMS] } });
 
+		// Preserve createdAt untuk URL yang sudah ada; hanya video baru yang dapat timestamp sekarang
 		const now = new Date();
 		const docsToInsert = payload.videos.map((video, idx) => ({
 			_id: new ObjectId(),
@@ -397,7 +394,7 @@ export async function upsertCombinedSocmedVideoSection(
 			thumbnail: video.thumbnail ?? undefined,
 			order: idx,
 			type: video.type,
-			createdAt: now,
+			createdAt: existingCreatedAtByUrl.get(video.video_url) ?? now,
 			createdBy: new ObjectId(String(auditActor._id)),
 		}));
 

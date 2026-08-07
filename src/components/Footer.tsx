@@ -101,22 +101,20 @@ export default function Footer() {
               aria-label="Beranda Arasvara"
             >
               <Image
-                src="/logo-arasvara/stacked-logo/stacked-logo-putih-naskah.png"
+                src="/logo-arasvara/stacked-logo/stacked-logo-putih-naskah-w640.webp"
                 alt="Arasvara"
                 fill
                 unoptimized
                 className="hidden object-contain object-left lg:block"
                 sizes="224px"
-                priority
               />
               <Image
-                src="/logo-arasvara/main-logo/main-logo-putih-naskah.png"
+                src="/logo-arasvara/main-logo/main-logo-putih-naskah-w640.webp"
                 alt="Arasvara"
                 fill
                 unoptimized
                 className="object-contain object-center lg:hidden"
                 sizes="(max-width: 1024px) 224px"
-                priority
               />
             </Link>
           </div>
@@ -144,15 +142,15 @@ export default function Footer() {
             {isLoading ? (
               <div className="h-12 w-full animate-pulse rounded bg-white/10" />
             ) : (
-              <p className="text-xs leading-relaxed text-gray-400">
+              <p className="text-xs leading-relaxed text-gray-300">
                 <Copyright className="inline-block w-3.5 h-3.5" /> 2026.{" "}
                 {copyrightText}
               </p>
             )}
 
             {/* Ikon sosial media dari konfigurasi */}
-            <div
-              className="flex flex-wrap items-center justify-center gap-5 lg:justify-start"
+            <nav
+              className="flex flex-wrap items-center justify-center gap-2 lg:justify-start"
               aria-label="Media sosial Arasvara"
             >
               {isLoading ? (
@@ -161,7 +159,7 @@ export default function Footer() {
                   {[...Array(3)].map((_, i) => (
                     <div
                       key={`social-skeleton-${i}`}
-                      className="h-7 w-7 animate-pulse rounded-full bg-white/10 sm:h-8 sm:w-8"
+                      className="h-11 w-11 animate-pulse rounded-full bg-white/10"
                     />
                   ))}
                 </>
@@ -174,7 +172,7 @@ export default function Footer() {
                       href={social.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-400 transition-colors hover:text-white"
+                      className="inline-flex h-11 w-11 items-center justify-center text-gray-300 transition-colors hover:text-white"
                       aria-label={social.name}
                     >
                       <Icon className="h-7 w-7 sm:h-8 sm:w-8" />
@@ -182,7 +180,7 @@ export default function Footer() {
                   );
                 })
               )}
-            </div>
+            </nav>
           </div>
         </div>
       </div>

@@ -9,9 +9,10 @@ import type { Media } from "@/types/media";
 
 interface CardMediaProps {
   media: Media;
+  onDeleted?: (mediaId: string) => void;
 }
 
-const CardMedia = ({ media }: CardMediaProps) => {
+const CardMedia = ({ media, onDeleted }: CardMediaProps) => {
   const [showModal, setShowModal] = useState(false);
 
   return (
@@ -61,6 +62,10 @@ const CardMedia = ({ media }: CardMediaProps) => {
           open={showModal}
           media={media}
           onClose={() => setShowModal(false)}
+          onDeleted={(id) => {
+            onDeleted?.(id);
+            setShowModal(false);
+          }}
         />
       )}
     </>

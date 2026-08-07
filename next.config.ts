@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
+import bundleAnalyzer from "@next/bundle-analyzer";
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
+/** Hostname LAN dari NEXT_PUBLIC_BASE_URL (tanpa port), untuk MinIO image patterns. */
 const getDevLanHost = (): string | null => {
   const base = process.env.NEXT_PUBLIC_BASE_URL;
   if (!base) return null;
@@ -14,9 +20,40 @@ const getDevLanHost = (): string | null => {
   return null;
 };
 
-const devLanHost = getDevLanHost();
+/** Origin dev (host:port) dari NEXT_PUBLIC_BASE_URL, untuk allowedDevOrigins. */
+const getDevLanOrigin = (): string | null => {
+  const base = process.env.NEXT_PUBLIC_BASE_URL;
+  if (!base) return null;
+  try {
+    const url = new URL(base);
+    if (!url.hostname || LOCAL_HOSTS.has(url.hostname)) return null;
+    return url.port ? `${url.hostname}:${url.port}` : url.hostname;
+  } catch {
+    // Abaikan jika bukan URL valid
+  }
+  return null;
+};
 
-const remotePatterns: any[] = [
+/** localhost + port yang sama dengan NEXT_PUBLIC_BASE_URL (mis. localhost:3030). */
+const getLocalDevOrigins = (): string[] => {
+  const origins = ["localhost", "127.0.0.1", "localhost:3000", "localhost:3001"];
+  const base = process.env.NEXT_PUBLIC_BASE_URL;
+  if (!base) return origins;
+  try {
+    const url = new URL(base);
+    if (url.port) {
+      origins.push(`localhost:${url.port}`, `127.0.0.1:${url.port}`);
+    }
+  } catch {
+    // Abaikan jika bukan URL valid
+  }
+  return origins;
+};
+
+const devLanHost = getDevLanHost();
+const devLanOrigin = getDevLanOrigin();
+
+const remotePatterns: Exclude<NonNullable<NextConfig["images"]>["remotePatterns"], undefined> = [
   {
     protocol: "https",
     hostname: "www.dentika.net",
@@ -65,6 +102,8 @@ const parseAndAddEnvHost = (envUrl?: string) => {
     const protocol = url.protocol.replace(":", "");
     const port = url.port;
 
+    if (protocol !== "http" && protocol !== "https") return;
+
     if (hostname && !LOCAL_HOSTS.has(hostname) && hostname !== devLanHost) {
       remotePatterns.push({
         protocol,
@@ -84,8 +123,23 @@ parseAndAddEnvHost(process.env.NEXT_PUBLIC_STORAGE_MEDIA);
 parseAndAddEnvHost(process.env.NEXT_PUBLIC_STORAGE_BASE_URL);
 
 const allowedDevOrigins = [
-  ...(devLanHost ? [devLanHost] : []),
-  "https://demoarasvara.vercel.app",
+  ...new Set([
+    ...(devLanOrigin ? [devLanOrigin] : []),
+    ...(devLanHost ? [devLanHost] : []),
+    ...getLocalDevOrigins(),
+    "192.168.0.193",
+    "192.168.0.193:3000",
+    "192.168.0.193:3001",
+    "192.168.0.193:9000",
+    "192.168.0.245",
+    "192.168.0.245:3000",
+    "192.168.0.245:3001",
+    "arasvara.id",
+    "*.arasvara.id",
+    "staging-arasvara.vercel.app",
+    "https://staging-arasvara.vercel.app",
+    "https://demoarasvara.vercel.app",
+  ]),
 ];
 
 const nextConfig: NextConfig = {
@@ -112,6 +166,24 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: "/_next/static/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        source: "/fonts/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        source: "/logo-arasvara/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
         source: "/(.*)",
         headers: [
           { key: "X-Frame-Options", value: "ALLOWALL" },
@@ -132,4 +204,4 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

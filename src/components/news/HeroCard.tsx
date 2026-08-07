@@ -3,11 +3,10 @@
 import React from "react";
 import { useHeroCardSplitText } from "@/hooks/animation/useHeroCardSplitText";
 import Link from "next/link";
-import Image from "next/image";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
 import UserAvatar from "@/components/users/AvatarUser";
 import { Article, ArticleListResponse } from "@/types/article";
 import { ImageNotFound } from "@/components/image-notfound/ImageNotFound";
-import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { resolvePublicArticleHref } from "@/lib/article-public-path";
 import { trackSelectContent } from "@/lib/ga-events";
 
@@ -76,14 +75,12 @@ const HeroCard = ({
             className="border-0 shadow-none"
           />
         ) : (
-          <Image
+          <ResponsiveMediaImage
             src={imageUrl}
-            alt={article.title}
-            fill
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
-            sizes="(max-width: 768px) 100vw, 50vw"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            sizes="(max-width: 768px) 92vw, 50vw"
             onError={() => setImageFailed(true)}
-            unoptimized={shouldUnoptimizeNewsCardImage(imageUrl)}
           />
         )}
         <div

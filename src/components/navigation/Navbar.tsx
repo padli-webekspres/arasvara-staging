@@ -150,7 +150,7 @@ const Navbar = ({ onMenuOpen, active }: NavbarProps) => {
             {leftCategories.map((category) => (
               <Link
                 key={String(category._id ?? category.slug)}
-                href={`/category/${category.slug}`}
+                href={`/${category.slug}`}
                 title={category.name}
                 className={`px-2 py-1 text-[11px] font-medium uppercase tracking-wider ${
                   active === category.name.toLowerCase()
@@ -177,7 +177,7 @@ const Navbar = ({ onMenuOpen, active }: NavbarProps) => {
             {rightCategories.map((category) => (
               <Link
                 key={String(category._id ?? category.slug)}
-                href={`/category/${category.slug}`}
+                href={`/${category.slug}`}
                 title={category.name}
                 className={`px-2 py-1 text-[11px] font-medium uppercase tracking-wider ${
                   active === category.name.toLowerCase()

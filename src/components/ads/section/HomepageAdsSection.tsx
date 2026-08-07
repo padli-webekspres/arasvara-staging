@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import BaseAdCard from "@/components/ads/card/BaseAdCard";
-import { cn, shouldUnoptimizeNewsCardImage } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 type HomepageAdsRatio = "21:9" | "16:9" | "4:3";
 
@@ -52,7 +52,6 @@ export default function HomepageAdsSection({
   const config = RATIO_CONFIG[ratio];
 
   const activeAd = useMemo(() => items[activeIndex], [items, activeIndex]);
-  const activeImageSrc = activeAd?.src || defaultImageSrc;
   const activeLinkUrl = activeAd?.linkUrl?.trim();
   const isClickable = Boolean(activeLinkUrl);
 
@@ -84,7 +83,6 @@ export default function HomepageAdsSection({
                 src={activeAd.src}
                 alt={activeAd.alt}
                 interactive
-                unoptimized={shouldUnoptimizeNewsCardImage(activeImageSrc)}
               />
             </a>
           ) : (
@@ -94,7 +92,6 @@ export default function HomepageAdsSection({
               defaultSrc={defaultImageSrc}
               src={activeAd.src}
               alt={activeAd.alt}
-              unoptimized={shouldUnoptimizeNewsCardImage(activeImageSrc)}
             />
           )}
         </div>
@@ -105,7 +102,7 @@ export default function HomepageAdsSection({
               type="button"
               variant="ghost"
               size="icon"
-              className="absolute -left-1 md:left-2 lg:left-[10%] top-1/2 -translate-y-1/2 rounded-full bg-background/80 hover:bg-background shadow-sm"
+              className="absolute -left-1 md:left-2 lg:left-[10%] top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-background/80 hover:bg-background shadow-sm"
               onClick={goPrev}
               aria-label="Ads sebelumnya"
             >
@@ -115,7 +112,7 @@ export default function HomepageAdsSection({
               type="button"
               variant="ghost"
               size="icon"
-              className="absolute -right-1 md:right-2 lg:right-[10%] top-1/2 -translate-y-1/2 rounded-full bg-background/80 hover:bg-background shadow-sm"
+              className="absolute -right-1 md:right-2 lg:right-[10%] top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-background/80 hover:bg-background shadow-sm"
               onClick={goNext}
               aria-label="Ads berikutnya"
             >
@@ -133,11 +130,17 @@ export default function HomepageAdsSection({
               type="button"
               aria-label={`Pilih ads ${index + 1}`}
               onClick={() => setActiveIndex(index)}
-              className={cn(
-                "h-2 rounded-full transition-all",
-                index === activeIndex ? "w-6 bg-foreground" : "w-2 bg-muted-foreground/40",
-              )}
-            />
+              className="flex min-h-11 min-w-11 items-center justify-center"
+            >
+              <span
+                className={cn(
+                  "block h-2 rounded-full transition-all",
+                  index === activeIndex
+                    ? "w-6 bg-foreground"
+                    : "w-2 bg-muted-foreground/40",
+                )}
+              />
+            </button>
           ))}
         </div>
       )}

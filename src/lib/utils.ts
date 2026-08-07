@@ -85,18 +85,78 @@ export function getShareUrl(slug?: string) {
   return `${window.location.origin}${window.location.pathname}`;
 }
 
-// Helper untuk copy ke clipboard
-export function copyToClipboard(
+/**
+ * Salin teks ke clipboard — aman di Windows/Mac/Android/iOS
+ * dan Chrome/Firefox/Safari, termasuk konteks non-HTTPS (mis. http://192.168.x.x).
+ *
+ * `navigator.clipboard` hanya ada di secure context (HTTPS/localhost).
+ * Di HTTP LAN / beberapa Safari, API itu undefined → pakai fallback execCommand.
+ */
+export async function copyToClipboard(
   text: string,
-  setCopied: (copied: boolean) => void,
-) {
-  if (typeof navigator !== "undefined" && navigator.clipboard) {
-    navigator.clipboard.writeText(text);
-    if (setCopied) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  setCopied?: (copied: boolean) => void,
+): Promise<boolean> {
+  if (typeof window === "undefined" || !text) return false;
+
+  const markCopied = () => {
+    if (!setCopied) return;
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  // 1) Clipboard API (HTTPS, localhost, sebagian browser modern)
+  if (
+    window.isSecureContext &&
+    typeof navigator !== "undefined" &&
+    navigator.clipboard &&
+    typeof navigator.clipboard.writeText === "function"
+  ) {
+    try {
+      await navigator.clipboard.writeText(text);
+      markCopied();
+      return true;
+    } catch {
+      // Lanjut ke fallback (permission ditolak, dsb.)
     }
   }
+
+  // 2) Fallback: textarea + document.execCommand("copy")
+  //    Berjalan di HTTP, iOS Safari, Firefox lama, dll.
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.setAttribute("aria-hidden", "true");
+  // Jangan pakai display:none — iOS Safari tidak bisa select isinya
+  textarea.style.cssText =
+    "position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;";
+  document.body.appendChild(textarea);
+
+  const isIOS =
+    /ipad|iphone|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+  let succeeded = false;
+  try {
+    textarea.focus();
+    if (isIOS) {
+      const range = document.createRange();
+      range.selectNodeContents(textarea);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      textarea.setSelectionRange(0, text.length);
+    } else {
+      textarea.select();
+    }
+    succeeded = document.execCommand("copy");
+  } catch {
+    succeeded = false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+
+  if (succeeded) markCopied();
+  return succeeded;
 }
 
 // Helper untuk mendapatkan initials dari nama (misal: "John Doe" -> "JD"). harus 2 huruf outputnya. jika hanya 1 kata, ambil 2 huruf pertama (misal: "Madonna" -> "MA")

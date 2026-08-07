@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useDropzone } from "react-dropzone";
-import { Upload, X } from "lucide-react";
+import { Upload, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +18,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { embedWatermarkToImage } from "@/lib/image/embedWatermark";
-import { ensureWebpFile } from "@/lib/image/ensureWebpBlob";
 import CropImageModal from "@/components/media/CropImageModal";
 import {
   CONTENT_CROP_ASPECT,
@@ -28,7 +26,7 @@ import {
   CONTENT_WEBP_QUALITY,
 } from "@/lib/media/cropPresets";
 import api from "@/lib/axios";
-import type { Media } from "@/types/media";
+import type { Media, TempMediaUploadResult } from "@/types/media";
 import Image from "next/image";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -42,8 +40,6 @@ export interface MediaUploadFormProps {
   submitLabel?: string;
 }
 
-// ─── Schema (fase 2 — metadata; file hasil crop dikelola state) ───────────────
-
 const metadataSchema = z.object({
   caption: z.string().max(200).optional(),
   takenBy: z.string().max(100).optional(),
@@ -52,13 +48,12 @@ const metadataSchema = z.object({
 
 type MetadataFormValues = z.infer<typeof metadataSchema>;
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 /**
- * Alur upload media library (selaras editor artikel — tab Upload):
+ * Alur upload media library (server-side temp + promote):
  * 1. Pilih file → CropImageModal
- * 2. Isi metadata + preview hasil crop
- * 3. POST /api/media (langsung ke server, bukan IndexedDB)
+ * 2. Hasil crop → POST /api/media/process-temp (Sharp WebP di server)
+ * 3. Isi metadata + preview temp URL
+ * 4. Submit → POST /api/media/promote-temp (ke folder media-library)
  */
 export default function MediaUploadForm({
   onSuccess,
@@ -67,10 +62,11 @@ export default function MediaUploadForm({
 }: MediaUploadFormProps) {
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
-  const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
+  const [tempMediaId, setTempMediaId] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const previewUrlRef = useRef<string | null>(null);
+  const [processingTemp, setProcessingTemp] = useState(false);
+  const [preparingCrop, setPreparingCrop] = useState(false);
 
   const form = useForm<MetadataFormValues>({
     resolver: zodResolver(metadataSchema),
@@ -81,139 +77,119 @@ export default function MediaUploadForm({
     },
   });
 
-  const watermark = form.watch("watermark");
-
-  const revokePreview = useCallback(() => {
-    if (previewUrlRef.current) {
-      URL.revokeObjectURL(previewUrlRef.current);
-      previewUrlRef.current = null;
-    }
-    setPreview(null);
-  }, []);
-
   const resetUploadFlow = useCallback(() => {
     if (cropSrc) URL.revokeObjectURL(cropSrc);
     setCropSrc(null);
     setCropOpen(false);
-    setCroppedBlob(null);
-    revokePreview();
+    setTempMediaId(null);
+    setPreview(null);
     form.reset({ caption: "", takenBy: "", watermark: false });
-  }, [cropSrc, form, revokePreview]);
-
-  // Regenerate preview when cropped blob or watermark changes
-  useEffect(() => {
-    if (!croppedBlob) {
-      revokePreview();
-      return;
-    }
-
-    let active = true;
-
-    const generate = async () => {
-      revokePreview();
-      try {
-        const source = watermark
-          ? await embedWatermarkToImage(
-              new File([croppedBlob], "image.webp", { type: "image/webp" }),
-              { opacity: 0.25 },
-            )
-          : croppedBlob;
-        if (!active) return;
-        const url = URL.createObjectURL(source);
-        previewUrlRef.current = url;
-        setPreview(url);
-      } catch {
-        if (!active) return;
-        const fallback = URL.createObjectURL(croppedBlob);
-        previewUrlRef.current = fallback;
-        setPreview(fallback);
-      }
-    };
-
-    void generate();
-    return () => {
-      active = false;
-    };
-  }, [croppedBlob, watermark, revokePreview]);
+  }, [cropSrc, form]);
 
   useEffect(() => {
     return () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       if (cropSrc) URL.revokeObjectURL(cropSrc);
     };
   }, [cropSrc]);
 
-  const onDrop = useCallback((accepted: File[]) => {
-    if (!accepted.length) return;
-    const objectUrl = URL.createObjectURL(accepted[0]);
-    setCropSrc(objectUrl);
-    setCropOpen(true);
-  }, []);
+  const onDrop = useCallback(
+    (accepted: File[]) => {
+      if (!accepted.length || preparingCrop) return;
+      const file = accepted[0];
+
+      setPreparingCrop(true);
+      try {
+        const objectUrl = URL.createObjectURL(file);
+        if (cropSrc) URL.revokeObjectURL(cropSrc);
+        setCropSrc(objectUrl);
+        setCropOpen(true);
+      } catch {
+        toast.error("Gambar tidak dapat dimuat. Coba lagi.");
+      } finally {
+        setPreparingCrop(false);
+      }
+    },
+    [cropSrc, preparingCrop],
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "image/*": [] },
     maxFiles: 1,
-    disabled: croppedBlob !== null,
+    disabled: tempMediaId !== null || preparingCrop || processingTemp,
   });
 
-  const handleCropDone = useCallback((blob: Blob) => {
-    setCroppedBlob(blob);
-    setCropOpen(false);
-    setCropSrc((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
-  }, []);
+  /** Upload hasil crop ke /temp via server Sharp. */
+  const handleCropDone = useCallback(
+    async (blob: Blob) => {
+      setCropOpen(false);
+      if (cropSrc) {
+        URL.revokeObjectURL(cropSrc);
+        setCropSrc(null);
+      }
+
+      setProcessingTemp(true);
+      try {
+        const file = new File([blob], "image.webp", { type: "image/webp" });
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("watermark", String(form.getValues("watermark") ?? false));
+
+        const res = await api.post<TempMediaUploadResult>(
+          "/media/process-temp",
+          fd,
+        );
+
+        if (!res.data?.tempMediaId) {
+          throw new Error("Gagal memproses gambar temporary di server");
+        }
+
+        setTempMediaId(res.data.tempMediaId);
+        setPreview(res.data.tempUrl);
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Gagal memproses gambar di server",
+        );
+      } finally {
+        setProcessingTemp(false);
+      }
+    },
+    [cropSrc, form],
+  );
 
   const handleCropCancel = useCallback(() => {
     setCropOpen(false);
-    setCropSrc((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
-  }, []);
-
-  const removeCroppedImage = () => {
-    resetUploadFlow();
-  };
+    if (cropSrc) {
+      URL.revokeObjectURL(cropSrc);
+      setCropSrc(null);
+    }
+  }, [cropSrc]);
 
   const onSubmit = async (values: MetadataFormValues) => {
-    if (!croppedBlob) {
+    if (!tempMediaId) {
       toast.error("Pilih dan potong gambar terlebih dahulu.");
       return;
     }
 
     setUploading(true);
     try {
-      let fileToUpload = new File([croppedBlob], "image.webp", {
-        type: "image/webp",
-      });
-
-      if (values.watermark) {
-        fileToUpload = await embedWatermarkToImage(fileToUpload, {
-          opacity: 0.25,
-        });
-      }
-
-      fileToUpload = await ensureWebpFile(fileToUpload);
-
-      const fd = new FormData();
-      fd.append("file", fileToUpload);
-      if (values.caption) fd.append("caption", values.caption);
-      if (values.takenBy) fd.append("takenBy", values.takenBy);
-      fd.append("watermark", String(values.watermark ?? false));
-
       const res = await api.post<{ success: boolean; media: Media }>(
-        "/media",
-        fd,
+        "/media/promote-temp",
+        {
+          tempMediaId,
+          folder: "media-library",
+          caption: values.caption,
+          credit: values.takenBy,
+          watermark: values.watermark ?? false,
+        },
       );
 
-      if (!res.data?.media) throw new Error("Invalid response from server");
+      if (!res.data?.media) throw new Error("Gagal mempromosikan media");
 
-      revokePreview();
       resetUploadFlow();
-      toast.success("Image uploaded successfully");
+      toast.success("Gambar berhasil di-upload ke media library");
       onSuccess(res.data.media);
     } catch (err) {
       const message =
@@ -237,8 +213,15 @@ export default function MediaUploadForm({
               <FormItem>
                 <FormLabel>Image</FormLabel>
                 <FormControl>
-                  {preview && croppedBlob ? (
-                    <div className="relative aspect-video rounded-lg overflow-hidden">
+                  {processingTemp ? (
+                    <div className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-2 aspect-video">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground text-center">
+                        Memproses & menyimpan temp di server...
+                      </p>
+                    </div>
+                  ) : preview && tempMediaId ? (
+                    <div className="relative aspect-video rounded-lg overflow-hidden border border-border">
                       <Image
                         unoptimized
                         src={preview}
@@ -249,7 +232,7 @@ export default function MediaUploadForm({
                       />
                       <button
                         type="button"
-                        onClick={removeCroppedImage}
+                        onClick={resetUploadFlow}
                         className="absolute top-2 right-2 p-1 bg-black/50 rounded-full text-white hover:bg-black/70 transition-colors"
                         title="Remove image"
                       >
@@ -260,18 +243,31 @@ export default function MediaUploadForm({
                     <div
                       {...getRootProps()}
                       className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors aspect-video ${
-                        isDragActive
-                          ? "border-accent bg-accent/5"
-                          : "border-border hover:border-muted-foreground"
+                        preparingCrop
+                          ? "pointer-events-none border-border opacity-60"
+                          : isDragActive
+                            ? "border-accent bg-accent/5"
+                            : "border-border hover:border-muted-foreground"
                       }`}
                     >
                       <input {...getInputProps()} />
-                      <Upload className="h-8 w-8 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground text-center">
-                        {isDragActive
-                          ? "Drop the image here..."
-                          : "Drag & drop or click to select — crop required"}
-                      </p>
+                      {preparingCrop ? (
+                        <>
+                          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground text-center">
+                            Menyiapkan gambar...
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-8 w-8 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground text-center">
+                            {isDragActive
+                              ? "Drop the image here..."
+                              : "Drag & drop or click to select — crop required"}
+                          </p>
+                        </>
+                      )}
                     </div>
                   )}
                 </FormControl>
@@ -315,7 +311,6 @@ export default function MediaUploadForm({
                       <Switch
                         checked={field.value ?? false}
                         onCheckedChange={field.onChange}
-                        disabled={!croppedBlob}
                       />
                     </FormControl>
                   </FormItem>
@@ -330,7 +325,10 @@ export default function MediaUploadForm({
                 Cancel
               </Button>
             )}
-            <Button type="submit" disabled={uploading || !croppedBlob}>
+            <Button
+              type="submit"
+              disabled={uploading || !tempMediaId || processingTemp}
+            >
               {uploading ? "Uploading..." : submitLabel}
             </Button>
           </div>

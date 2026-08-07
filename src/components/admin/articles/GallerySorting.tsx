@@ -8,6 +8,10 @@ import Image from "next/image";
 import React from "react";
 import { DragDropProvider } from "@dnd-kit/react";
 import { useSortable } from "@dnd-kit/react/sortable";
+import {
+  sortableDragHandleClass,
+  sortableRemoveButtonClass,
+} from "@/lib/admin/sortableStyles";
 
 // ─── Gallery Item Interface ────────────────────────────────────────────────
 interface GalleryItemData {
@@ -72,7 +76,7 @@ function SortableGalleryItem({
         {/* Area Drag Handle */}
         <div
           ref={handleRef}
-          className="absolute top-2 left-2 z-10 p-1.5 bg-background/80 backdrop-blur rounded-md cursor-grab active:cursor-grabbing opacity-25 group-hover:opacity-75 !hover:opacity-100 transition-opacity shadow-sm touch-none"
+          className={sortableDragHandleClass}
         >
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </div>
@@ -81,7 +85,7 @@ function SortableGalleryItem({
         <Button
           variant="destructive"
           size="icon"
-          className="absolute top-2 right-2 z-10 h-7 w-7 opacity-25 group-hover:opacity-75 !hover:opacity-100 transition-opacity shadow-sm"
+          className={sortableRemoveButtonClass}
           onClick={() => onRemove?.(item.id)}
         >
           <X className="h-4 w-4" />

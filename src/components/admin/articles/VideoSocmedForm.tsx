@@ -16,11 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Save, Plus, Loader2 } from "lucide-react";
+import { isAxiosError } from "axios";
 import api from "@/lib/axios";
 import CropImageModal from "@/components/media/CropImageModal";
 import VideoFormCard from "./VideoFormCard";
 import Image from "next/image";
 import { SectionVideoItem } from "@/types/articleSection";
+import { ensureWebpFile } from "@/lib/image/ensureWebpBlob";
+import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
 import {
   getAdminCardGridClass,
   getCropOutputSize,
@@ -30,6 +33,63 @@ import {
   getSocmedVideoAspectClass,
   type SocmedPlatform,
 } from "@/lib/socmed-video-layout";
+
+const THUMBNAIL_UPLOAD_TIMEOUT_MS = 60_000;
+
+/** Map error simpan/upload ke pesan yang mudah dipahami orang awam. */
+function getFriendlySaveErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    if (error.message.startsWith("THUMBNAIL_BLOB_MISSING:")) {
+      return "Sebagian thumbnail draft lokal hilang. Unggah ulang thumbnail sebelum menyimpan.";
+    }
+    if (error.message.startsWith("UPLOAD_FAILED:")) {
+      return "Upload thumbnail gagal. Coba simpan lagi.";
+    }
+  }
+
+  if (isAxiosError(error)) {
+    if (error.code === "ECONNABORTED" || error.message.includes("timeout")) {
+      return "Koneksi lambat. Coba simpan lagi.";
+    }
+
+    const status = error.response?.status;
+    const data = error.response?.data as
+      | { error?: string; details?: string }
+      | undefined;
+    const apiError = typeof data?.error === "string" ? data.error : "";
+    const apiDetails =
+      typeof data?.details === "string" ? data.details : "";
+    const combined = `${apiError} ${apiDetails}`.toLowerCase();
+
+    if (status === 401 || combined.includes("unauthorized")) {
+      return "Sesi login berakhir. Silakan login ulang.";
+    }
+    if (
+      combined.includes("file harus berupa gambar") ||
+      combined.includes("bukan gambar")
+    ) {
+      return "Thumbnail tidak dikenali sebagai gambar. Unggah ulang thumbnail.";
+    }
+    if (
+      combined.includes("file is required") ||
+      combined.includes("file required")
+    ) {
+      return "Upload gagal terkirim. Coba lagi.";
+    }
+    if (apiDetails) {
+      return `Gagal menyimpan: ${apiDetails}`;
+    }
+    if (apiError && apiError !== "Upload failed" && apiError !== "Upsert failed") {
+      return `Gagal menyimpan: ${apiError}`;
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return `Gagal menyimpan: ${error.message}`;
+  }
+
+  return "Gagal menyimpan video. Coba lagi.";
+}
 
 // ── Type Definitions ──────────────────────────────────────────────────────
 type SocialPlatform = SocmedPlatform;
@@ -67,6 +127,43 @@ export default function VideoSocmedForm({
 }: VideoSocmedFormProps) {
   const isCombined = mode === "combined";
   const layoutPlatform: SocmedPlatform = isCombined ? "tiktok" : socialPlatform;
+  const activeBlobUrlsRef = useRef(new Set<string>());
+
+  const isBlobUrl = useCallback((url: string | null | undefined) => {
+    return typeof url === "string" && url.startsWith("blob:");
+  }, []);
+
+  const trackBlobUrl = useCallback(
+    (url: string | null | undefined): string | null => {
+      const blobUrl =
+        typeof url === "string" && url.startsWith("blob:") ? url : null;
+      if (!blobUrl) return url ?? null;
+      activeBlobUrlsRef.current.add(blobUrl);
+      return blobUrl;
+    },
+    [],
+  );
+
+  const revokeBlobUrl = useCallback(
+    (url: string | null | undefined) => {
+      const blobUrl =
+        typeof url === "string" && url.startsWith("blob:") ? url : null;
+      if (!blobUrl) return;
+      try {
+        URL.revokeObjectURL(blobUrl);
+      } finally {
+        activeBlobUrlsRef.current.delete(blobUrl);
+      }
+    },
+    [],
+  );
+
+  const clearAllTrackedBlobUrls = useCallback(() => {
+    activeBlobUrlsRef.current.forEach((url) => {
+      URL.revokeObjectURL(url);
+    });
+    activeBlobUrlsRef.current.clear();
+  }, []);
   // ── State: Video Items ────────────────────────────────────────────────
   const [videoItems, setVideoItems] = useState<SectionVideoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +180,7 @@ export default function VideoSocmedForm({
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
+  const [preparingCrop, setPreparingCrop] = useState(false);
 
   // ── State: Edit Mode ──────────────────────────────────────────────────
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -90,11 +188,26 @@ export default function VideoSocmedForm({
   // ── State: Save Loading ───────────────────────────────────────────────
   const [isSaving, setIsSaving] = useState(false);
 
+  const resetEditorState = useCallback(() => {
+    setEditingId(null);
+    setFormData({ url: "", title: "" });
+    setThumbnailBlob(null);
+    setThumbnailPreview((prev) => {
+      revokeBlobUrl(prev);
+      return null;
+    });
+    setRawImageSrc((prev) => {
+      revokeBlobUrl(prev);
+      return null;
+    });
+  }, [revokeBlobUrl]);
+
   // ── Effect: Load initial data ────────────────────────────────────────
   useEffect(() => {
     const loadInitialData = async () => {
       try {
         setLoading(true);
+        clearAllTrackedBlobUrls();
 
         // Prefer backend data from parent (over local draft)
         if (existingItems.length > 0) {
@@ -107,6 +220,7 @@ export default function VideoSocmedForm({
         const stored = localStorage.getItem(getStorageKey(mode, socialPlatform));
         if (stored) {
           const parsedItems = JSON.parse(stored) as SectionVideoItem[];
+          let missingThumbnailCount = 0;
 
           // Load thumbnails from IndexedDB
           const itemsWithThumbnails = await Promise.all(
@@ -119,14 +233,23 @@ export default function VideoSocmedForm({
               if (blob) {
                 return {
                   ...item,
-                  thumbnail_url: URL.createObjectURL(blob),
+                  thumbnail_url: trackBlobUrl(URL.createObjectURL(blob)) ?? "",
                 };
               }
-              return item;
+              if (item.thumbnail_url) {
+                missingThumbnailCount += 1;
+              }
+              const { thumbnail_url, ...rest } = item;
+              return rest as SectionVideoItem;
             }),
           );
 
           setVideoItems(itemsWithThumbnails);
+          if (missingThumbnailCount > 0) {
+            toast.warning(
+              `${missingThumbnailCount} thumbnail draft tidak ditemukan lagi di penyimpanan lokal.`,
+            );
+          }
         }
       } catch (error) {
         console.error("Error loading initial data:", error);
@@ -137,41 +260,53 @@ export default function VideoSocmedForm({
     };
 
     loadInitialData();
-  }, [mode, socialPlatform, existingItems]);
+  }, [clearAllTrackedBlobUrls, existingItems, mode, socialPlatform, trackBlobUrl]);
 
   // ── Effect: Revoke preview URLs on unmount ─────────────────────────
   useEffect(() => {
     return () => {
-      if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
-      if (rawImageSrc) URL.revokeObjectURL(rawImageSrc);
-      videoItems.forEach((item) => {
-        if (item.thumbnail_url?.startsWith("blob:")) {
-          URL.revokeObjectURL(item.thumbnail_url);
-        }
-      });
+      clearAllTrackedBlobUrls();
     };
-  }, []);
+  }, [clearAllTrackedBlobUrls]);
 
   // ── Dropzone for thumbnail upload ─────────────────────────────────
-  const onDrop = useCallback((files: File[]) => {
-    if (!files.length) return;
-    const file = files[0];
+  const onDrop = useCallback(
+    async (files: File[]) => {
+      if (!files.length || preparingCrop) return;
+      const file = files[0];
 
-    // Validate file is image
-    if (!file.type.startsWith("image/")) {
-      toast.error("Hanya file gambar yang diizinkan");
-      return;
-    }
+      // Kosongkan type masih diizinkan (Safari/iOS sering kirim type "");
+      // HEIC/HEIF juga lolos lewat prepareImageForCrop.
+      if (file.type && !file.type.startsWith("image/")) {
+        toast.error("Hanya file gambar yang diizinkan");
+        return;
+      }
 
-    setRawImageSrc(URL.createObjectURL(file));
-    setCropOpen(true);
-  }, []);
+      setPreparingCrop(true);
+      try {
+        const objectUrl = await prepareImageForCrop(file);
+        setRawImageSrc((prev) => {
+          revokeBlobUrl(prev);
+          return trackBlobUrl(objectUrl);
+        });
+        setCropOpen(true);
+      } catch {
+        toast.error(
+          "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
+        );
+      } finally {
+        setPreparingCrop(false);
+      }
+    },
+    [preparingCrop, revokeBlobUrl, trackBlobUrl],
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "image/*": [] },
     maxFiles: 1,
     multiple: false,
+    disabled: preparingCrop || thumbnailBlob !== null,
   });
 
   // ── Handle crop complete and save blob locally ──────────────────────
@@ -180,31 +315,31 @@ export default function VideoSocmedForm({
       setCropOpen(false);
 
       // Revoke previous preview
-      if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
-      if (rawImageSrc) URL.revokeObjectURL(rawImageSrc);
+      revokeBlobUrl(thumbnailPreview);
+      revokeBlobUrl(rawImageSrc);
 
       setRawImageSrc(null);
       setThumbnailBlob(blob);
-      setThumbnailPreview(URL.createObjectURL(blob));
+      setThumbnailPreview(trackBlobUrl(URL.createObjectURL(blob)));
 
       toast.success("Gambar berhasil di-crop");
     },
-    [thumbnailPreview, rawImageSrc],
+    [rawImageSrc, revokeBlobUrl, thumbnailPreview, trackBlobUrl],
   );
 
   const handleCropCancel = useCallback(() => {
     setCropOpen(false);
-    if (rawImageSrc) URL.revokeObjectURL(rawImageSrc);
+    revokeBlobUrl(rawImageSrc);
     setRawImageSrc(null);
-  }, [rawImageSrc]);
+  }, [rawImageSrc, revokeBlobUrl]);
 
   // ── Handle remove thumbnail ───────────────────────────────────────
   const handleRemoveThumbnail = useCallback(() => {
-    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    revokeBlobUrl(thumbnailPreview);
     setThumbnailBlob(null);
     setThumbnailPreview(null);
     toast.info("Gambar dihapus");
-  }, [thumbnailPreview]);
+  }, [revokeBlobUrl, thumbnailPreview]);
 
   // ── Handle form input change ──────────────────────────────────────
   const handleFormChange = (field: "url" | "title", value: string) => {
@@ -235,10 +370,9 @@ export default function VideoSocmedForm({
         const updatedItems = videoItems.map((item) => {
           if (item._id === editingId) {
             // Revoke old blob URL if it's a blob URL (not server URL)
-            if (item.thumbnail_url && item.thumbnail_url.startsWith("blob:")) {
-              URL.revokeObjectURL(item.thumbnail_url);
-            }
-            const newthumbnail_url = URL.createObjectURL(thumbnailBlob);
+            revokeBlobUrl(item.thumbnail_url);
+            const newthumbnail_url =
+              trackBlobUrl(URL.createObjectURL(thumbnailBlob)) ?? "";
             return {
               ...item,
               video_url: formData.url,
@@ -264,13 +398,14 @@ export default function VideoSocmedForm({
       } else {
         // Create new item
         const newId = uuidv4();
-        const newthumbnail_url = URL.createObjectURL(thumbnailBlob);
+        const newthumbnail_url =
+          trackBlobUrl(URL.createObjectURL(thumbnailBlob)) ?? "";
 
         const newItem: SectionVideoItem = {
           _id: newId,
           video_url: formData.url,
           title: formData.title,
-          order: videoItems.length,
+          order: 0,
           thumbnail_url: newthumbnail_url,
           type: isCombined ? selectedType : socialPlatform,
           createdAt: new Date(),
@@ -280,7 +415,11 @@ export default function VideoSocmedForm({
         // Save blob to IndexedDB
         await idbSet(getIdbKey(mode, socialPlatform, newId), thumbnailBlob);
 
-        const updatedItems = [...videoItems, newItem];
+        // Video baru di urutan pertama; reindex order agar konsisten dengan array
+        const updatedItems = [newItem, ...videoItems].map((item, idx) => ({
+          ...item,
+          order: idx,
+        }));
         setVideoItems(updatedItems);
         saveToLocalStorage(updatedItems);
 
@@ -307,15 +446,24 @@ export default function VideoSocmedForm({
     }
 
     // Load thumbnail from IndexedDB
-    if (item.thumbnail_url) {
-      setThumbnailPreview(item.thumbnail_url);
-    }
+    setThumbnailPreview((prev) => {
+      if (prev !== item.thumbnail_url) revokeBlobUrl(prev);
+      return item.thumbnail_url ?? null;
+    });
 
     const blob = await idbGet<Blob>(
       getIdbKey(mode, socialPlatform, item._id),
     );
     if (blob) {
       setThumbnailBlob(blob);
+    } else {
+      setThumbnailBlob(null);
+      if (isBlobUrl(item.thumbnail_url)) {
+        setThumbnailPreview(null);
+      }
+      toast.warning(
+        "Thumbnail draft lokal untuk item ini tidak ditemukan. Silakan unggah ulang jika ingin menggantinya.",
+      );
     }
 
     // Scroll to form
@@ -328,9 +476,7 @@ export default function VideoSocmedForm({
       const itemToRemove = videoItems.find((item) => item._id === id);
 
       // Revoke blob preview URL
-      if (itemToRemove?.thumbnail_url) {
-        URL.revokeObjectURL(itemToRemove.thumbnail_url);
-      }
+      revokeBlobUrl(itemToRemove?.thumbnail_url);
 
       // Delete from IndexedDB
       await idbDel(getIdbKey(mode, socialPlatform, id));
@@ -345,10 +491,7 @@ export default function VideoSocmedForm({
 
       // Reset editing if this was the item being edited
       if (editingId === id) {
-        setEditingId(null);
-        setFormData({ url: "", title: "" });
-        setThumbnailBlob(null);
-        setThumbnailPreview(null);
+        resetEditorState();
       }
 
       toast.success("Video berhasil dihapus");
@@ -421,27 +564,33 @@ export default function VideoSocmedForm({
             const blob = await idbGet<Blob>(
               getIdbKey(mode, socialPlatform, item._id),
             );
-            if (blob) {
-              const uploadPlatform =
-                isCombined &&
-                (item.type === "tiktok" || item.type === "instagram")
-                  ? item.type
-                  : socialPlatform;
-              const formData = new FormData();
-              formData.append("file", blob, "thumbnail.webp");
-              const response = await api.post<{
-                url: string;
-                filename: string;
-              }>(
-                `/articles/socmed/${uploadPlatform}/upload-thumbnail`,
-                formData,
-                { headers: { "Content-Type": "multipart/form-data" } },
+            if (!blob) {
+              throw new Error(
+                `THUMBNAIL_BLOB_MISSING:${item.title || item._id}`,
               );
-              if (!response.data?.url) {
-                throw new Error(`Failed to upload thumbnail for ${item.title}`);
-              }
-              return { ...item, thumbnail_url: response.data.url };
             }
+            const uploadPlatform =
+              isCombined &&
+              (item.type === "tiktok" || item.type === "instagram")
+                ? item.type
+                : socialPlatform;
+            // Normalisasi MIME/ekstensi (Safari IndexedDB sering kosongkan type)
+            const file = await ensureWebpFile(blob);
+            const formData = new FormData();
+            formData.append("file", file);
+            const response = await api.post<{
+              url: string;
+              filename: string;
+            }>(
+              `/articles/socmed/${uploadPlatform}/upload-thumbnail`,
+              formData,
+              // Jangan set Content-Type manual — biarkan browser isi boundary
+              { timeout: THUMBNAIL_UPLOAD_TIMEOUT_MS },
+            );
+            if (!response.data?.url) {
+              throw new Error(`UPLOAD_FAILED:${item.title}`);
+            }
+            return { ...item, thumbnail_url: response.data.url };
           }
           return item;
         }),
@@ -454,7 +603,7 @@ export default function VideoSocmedForm({
       toast.success("Video berhasil disimpan!");
     } catch (error) {
       console.error("Error saving to backend:", error);
-      toast.error("Gagal menyimpan video ke backend");
+      toast.error(getFriendlySaveErrorMessage(error));
     } finally {
       setIsSaving(false);
     }
@@ -495,9 +644,9 @@ export default function VideoSocmedForm({
       </div>
 
       {/* Main Layout: Grid (Left) + Sidebar Form (Right) */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:max-h-screen lg:min-h-0">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:min-h-0 lg:items-start">
         {/* ── LEFT: Grid Cards & Sorting ────────────────────────────────*/}
-        <div className="order-2 lg:order-1 lg:col-span-2 flex flex-col overflow-hidden rounded-lg border border-border bg-card p-4">
+        <div className="order-2 lg:order-1 lg:col-span-2 flex flex-col overflow-hidden rounded-lg border border-border bg-card p-4 lg:max-h-[calc(100dvh-11rem)]">
           <div className="mb-4 flex flex-col justify-between gap-2 lg:flex-row lg:items-center">
             <h3 className="text-lg font-semibold">Daftar Video</h3>
             <p className="text-sm font-light text-muted-foreground">
@@ -506,7 +655,7 @@ export default function VideoSocmedForm({
           </div>
 
           {/* Video Items Grid */}
-          <div className="flex-1 overflow-y-auto pr-2">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-2 [-webkit-overflow-scrolling:touch]">
             {videoItems.length === 0 ? (
               <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed border-border">
                 <p className="text-muted-foreground">
@@ -534,7 +683,7 @@ export default function VideoSocmedForm({
         </div>
 
         {/* ── RIGHT: Form Input Sidebar ─────────────────────────────────*/}
-        <div className="order-1 lg:order-2 flex flex-col overflow-y-auto rounded-lg border border-border bg-card p-4">
+        <div className="order-1 lg:order-2 flex flex-col rounded-lg border border-border bg-card p-4 lg:max-h-[calc(100dvh-11rem)] lg:overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
           <h3 className="mb-4 text-lg font-semibold">
             {editingId ? "Edit Video" : "Tambah Video"}
           </h3>
@@ -622,18 +771,31 @@ export default function VideoSocmedForm({
                 <div
                   {...getRootProps()}
                   className={`cursor-pointer select-none rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${
-                    isDragActive
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50 hover:bg-muted/30"
+                    preparingCrop
+                      ? "pointer-events-none border-border opacity-60"
+                      : isDragActive
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/50 hover:bg-muted/30"
                   }`}
                 >
                   <input {...getInputProps()} />
-                  <p className="text-sm font-medium">
-                    Drag & drop gambar di sini atau klik untuk memilih
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    PNG, JPG, WEBP — rasio {aspectLabel}
-                  </p>
+                  {preparingCrop ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      <p className="text-sm font-medium">
+                        Menyiapkan gambar...
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium">
+                        Drag & drop gambar di sini atau klik untuk memilih
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        PNG, JPG, WEBP, HEIC — rasio {aspectLabel}
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -653,12 +815,7 @@ export default function VideoSocmedForm({
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => {
-                  setEditingId(null);
-                  setFormData({ url: "", title: "" });
-                  setThumbnailBlob(null);
-                  setThumbnailPreview(null);
-                }}
+                onClick={resetEditorState}
               >
                 Batal Edit
               </Button>

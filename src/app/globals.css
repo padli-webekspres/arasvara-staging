@@ -106,7 +106,7 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --hijau-sawah: oklch(59.94% 0.0914 129.866);
+  --hijau-sawah: oklch(45% 0.0914 129.866);
   --terakota: oklch(60.393% 0.11276 45.857);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -435,7 +435,7 @@
 
   /* Custom Swiper Navigation */
   .swiper-button-custom {
-    @apply absolute top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/80 hover:bg-white dark:bg-black/50 dark:hover:bg-black/80 text-primary dark:text-white rounded-lg shadow-md transition-all duration-300 flex items-center justify-center cursor-pointer;
+    @apply absolute top-1/2 -translate-y-1/2 z-10 min-w-11 min-h-11 bg-white/80 hover:bg-white dark:bg-black/50 dark:hover:bg-black/80 text-primary dark:text-white rounded-lg shadow-md transition-all duration-300 flex items-center justify-center cursor-pointer;
   }
 
   .swiper-button-custom.swiper-button-disabled {
@@ -448,6 +448,53 @@
 
   .swiper-button-next-custom {
     @apply right-2;
+  }
+
+  .logo-reveal-window {
+    width: 0%;
+    animation: logo-reveal 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes logo-reveal {
+  0% {
+    width: 0%;
+  }
+  45% {
+    width: 100%;
+  }
+  55% {
+    width: 100%;
+  }
+  100% {
+    width: 0%;
+  }
+}
+
+/* Floating search — nudge ikon (transform only, CWV-safe) */
+@keyframes floating-search-nudge {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  25% {
+    transform: scale(1.08) rotate(-8deg);
+  }
+  50% {
+    transform: scale(1.08) rotate(8deg);
+  }
+  75% {
+    transform: scale(1.05) rotate(-4deg);
+  }
+}
+
+.floating-search-icon-nudge {
+  animation: floating-search-nudge 0.45s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-search-icon-nudge {
+    animation: none;
   }
 }
 

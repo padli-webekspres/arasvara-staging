@@ -1,0 +1,1317 @@
+openapi: 3.0.3
+info:
+  title: Arasvara News Platform API
+  description: API untuk platform berita Arasvara - CMS, article management, analytics, dan advertising
+  version: 1.0.0
+  contact:
+    name: Arasvara Tech Team
+    email: tech@arasvara.com
+
+servers:
+  - url: https://api.arasvara.com
+    description: Production server
+  - url: https://staging-api.arasvara.com
+    description: Staging server
+  - url: http://localhost:3000
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Authentication & session management
+  - name: Articles
+    description: Article CRUD & workflow operations
+  - name: Categories
+    description: Category management
+  - name: Users
+    description: User management
+  - name: Media
+    description: Media upload & management
+  - name: Analytics
+    description: Analytics & tracking
+  - name: Search
+    description: Search & discovery
+  - name: Notifications
+    description: Notification management
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: accessToken
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: User-friendly error message
+        code:
+          type: string
+          description: Error code
+        details:
+          type: object
+          description: Optional debug info
+
+    PaginationMeta:
+      type: object
+      properties:
+        nextCursor:
+          type: string
+          nullable: true
+          description: Cursor for next page, null if no more data
+
+    UserProfile:
+      type: object
+      properties:
+        _id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        role:
+          type: string
+          enum: [admin, editor-in-chief, managing-editor, head-of, editor, reporter, writer, contributor, account-executive, subscriber]
+        avatar:
+          type: string
+        bio:
+          type: string
+        teamId:
+          type: string
+        team:
+          $ref: '#/components/schemas/Team'
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Team:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+
+    Category:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        nickname:
+          type: string
+        showOnNavbar:
+          type: boolean
+        description:
+          type: string
+        order:
+          type: integer
+        featured:
+          type: boolean
+        featuredOrder:
+          type: integer
+        parentId:
+          type: string
+          nullable: true
+
+    Media:
+      type: object
+      properties:
+        _id:
+          type: string
+        url:
+          type: string
+        filename:
+          type: string
+        mimetype:
+          type: string
+        size:
+          type: integer
+        caption:
+          type: string
+        credit:
+          type: string
+        watermark:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    Article:
+      type: object
+      properties:
+        _id:
+          type: string
+        title:
+          type: string
+        slug:
+          type: string
+        excerpt:
+          type: string
+        content:
+          type: string
+        format:
+          type: string
+          enum: [STANDARD, GALLERY]
+        categoryId:
+          type: string
+        category:
+          $ref: '#/components/schemas/Category'
+        tags:
+          type: array
+          items:
+            type: object
+            properties:
+              _id:
+                type: string
+              name:
+                type: string
+              slug:
+                type: string
+        featuredImage:
+          type: object
+          properties:
+            mediaId:
+              type: string
+            url:
+              type: string
+            caption:
+              type: string
+            credit:
+              type: string
+        authorId:
+          type: string
+        author:
+          $ref: '#/components/schemas/UserProfile'
+        editorId:
+          type: string
+        editor:
+          $ref: '#/components/schemas/UserProfile'
+        status:
+          type: string
+          enum: [DRAFT, PENDING_REVIEW, PUBLISHED, SCHEDULED, REJECTED, TAKEN_DOWN, DELETED]
+        publishedAt:
+          type: string
+          format: date-time
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        publicPath:
+          type: string
+          nullable: true
+        viewCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Notification:
+      type: object
+      properties:
+        _id:
+          type: string
+        receiver:
+          $ref: '#/components/schemas/UserProfile'
+        actor:
+          $ref: '#/components/schemas/UserProfile'
+        type:
+          type: string
+          enum: [article-submitted, article-published, article-revision, article-rejected, article-taken-down, article-deleted, article-raising, ads-raised, ads-taken-down, system-announcement, schedule-published, article-approval]
+        title:
+          type: string
+        message:
+          type: string
+        targetId:
+          type: string
+        link:
+          type: string
+        icon:
+          type: string
+        imageUrl:
+          type: string
+        isPushSent:
+          type: boolean
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+paths:
+  # Auth APIs
+  /api/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Email/password login
+      description: Login dengan email dan password, return JWT tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: accessToken=jwt_token; HttpOnly; Secure
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/UserProfile'
+                      accessToken:
+                        type: string
+                      refreshToken:
+                        type: string
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Logout
+      description: Logout dan clear cookies
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Logged out
+
+  /api/auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: Refresh access token
+      description: Refresh access token menggunakan refresh token
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                      refreshToken:
+                        type: string
+
+  /api/auth/me:
+    get:
+      tags:
+        - Auth
+      summary: Get current user info
+      description: Mendapatkan informasi user yang sedang login
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UserProfile'
+
+  # Articles APIs
+  /api/articles:
+    get:
+      tags:
+        - Articles
+      summary: List articles
+      description: List articles dengan filter dan pagination
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [DRAFT, PENDING_REVIEW, PUBLISHED, SCHEDULED, REJECTED, TAKEN_DOWN]
+        - name: categorySlug
+          in: query
+          schema:
+            type: string
+        - name: authorId
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [STANDARD, GALLERY]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 100
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of articles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Article'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+    post:
+      tags:
+        - Articles
+      summary: Create article
+      description: Create new article (DRAFT or submit for review)
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - excerpt
+                - categoryId
+                - format
+              properties:
+                title:
+                  type: string
+                excerpt:
+                  type: string
+                content:
+                  type: string
+                categoryId:
+                  type: string
+                format:
+                  type: string
+                  enum: [STANDARD, GALLERY]
+                tags:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      slug:
+                        type: string
+                featuredImage:
+                  type: object
+                  properties:
+                    mediaId:
+                      type: string
+                    caption:
+                      type: string
+                    credit:
+                      type: string
+      responses:
+        '201':
+          description: Article created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Article'
+
+  /api/articles/{id}:
+    get:
+      tags:
+        - Articles
+      summary: Get article by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Article details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Article'
+
+    put:
+      tags:
+        - Articles
+      summary: Update article
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                excerpt:
+                  type: string
+                content:
+                  type: string
+                categoryId:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: Article updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Article'
+
+    delete:
+      tags:
+        - Articles
+      summary: Delete article
+      description: Soft delete article
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Article deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /api/articles/slug/{slug}:
+    get:
+      tags:
+        - Articles
+      summary: Get article by slug
+      description: Public route untuk artikel by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Article details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Article'
+
+  /api/articles/approval:
+    post:
+      tags:
+        - Articles
+      summary: Approve or reject article
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - articleId
+                - status
+              properties:
+                articleId:
+                  type: string
+                status:
+                  type: string
+                  enum: [PUBLISHED, REJECTED]
+                reason:
+                  type: string
+                  description: Rejection reason (required if status=REJECTED)
+      responses:
+        '200':
+          description: Article approved/rejected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Article'
+
+  /api/articles/publish:
+    post:
+      tags:
+        - Articles
+      summary: Publish article
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - articleId
+              properties:
+                articleId:
+                  type: string
+      responses:
+        '200':
+          description: Article published
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Article'
+
+  /api/articles/schedule:
+    post:
+      tags:
+        - Articles
+      summary: Schedule article
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - articleId
+                - scheduledAt
+              properties:
+                articleId:
+                  type: string
+                scheduledAt:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Article scheduled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Article'
+
+  /api/articles/takedown:
+    post:
+      tags:
+        - Articles
+      summary: Takedown article
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - articleId
+                - reason
+              properties:
+                articleId:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Article taken down
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Article'
+
+  /api/articles/related:
+    get:
+      tags:
+        - Articles
+      summary: Get related articles
+      parameters:
+        - name: articleId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: Related articles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Article'
+
+  # Categories APIs
+  /api/categories:
+    get:
+      tags:
+        - Categories
+      summary: List categories
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+
+    post:
+      tags:
+        - Categories
+      summary: Create category
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - slug
+              properties:
+                name:
+                  type: string
+                slug:
+                  type: string
+                nickname:
+                  type: string
+                parentId:
+                  type: string
+                showOnNavbar:
+                  type: boolean
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Category'
+
+  /api/categories/{id}:
+    get:
+      tags:
+        - Categories
+      summary: Get category by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Category with stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/Category'
+                      - type: object
+                        properties:
+                          totalArticles:
+                            type: integer
+                          totalViews:
+                            type: integer
+
+  /api/categories/slug/{slug}:
+    get:
+      tags:
+        - Categories
+      summary: Get category by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Category details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Category'
+
+  # Users APIs
+  /api/users:
+    get:
+      tags:
+        - Users
+      summary: List users
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+        - name: teamId
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserProfile'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+    post:
+      tags:
+        - Users
+      summary: Create user
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - name
+                - role
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                name:
+                  type: string
+                role:
+                  type: string
+                teamId:
+                  type: string
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UserProfile'
+
+  /api/users/slug/{slug}:
+    get:
+      tags:
+        - Users
+      summary: Public author profile
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Author profile with articles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UserProfile'
+                  articles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Article'
+
+  # Media APIs
+  /api/media:
+    get:
+      tags:
+        - Media
+      summary: List media
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: mimetype
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of media
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Media'
+
+  /api/media/presigned-url:
+    post:
+      tags:
+        - Media
+      summary: Get S3 presigned URL
+      description: Get presigned URL untuk upload langsung ke S3
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - filename
+                - mimetype
+                - size
+              properties:
+                filename:
+                  type: string
+                mimetype:
+                  type: string
+                size:
+                  type: integer
+      responses:
+        '200':
+          description: Presigned URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                      key:
+                        type: string
+                      expiresIn:
+                        type: integer
+
+  /api/media/upload:
+    post:
+      tags:
+        - Media
+      summary: Upload media
+      description: Upload media langsung ke Next.js server
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Media uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Media'
+
+  # Analytics APIs
+  /api/analytics/audience:
+    get:
+      tags:
+        - Analytics
+      summary: Audience analytics
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Audience data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      totalViews:
+                        type: integer
+                      uniqueVisitors:
+                        type: integer
+                      avgTimeOnSite:
+                        type: number
+                      bounceRate:
+                        type: number
+
+  /api/analytics/author:
+    get:
+      tags:
+        - Analytics
+      summary: Author performance
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: authorId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Author performance data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      articlesPublished:
+                        type: integer
+                      totalViews:
+                        type: integer
+                      avgViewsPerArticle:
+                        type: number
+
+  /api/analytics/view-article:
+    post:
+      tags:
+        - Analytics
+      summary: Track article view
+      description: Public endpoint untuk tracking view
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - articleId
+              properties:
+                articleId:
+                  type: string
+                sessionId:
+                  type: string
+                referrer:
+                  type: string
+      responses:
+        '200':
+          description: View tracked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  # Search APIs
+  /api/search:
+    get:
+      tags:
+        - Search
+      summary: Full-text search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Article'
+
+  /api/search/suggestions:
+    get:
+      tags:
+        - Search
+      summary: Search suggestions
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Suggestions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: string
+
+  # Notifications APIs
+  /api/notification:
+    get:
+      tags:
+        - Notifications
+      summary: List notifications
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+
+  /api/notification/{id}/read:
+    put:
+      tags:
+        - Notifications
+      summary: Mark as read
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string

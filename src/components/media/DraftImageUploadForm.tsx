@@ -18,12 +18,10 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { embedWatermarkToImage } from "@/lib/image/embedWatermark";
-import { ensureWebpFile } from "@/lib/image/ensureWebpBlob";
-import { saveEditorImage } from "@/lib/db/draftImageDb";
-import type { PendingMedia } from "@/types/media";
+import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
+import api from "@/lib/axios";
+import type { PendingMedia, TempMediaUploadResult } from "@/types/media";
 import Image from "next/image";
-import { ulid } from "ulid";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,7 +40,7 @@ export interface DraftImageUploadFormProps {
 
   /**
    * Dipanggil saat user selesai mengisi metadata dan klik submit.
-   * Blob sudah disimpan ke IndexedDB — parent menerima PendingMedia.
+   * Blob sudah diproses server & disimpan ke /temp — parent menerima PendingMedia.
    */
   onMediaReady: (media: PendingMedia) => void;
 
@@ -71,7 +69,10 @@ type MetadataFormValues = z.infer<typeof metadataSchema>;
  *
  * **Fase 2** (`croppedBlob !== null`): Tampilkan preview blob hasil crop
  * beserta form metadata (caption, credit, watermark). Setelah submit,
- * blob disimpan ke IndexedDB dan `onMediaReady(pendingMedia)` dipanggil.
+ * blob dikirim ke `POST /api/media/process-temp` — server yang memproses
+ * (HEIC/JPEG/PNG → WebP + kompresi + watermark opsional) dan menyimpannya
+ * ke folder `temp/` object storage. `onMediaReady(pendingMedia)` dipanggil
+ * dengan PendingMedia berisi `tempMediaId` + `tempUrl`.
  */
 export default function DraftImageUploadForm({
   croppedBlob,
@@ -80,6 +81,8 @@ export default function DraftImageUploadForm({
   onCancel,
 }: DraftImageUploadFormProps) {
   const [processing, setProcessing] = useState(false);
+  /** True saat file sedang di-decode/dinormalisasi sebelum crop modal dibuka. */
+  const [preparingCrop, setPreparingCrop] = useState(false);
 
   // Preview URL untuk blob hasil crop (fase 2)
   const [croppedPreviewUrl, setCroppedPreviewUrl] = useState<string | null>(null);
@@ -123,23 +126,33 @@ export default function DraftImageUploadForm({
   // ─── Fase 1: Dropzone ────────────────────────────────────────────────────
 
   const onDrop = useCallback(
-    (accepted: File[]) => {
-      if (!accepted.length) return;
+    async (accepted: File[]) => {
+      if (!accepted.length || preparingCrop) return;
       const file = accepted[0];
 
-      // Buat blob URL sementara untuk dikirim ke parent (akan dibuka di CropModal)
-      const objectUrl = URL.createObjectURL(file);
-      onFileSelected(objectUrl);
+      setPreparingCrop(true);
+      try {
+        // Decode + normalisasi (JPEG, downscale bila perlu) agar preview crop
+        // di mobile tidak intermittent broken.
+        const objectUrl = await prepareImageForCrop(file);
+        onFileSelected(objectUrl);
+      } catch {
+        toast.error(
+          "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
+        );
+      } finally {
+        setPreparingCrop(false);
+      }
     },
-    [onFileSelected],
+    [onFileSelected, preparingCrop],
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "image/*": [] },
     maxFiles: 1,
-    // Hanya aktif di fase 1 saat belum ada blob crop
-    disabled: croppedBlob !== null,
+    // Hanya aktif di fase 1 saat belum ada blob crop / sedang prepare
+    disabled: croppedBlob !== null || preparingCrop,
   });
 
   // ─── Fase 2: Submit metadata ──────────────────────────────────────────────
@@ -147,41 +160,39 @@ export default function DraftImageUploadForm({
   const onSubmitMetadata = async (values: MetadataFormValues) => {
     if (!croppedBlob) return;
 
+    console.time("DraftImageUploadForm.onSubmitMetadata total");
     setProcessing(true);
     try {
-      let finalBlob: Blob = croppedBlob;
+      // Kirim hasil crop ke server — server decode & kompres ke WebP
+      // (termasuk HEIC), terapkan watermark bila diminta, lalu simpan ke /temp.
+      const formData = new FormData();
+      formData.append("file", croppedBlob, "image.webp");
+      formData.append("watermark", values.watermark ? "true" : "false");
 
-      // Embed watermark ke blob hasil crop jika diperlukan
-      if (values.watermark) {
-        const blobAsFile = new File([croppedBlob], "image.webp", {
-          type: "image/webp",
-        });
-        finalBlob = await embedWatermarkToImage(blobAsFile, { opacity: 0.25 });
-      }
-
-      const webpFile = await ensureWebpFile(finalBlob);
-
-      // Generate key unik dan simpan ke IndexedDB
-      const idbKey = ulid();
-      const filename = `${idbKey}.webp`;
-      await saveEditorImage(idbKey, webpFile);
-
-      const blobUrl = URL.createObjectURL(webpFile);
+      const res = await api.post<TempMediaUploadResult>(
+        "/media/process-temp",
+        formData,
+        {
+          // Upload + pemrosesan server bisa lebih lama di jaringan seluler
+          timeout: 120_000,
+        },
+      );
+      const { tempMediaId, tempUrl, filename, size } = res.data;
 
       const pendingMedia: PendingMedia = {
         _id: null,
-        idbKey,
-        blobUrl,
+        tempMediaId,
+        tempUrl,
         filename,
-        size: webpFile.size,
+        size,
         mimetype: "image/webp",
-        url: blobUrl,
+        url: tempUrl,
         caption: values.caption || undefined,
         credit: values.credit || undefined,
         watermark: values.watermark ?? false,
       };
 
-      // Revoke internal preview — blobUrl baru dikelola oleh pemanggil
+      // Revoke internal preview — preview baru memakai tempUrl dari server
       if (croppedPreviewRef.current) {
         URL.revokeObjectURL(croppedPreviewRef.current);
         croppedPreviewRef.current = null;
@@ -189,7 +200,9 @@ export default function DraftImageUploadForm({
       }
 
       onMediaReady(pendingMedia);
+      console.timeEnd("DraftImageUploadForm.onSubmitMetadata total");
     } catch (err) {
+      console.timeEnd("DraftImageUploadForm.onSubmitMetadata total");
       const message =
         err instanceof Error ? err.message : "Gagal memproses gambar";
       toast.error(message);
@@ -206,20 +219,28 @@ export default function DraftImageUploadForm({
       <div className="flex flex-col gap-4">
         <div
           {...getRootProps()}
-          className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center gap-3 cursor-pointer transition-colors aspect-video ${
-            isDragActive
-              ? "border-hijauSawah bg-hijauSawah/5"
-              : "border-border hover:border-muted-foreground"
+          className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center gap-3 transition-colors aspect-video ${
+            preparingCrop
+              ? "cursor-wait border-hijauSawah/60 bg-hijauSawah/5 opacity-80"
+              : isDragActive
+                ? "cursor-pointer border-hijauSawah bg-hijauSawah/5"
+                : "cursor-pointer border-border hover:border-muted-foreground"
           }`}
         >
           <input {...getInputProps()} />
           <Upload className="h-10 w-10 text-muted-foreground" />
           <div className="text-center">
             <p className="text-sm font-medium">
-              {isDragActive ? "Lepaskan gambar di sini…" : "Seret & lepas gambar"}
+              {preparingCrop
+                ? "Menyiapkan gambar…"
+                : isDragActive
+                  ? "Lepaskan gambar di sini…"
+                  : "Seret & lepas gambar"}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              atau klik untuk memilih dari komputer
+              {preparingCrop
+                ? "Mohon tunggu sebentar"
+                : "atau klik untuk memilih dari komputer"}
             </p>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -229,7 +250,13 @@ export default function DraftImageUploadForm({
 
         {onCancel && (
           <div className="flex justify-end">
-            <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onCancel}
+              disabled={preparingCrop}
+            >
               Batal
             </Button>
           </div>

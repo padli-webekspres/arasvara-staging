@@ -1,6 +1,7 @@
 const WATERMARK_OPACITY = 0.5;
 const WATERMARK_WIDTH_RATIO = 0.25; // 25% lebar gambar (lebih kecil)
 import { BRAND_LOGO } from "@/lib/brand-logos";
+import { checkWebpSupport } from "@/lib/image/detectImageFormat";
 
 const WATERMARK_DARK = BRAND_LOGO.mainLight; // untuk gambar gelap
 const WATERMARK_BRIGHT = BRAND_LOGO.mainDark; // untuk gambar cerah
@@ -91,18 +92,22 @@ export async function embedWatermarkToImage(
     ctx.drawImage(watermarkImg, wmX, wmY, wmWidth, wmHeight);
     ctx.globalAlpha = 1;
 
-    // Convert to WebP blob via native canvas
+    // Convert to WebP/JPEG blob via native canvas depending on browser support
+    const supportWebp = checkWebpSupport();
+    const mime = supportWebp ? "image/webp" : "image/jpeg";
+    const ext = supportWebp ? ".webp" : ".jpg";
+
     const blob: Blob = await new Promise((resolve, reject) =>
       canvas.toBlob(
         (b) => (b ? resolve(b) : reject(new Error("toBlob failed"))),
-        "image/webp",
+        mime,
         webpQuality,
       ),
     );
     return new File(
       [blob],
-      mainFile.name.replace(/\.[^.]+$/, "") + "-wm.webp",
-      { type: "image/webp" },
+      mainFile.name.replace(/\.[^.]+$/, "") + "-wm" + ext,
+      { type: mime },
     );
   } catch (err) {
     // Log error for debugging

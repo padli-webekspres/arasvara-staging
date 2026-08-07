@@ -28,7 +28,8 @@ const fetchCategoriesList = async (opts: CategoriesListFetchOptions = {}) => {
 export function useCategories() {
   return useQuery({
     queryKey: ["categories", "all"],
-    queryFn: () => fetchCategoriesList({}),
+    // Limit 500 agar daftar kategori (termasuk subchannel) tidak terpotong
+    queryFn: () => fetchCategoriesList({ limit: 500 }),
     staleTime: 1000 * 60 * 60, // 1 jam
   });
 }

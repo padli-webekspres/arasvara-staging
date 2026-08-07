@@ -3,6 +3,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { ulid } from "ulid";
 import logger from "@/lib/logger";
 import { withImmutableCacheControl } from "@/lib/s3/object-cache";
+import { detectImageFormat } from "@/lib/image/detectImageFormat";
 import {
   getSharpThumbnailSize,
   getSocmedLayout,
@@ -21,18 +22,26 @@ export interface VideoThumbnailUploadResult {
  * Upload dan compress video thumbnail ke folder spesifik di S3
  * Folder path: thumbnails/{platform}/{filename}
  * Image dikompres dengan sharp: cover ke 9:16 (IG/TikTok) atau 16:9 (YouTube), webp q80.
+ *
+ * Safari/iOS sering mengirim File dengan `type` kosong setelah round-trip IndexedDB;
+ * validasi fallback memakai magic bytes (jpeg/png/webp).
  */
 export async function uploadVideoThumbnail(
   file: File,
   platform: SocmedPlatform,
 ): Promise<VideoThumbnailUploadResult> {
-  if (!file.type.startsWith("image/")) {
-    throw new Error("File harus berupa gambar");
-  }
-
   try {
     const arrayBuffer = await file.arrayBuffer();
     let buffer: Buffer = Buffer.from(arrayBuffer as ArrayBuffer);
+
+    const hasImageMime =
+      typeof file.type === "string" && file.type.startsWith("image/");
+    if (!hasImageMime) {
+      const detected = detectImageFormat(buffer);
+      if (detected !== "jpeg" && detected !== "png" && detected !== "webp") {
+        throw new Error("File harus berupa gambar");
+      }
+    }
 
     const layout = getSocmedLayout(platform);
     const { width, height } = getSharpThumbnailSize(layout);

@@ -23,7 +23,9 @@ import {
   articleEditorCreateStatusChoices,
   articleEditorEditStatusChoices,
   canPickArticleAttribution,
+  getWriterArticleActions,
   hasArticleFormStatusPickerAccess,
+  isWriterRole,
   usesWriterArticleFormSubmit,
 } from "@/lib/editorialPublicationAccess";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -31,11 +33,9 @@ import SocialEmbed from "@/lib/tiptap/SocialEmbed";
 import PageBreak from "@/lib/tiptap/PageBreak";
 import ReadAlsoNode from "@/lib/tiptap/ReadAlsoNode";
 import ImageFigure from "@/lib/tiptap/ImageFigure";
-import axios from "axios";
 import api from "@/lib/axios";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { adminPanelHref } from "@/lib/admin-panel-path";
-import { S3_IMMUTABLE_CACHE_CONTROL } from "@/lib/s3/object-cache";
 import type { ArticleEditorFormProps } from "@/types/article";
 import { ArticleStatus } from "@/types/article";
 import {
@@ -47,24 +47,26 @@ import {
   type ImagePickerResult,
   type MultiImagePickerResult,
 } from "@/components/ui/ImagePickerModal";
-import type { Media, PendingMedia } from "@/types/media";
+import type { Media, PendingMedia, TempMediaUploadResult } from "@/types/media";
 import { SectionArticleItem } from "@/types/articleSection";
 import ArticleEditorFormUi, {
   type AttributionUserOption,
 } from "./ArticleEditorFormUi";
 import { formatTagsForInput } from "./ArticleTagsInput";
-import { getEditorImage, clearAllDraftImages, saveEditorImage, deleteEditorImage } from "@/lib/db/draftImageDb";
 import type { ArticlePresignedUploadScope } from "@/lib/media/articleUploadScopes";
+import { buildTempMediaViewUrl } from "@/lib/media/tempMedia";
 import { autosaveArticle, getArticleDraftStorageKey, persistArticleDraftSync, readArticleDraftRaw, removeArticleDraft } from "@/lib/autosave";
 import type { DraftGalleryItem } from "@/types/article";
 import CropImageModal from "@/components/media/CropImageModal";
-import { ensureWebpFile } from "@/lib/image/ensureWebpBlob";
 
 /** Dimensi dan kualitas crop untuk gambar unggulan (tetap). */
 const FEATURED_IMAGE_WIDTH = 1280;
 const FEATURED_IMAGE_HEIGHT = 800;
 const FEATURED_IMAGE_ASPECT = FEATURED_IMAGE_WIDTH / FEATURED_IMAGE_HEIGHT;
 const FEATURED_WEBP_QUALITY = 0.82;
+
+/** Timeout khusus presign / PUT S3 / finalize (jaringan seluler iPhone). */
+const PENDING_MEDIA_UPLOAD_TIMEOUT_MS = 60_000;
 
 /**
  * Data media yang menunggu crop di ArticleEditorForm.
@@ -102,7 +104,7 @@ export interface GalleryItem {
   caption: string;
   credit: string;
   order: number;
-  idbKey?: string;
+  tempMediaId?: string;
   isPending?: boolean;
 }
 
@@ -114,7 +116,7 @@ function toDraftGalleryItems(items: GalleryItem[]): DraftGalleryItem[] {
     caption: item.caption,
     credit: item.credit,
     order: item.order,
-    ...(item.idbKey ? { idbKey: item.idbKey } : {}),
+    ...(item.tempMediaId ? { tempMediaId: item.tempMediaId } : {}),
     ...(item.isPending ? { isPending: true } : {}),
   }));
 }
@@ -139,7 +141,7 @@ interface FormState {
   contributorIds: string[];
 }
 
-// ─── Helper: satu media → presign + PUT + finalize ────────────────────────────
+// ─── Helper: satu media temp → promote ke folder final ───────────────────────
 
 interface UploadedMediaResult {
   mediaId: string;
@@ -148,60 +150,67 @@ interface UploadedMediaResult {
   url: string;
 }
 
-async function uploadOnePendingMedia(
-  idbKey: string,
+const PROMOTE_MAX_RETRIES = 3;
+
+/**
+ * Promosikan satu media temp ke folder final + buat row media.
+ * Dengan retry per gambar (H5: submit all-or-nothing tanpa retry sebelumnya
+ * membuat satu kegagalan jaringan menggagalkan seluruh submit di iPad).
+ */
+async function promoteOneTempMedia(
+  tempMediaId: string,
   meta: { caption?: string; credit?: string; watermark?: boolean },
   articleUploadScope: ArticlePresignedUploadScope,
 ): Promise<UploadedMediaResult> {
-  // 1. Baca blob dari IndexedDB
-  const blobFile = await getEditorImage(idbKey);
-  if (!blobFile) {
-    throw new Error(`Blob tidak ditemukan di IndexedDB untuk key: ${idbKey}`);
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= PROMOTE_MAX_RETRIES; attempt++) {
+    try {
+      const res = await api.post<{ success: boolean; media: Media }>(
+        "/media/promote-temp",
+        {
+          tempMediaId,
+          scope: articleUploadScope,
+          caption: meta.caption,
+          credit: meta.credit,
+          watermark: meta.watermark ?? false,
+        },
+        { timeout: PENDING_MEDIA_UPLOAD_TIMEOUT_MS },
+      );
+      const { media } = res.data;
+
+      return {
+        mediaId: media._id,
+        fileKey: media.filename,
+        filename: media.filename,
+        url: media.url,
+      };
+    } catch (err) {
+      lastError = err;
+
+      // Hanya retry untuk kegagalan transient (network / 5xx).
+      // 4xx (mis. 404 temp tidak ditemukan, 400 scope invalid) tidak perlu diulang.
+      const errBody = err as { response?: { status?: number } };
+      const status = errBody?.response?.status;
+      const isTransient = status == null || status >= 500;
+
+      if (isTransient && attempt < PROMOTE_MAX_RETRIES) {
+        // Backoff singkat — jaringan seluler iPad kadang lambat/intermiten
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+      } else {
+        break;
+      }
+    }
   }
 
-  // 2. Minta presigned URL
-  const presignRes = await api.post<{
-    uploadUrl: string;
-    fileKey: string;
-    expiresIn: number;
-  }>(
-    "/media/presigned-url",
-    {
-      filename: `${idbKey}.webp`,
-      contentType: "image/webp",
-      articleUploadScope,
-    },
+  throw Object.assign(
+    new Error(
+      `Gagal mempromosikan media temp (${tempMediaId}): ${
+        (lastError as Error)?.message ?? String(lastError)
+      }`,
+    ),
+    { uploadedFileKeys: [] },
   );
-  const { uploadUrl, fileKey } = presignRes.data;
-
-  // 3. PUT langsung ke object storage
-  await axios.put(uploadUrl, blobFile, {
-    headers: {
-      "Content-Type": "image/webp",
-      "Cache-Control": S3_IMMUTABLE_CACHE_CONTROL,
-    },
-  });
-
-
-  // 4. Finalize — buat row di MongoDB
-  const finalizeRes = await api.post<{ success: boolean; media: Media }>(
-    "/media/finalize",
-    {
-      fileKey,
-      size: blobFile.size,
-      caption: meta.caption,
-      credit: meta.credit,
-      watermark: meta.watermark ?? false,
-    },
-  );
-  const { media } = finalizeRes.data;
-
-  return {
-    mediaId: media._id,
-    fileKey,
-    filename: media.filename,
-    url: media.url,
-  };
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -380,12 +389,10 @@ export default function ArticleEditorForm({
   const [pendingFeaturedMedia, setPendingFeaturedMedia] =
     useState<PendingMedia | null>(null);
 
-  /** Pasangan blobUrl ↔ idbKey untuk gambar yang disisipkan ke body TipTap. */
-  /** Pemetaan blobUrl ↔ idbKey + metadata untuk gambar pending di body editor. */
+  /** Pemetaan tempMediaId + metadata untuk gambar pending di body editor. */
   const [editorImageKeys, setEditorImageKeys] = useState<
     Array<{
-      blobUrl: string;
-      idbKey: string;
+      tempMediaId: string;
       meta: { caption?: string; credit?: string; watermark?: boolean };
     }>
   >([]);
@@ -463,44 +470,39 @@ export default function ArticleEditorForm({
     }
 
     try {
-      const webpFile = await ensureWebpFile(blob);
+      // Kirim hasil crop ke server — server proses ke WebP (1280×800 fit-inside)
+      // lalu simpan ke /temp. Klien iPad tidak kompres sama sekali.
+      const formData = new FormData();
+      formData.append("file", blob, "featured.webp");
+      formData.append("watermark", "false");
+      formData.append("maxWidth", String(FEATURED_IMAGE_WIDTH));
+      formData.append("maxHeight", String(FEATURED_IMAGE_HEIGHT));
 
-      const idbKey = `featured-${
-        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-      }`;
-      const file = new File([webpFile], `${idbKey}.webp`, { type: "image/webp" });
-      await saveEditorImage(idbKey, file);
+      const res = await api.post<TempMediaUploadResult>(
+        "/media/process-temp",
+        formData,
+        { timeout: 120_000 },
+      );
+      const { tempMediaId, tempUrl, filename, size } = res.data;
 
       featuredCropPickRef.current = null;
 
-      // Hanya "existing" (media dari galeri) yang masuk ke sini —
-      // PendingMedia (upload baru) sudah di-crop di ImagePickerModal sebelumnya.
-      const blobUrl = URL.createObjectURL(file);
-
-      setPendingFeaturedMedia((prev) => {
-        if (prev) {
-          URL.revokeObjectURL(prev.blobUrl);
-          void deleteEditorImage(prev.idbKey).catch(() => {});
-        }
-        return {
-          _id: null,
-          idbKey,
-          blobUrl,
-          filename: `${idbKey}.webp`,
-          size: file.size,
-          mimetype: "image/webp",
-          url: blobUrl,
-        };
+      setPendingFeaturedMedia({
+        _id: null,
+        tempMediaId,
+        tempUrl,
+        filename,
+        size,
+        mimetype: "image/webp",
+        url: tempUrl,
       });
-      setFeaturedImagePreview(blobUrl);
+      setFeaturedImagePreview(tempUrl);
       setFormData((prev) => ({ ...prev, featuredImage: "" }));
 
       setFeaturedCropOpen(false);
       setFeaturedCropSrc(null);
 
-      toast.success("Gambar unggulan dipotong 1280×800 dan dikompresi.");
+      toast.success("Gambar unggulan dipotong 1280×800 dan diproses.");
     } catch (err) {
       console.error("[featured crop apply]", err);
       toast.error(
@@ -513,11 +515,7 @@ export default function ArticleEditorForm({
 
   const removeFeaturedImage = () => {
     abortFeaturedCrop();
-    if (pendingFeaturedMedia) {
-      URL.revokeObjectURL(pendingFeaturedMedia.blobUrl);
-      void deleteEditorImage(pendingFeaturedMedia.idbKey).catch(() => {});
-      setPendingFeaturedMedia(null);
-    }
+    setPendingFeaturedMedia(null);
     setFeaturedImagePreview(null);
     setFormData((prev) => ({
       ...prev,
@@ -561,12 +559,12 @@ export default function ArticleEditorForm({
             id: `${Date.now()}-${index}`,
             mediaId: isPending ? "" : (m._id ?? ""),
             imageUrl: isPending
-              ? pm.blobUrl
+              ? pm.tempUrl
               : `/api/media/view?key=${encodeURIComponent(m.filename)}`,
             caption: media.caption ?? "",
             credit: "",
             order: maxOrder + 1 + index,
-            idbKey: isPending ? pm.idbKey : undefined,
+            tempMediaId: isPending ? pm.tempMediaId : undefined,
             isPending: isPending || undefined,
           };
         });
@@ -706,38 +704,37 @@ export default function ArticleEditorForm({
           );
         }
 
-        const savedFeaturedIdbKey =
-          typeof parsed.pendingFeaturedIdbKey === "string"
-            ? parsed.pendingFeaturedIdbKey
+        let missingDraftImageCount = 0;
+
+        const savedFeaturedTempId =
+          typeof parsed.pendingFeaturedTempId === "string"
+            ? parsed.pendingFeaturedTempId
             : null;
-        if (savedFeaturedIdbKey) {
-          try {
-            const blobFile = await getEditorImage(savedFeaturedIdbKey);
-            if (blobFile) {
-              const blobUrl = URL.createObjectURL(blobFile);
-              setFeaturedImagePreview(blobUrl);
-              const pm: PendingMedia = {
-                _id: null,
-                idbKey: savedFeaturedIdbKey,
-                blobUrl,
-                filename: blobFile.name,
-                size: blobFile.size,
-                mimetype: "image/webp",
-                url: blobUrl,
-              };
-              setPendingFeaturedMedia(pm);
-            }
-          } catch {
-            // Abaikan jika IDB tidak tersedia
-          }
+        if (savedFeaturedTempId) {
+          const tempUrl = buildTempMediaViewUrl(savedFeaturedTempId);
+          setFeaturedImagePreview(tempUrl);
+          setPendingFeaturedMedia({
+            _id: null,
+            tempMediaId: savedFeaturedTempId,
+            tempUrl,
+            filename: `${savedFeaturedTempId}.webp`,
+            size: 0,
+            mimetype: "image/webp",
+            url: tempUrl,
+          });
+        } else if (
+          // Draft lama (pra-temp): idbKey IndexedDB tidak bisa dipulihkan lagi
+          typeof parsed.pendingFeaturedIdbKey === "string" &&
+          parsed.pendingFeaturedIdbKey
+        ) {
+          missingDraftImageCount += 1;
         } else if (typeof parsed.featuredImagePreviewUrl === "string") {
           setFeaturedImagePreview(parsed.featuredImagePreviewUrl);
         }
 
         const savedEditorImageKeys = Array.isArray(parsed.editorImageKeys)
           ? (parsed.editorImageKeys as Array<{
-              blobUrl: string;
-              idbKey: string;
+              tempMediaId?: string;
               meta?: {
                 caption?: string;
                 takenBy?: string;
@@ -746,28 +743,17 @@ export default function ArticleEditorForm({
             }>)
           : [];
 
-        let restoredHtml = restoredContent;
+        const restoredHtml = restoredContent;
         const restoredEditorImageKeys: typeof editorImageKeys = [];
 
-        for (const {
-          blobUrl: oldUrl,
-          idbKey,
-          meta = {},
-        } of savedEditorImageKeys) {
-          try {
-            const blobFile = await getEditorImage(idbKey);
-            if (blobFile) {
-              const newBlobUrl = URL.createObjectURL(blobFile);
-              restoredHtml = restoredHtml.replaceAll(oldUrl, newBlobUrl);
-              restoredEditorImageKeys.push({
-                blobUrl: newBlobUrl,
-                idbKey,
-                meta,
-              });
-            }
-          } catch {
-            // Abaikan jika gambar tidak ditemukan
+        for (const { tempMediaId, meta = {} } of savedEditorImageKeys) {
+          if (!tempMediaId) {
+            // Draft lama — blob IndexedDB sudah tidak bisa dipulihkan
+            missingDraftImageCount += 1;
+            continue;
           }
+          // Konten HTML sudah memuat tempUrl (URL server) — tidak perlu replace
+          restoredEditorImageKeys.push({ tempMediaId, meta });
         }
 
         if (restoredEditorImageKeys.length > 0) {
@@ -825,20 +811,19 @@ export default function ArticleEditorForm({
                   ? rawItem.order
                   : restoredGallery.length,
             };
-            if (rawItem.isPending && rawItem.idbKey) {
-              try {
-                const blobFile = await getEditorImage(rawItem.idbKey);
-                if (blobFile) {
-                  const blobUrl = URL.createObjectURL(blobFile);
-                  restoredGallery.push({
-                    ...base,
-                    imageUrl: blobUrl,
-                    idbKey: rawItem.idbKey,
-                    isPending: true,
-                  });
-                }
-              } catch {
-                // skip item jika blob tidak ada
+            if (rawItem.isPending) {
+              if (rawItem.tempMediaId) {
+                restoredGallery.push({
+                  ...base,
+                  imageUrl:
+                    String(rawItem.imageUrl ?? "") ||
+                    buildTempMediaViewUrl(rawItem.tempMediaId),
+                  tempMediaId: rawItem.tempMediaId,
+                  isPending: true,
+                });
+              } else {
+                // Draft lama — blob IndexedDB sudah tidak bisa dipulihkan
+                missingDraftImageCount += 1;
               }
             } else {
               restoredGallery.push({
@@ -854,6 +839,12 @@ export default function ArticleEditorForm({
           }
         }
 
+        if (missingDraftImageCount > 0) {
+          toast.warning(
+            `${missingDraftImageCount} foto draft tidak ditemukan lagi di penyimpanan lokal. Unggah ulang foto tersebut.`,
+          );
+        }
+
         if (format === "STANDARD" && restoredHtml && editor) {
           editor.commands.setContent(restoredHtml);
           setEditorContentSnapshot(restoredHtml);
@@ -866,19 +857,12 @@ export default function ArticleEditorForm({
     };
 
     void loadDraft();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing, editor, format]);
 
   // ─── Clear form ──────────────────────────────────────────────────────────────
   const clearForm = () => {
     abortFeaturedCrop();
-    setPendingFeaturedMedia((prev) => {
-      if (prev) {
-        URL.revokeObjectURL(prev.blobUrl);
-        void deleteEditorImage(prev.idbKey).catch(() => {});
-      }
-      return null;
-    });
+    setPendingFeaturedMedia(null);
     setFormData({
       title: "",
       excerpt: "",
@@ -944,11 +928,11 @@ export default function ArticleEditorForm({
       storageKey: draftStorageKey,
       format,
       galleryItems: toDraftGalleryItems(galleryItemsRef.current),
-      pendingFeaturedIdbKey: pendingFeaturedMediaRef.current?.idbKey ?? null,
+      pendingFeaturedTempId:
+        pendingFeaturedMediaRef.current?.tempMediaId ?? null,
       editorImageKeys: editorImageKeysRef.current.map(
-        ({ blobUrl, idbKey, meta }) => ({
-          blobUrl,
-          idbKey,
+        ({ tempMediaId, meta }) => ({
+          tempMediaId,
           meta,
         }),
       ),
@@ -1061,7 +1045,7 @@ export default function ArticleEditorForm({
       resolvedContent: string;
       resolvedGalleryItems: GalleryItem[];
       uploadedFileKeys: string[];
-      /** Map dari blobUrl (atau mediaKey untuk existing) ke data media final.
+      /** Map dari tempUrl (atau mediaKey untuk existing) ke data media final.
        *  Digunakan oleh extractContentMediaFromEditor untuk menyusun contentMedia. */
       contentMediaMap: Map<string, { mediaId: string; url: string; filename: string }>;
     }> => {
@@ -1074,8 +1058,8 @@ export default function ArticleEditorForm({
 
       // 1. Featured image pending
       if (pendingFeaturedMedia) {
-        const result = await uploadOnePendingMedia(
-          pendingFeaturedMedia.idbKey,
+        const result = await promoteOneTempMedia(
+          pendingFeaturedMedia.tempMediaId,
           {
             caption: pendingFeaturedMedia.caption,
             credit: pendingFeaturedMedia.credit,
@@ -1096,31 +1080,31 @@ export default function ArticleEditorForm({
         }
       }
 
-      // 2. Gambar di body editor (blob URLs)
-      for (const { blobUrl, idbKey, meta } of editorImageKeys) {
-        if (!resolvedContent.includes(blobUrl)) continue;
+      // 2. Gambar di body editor (tempUrl)
+      for (const { tempMediaId, meta } of editorImageKeys) {
+        const tempUrl = buildTempMediaViewUrl(tempMediaId);
+        if (!resolvedContent.includes(tempUrl)) continue;
         try {
-          const result = await uploadOnePendingMedia(
-            idbKey,
-            meta,
-            "content",
-          );
+          const result = await promoteOneTempMedia(tempMediaId, meta, "content");
           uploadedFileKeys.push(result.fileKey);
           const viewUrl = `/api/media/view?key=${encodeURIComponent(result.filename)}`;
-          resolvedContent = resolvedContent.replaceAll(blobUrl, viewUrl);
+          resolvedContent = resolvedContent.replaceAll(tempUrl, viewUrl);
 
           // Update Tiptap editor nodes directly so that the HTML
-          // generated later contains the clean mediaKey instead of idbKey
+          // generated later contains the clean mediaKey instead of tempMediaId
           if (editor) {
             const { state, view } = editor;
             const tr = state.tr;
             let modified = false;
             state.doc.descendants((node, pos) => {
-              if (node.type.name === "imageFigure" && node.attrs.idbKey === idbKey) {
+              if (
+                node.type.name === "imageFigure" &&
+                node.attrs.tempMediaId === tempMediaId
+              ) {
                 tr.setNodeMarkup(pos, undefined, {
                   ...node.attrs,
                   src: viewUrl,
-                  idbKey: "",
+                  tempMediaId: "",
                   mediaKey: result.mediaId,
                 });
                 modified = true;
@@ -1136,8 +1120,8 @@ export default function ArticleEditorForm({
             resolvedContent = editor.getHTML();
           }
 
-          // Simpan mapping blobUrl → media final untuk contentMediaMap
-          contentMediaMap.set(blobUrl, {
+          // Simpan mapping tempUrl → media final untuk contentMediaMap
+          contentMediaMap.set(tempUrl, {
             mediaId: result.mediaId,
             url: result.url,
             filename: result.filename,
@@ -1145,7 +1129,7 @@ export default function ArticleEditorForm({
         } catch (err) {
           throw Object.assign(
             new Error(
-              `Gagal mengunggah gambar body (${idbKey}): ${(err as Error).message}`,
+              `Gagal mempromosikan gambar body (${tempMediaId}): ${(err as Error).message}`,
             ),
             { uploadedFileKeys },
           );
@@ -1155,11 +1139,14 @@ export default function ArticleEditorForm({
       // 3. Gallery items yang pending
       for (let i = 0; i < resolvedGalleryItems.length; i++) {
         const item = resolvedGalleryItems[i];
-        if (!item.isPending || !item.idbKey) continue;
+        if (!item.isPending || !item.tempMediaId) continue;
         try {
-          const result = await uploadOnePendingMedia(
-            item.idbKey,
-            {},
+          const result = await promoteOneTempMedia(
+            item.tempMediaId,
+            {
+              caption: item.caption || undefined,
+              credit: item.credit || undefined,
+            },
             "gallery",
           );
           uploadedFileKeys.push(result.fileKey);
@@ -1167,13 +1154,13 @@ export default function ArticleEditorForm({
             ...item,
             mediaId: result.mediaId,
             imageUrl: result.url,
-            idbKey: undefined,
+            tempMediaId: undefined,
             isPending: undefined,
           };
         } catch (err) {
           throw Object.assign(
             new Error(
-              `Gagal mengunggah gambar gallery (${item.idbKey}): ${(err as Error).message}`,
+              `Gagal mempromosikan gambar gallery (${item.tempMediaId}): ${(err as Error).message}`,
             ),
             { uploadedFileKeys },
           );
@@ -1301,7 +1288,7 @@ export default function ArticleEditorForm({
             fd.featuredImage === undefined);
 
         // Content media: traverse editor JSON setelah upload selesai.
-        // contentMediaMap berisi blobUrl → media final untuk gambar upload baru.
+        // contentMediaMap berisi tempUrl → media final untuk gambar upload baru.
         // Gambar existing dari galeri akan resolve via mediaKey (filename).
         const contentMediaPayload =
           format === "STANDARD"
@@ -1368,12 +1355,11 @@ export default function ArticleEditorForm({
           toast.success("Article created successfully!");
         }
 
-        // ── Bersihkan IndexedDB dan draft (create: reset form agar tidak ter-restore) ──
+        // ── Bersihkan draft (create: reset form agar tidak ter-restore) ──
         if (!isEditing) {
           suppressDraftPersistRef.current = true;
           draftPersistGenerationRef.current += 1;
         }
-        await clearAllDraftImages().catch(() => {});
         removeArticleDraft(getArticleDraftStorageKey(format));
         if (!isEditing) {
           clearForm();
@@ -1434,19 +1420,12 @@ export default function ArticleEditorForm({
         }));
 
         if (isPending) {
-          // PendingMedia sudah melewati crop di ImagePickerModal (cropForFeatured=true).
-          // Langsung simpan ke state tanpa membuka CropImageModal kedua.
+          // PendingMedia sudah melewati crop di ImagePickerModal (cropForFeatured=true)
+          // dan sudah tersimpan di /temp — langsung simpan referensi ke state.
           const pm = media as PendingMedia;
 
-          // Hapus pending featured lama jika ada
-          setPendingFeaturedMedia((prev) => {
-            if (prev) {
-              URL.revokeObjectURL(prev.blobUrl);
-              void deleteEditorImage(prev.idbKey).catch(() => {});
-            }
-            return pm;
-          });
-          setFeaturedImagePreview(pm.blobUrl);
+          setPendingFeaturedMedia(pm);
+          setFeaturedImagePreview(pm.tempUrl);
           setFormData((prev) => ({ ...prev, featuredImage: "" }));
           setPickerOpen(false);
         } else {
@@ -1472,18 +1451,17 @@ export default function ArticleEditorForm({
 
           // Insert node ImageFigure (gambar + caption sebagai satu atom)
           editor?.chain().focus().setImageFigure({
-            src: pm.blobUrl,
+            src: pm.tempUrl,
             caption: articleAttribution.caption,
             credit: articleAttribution.credit,
-            idbKey: pm.idbKey,
-            mediaKey: pm.idbKey, // sementara, diganti setelah upload
+            tempMediaId: pm.tempMediaId,
+            mediaKey: pm.tempMediaId, // sementara, diganti setelah promote
           }).run();
 
           setEditorImageKeys((prev) => [
             ...prev,
             {
-              blobUrl: pm.blobUrl,
-              idbKey: pm.idbKey,
+              tempMediaId: pm.tempMediaId,
               meta: {
                 caption: articleAttribution.caption,
                 credit: articleAttribution.credit,
@@ -1503,7 +1481,7 @@ export default function ArticleEditorForm({
               caption: articleAttribution.caption,
               credit: articleAttribution.credit,
               mediaKey: existingMedia._id,
-              idbKey: "",
+              tempMediaId: "",
             }).run();
           }
         }
@@ -1522,14 +1500,14 @@ export default function ArticleEditorForm({
               id: `${Date.now()}-gallery-single`,
               mediaId: isPending ? "" : (m._id ?? ""),
               imageUrl: isPending
-                ? pm.blobUrl
+                ? pm.tempUrl
                 : `/api/media/view?key=${encodeURIComponent(m.filename)}`,
               caption:
                 articleAttribution.caption ||
                 (media.caption ?? ""),
               credit: articleAttribution.credit || "",
               order: maxOrder + 1,
-              idbKey: isPending ? pm.idbKey : undefined,
+              tempMediaId: isPending ? pm.tempMediaId : undefined,
               isPending: isPending || undefined,
             },
           ];
@@ -1624,21 +1602,66 @@ export default function ArticleEditorForm({
       return [];
     }
     return isEditing
-      ? articleEditorEditStatusChoices(formData.status)
+      ? articleEditorEditStatusChoices(formData.status, currentUser?.role)
       : articleEditorCreateStatusChoices();
   }, [currentUser?.role, isEditing, formData.status]);
 
-  const showSaveDraftHeader =
-    !isEditing || usesWriterArticleFormSubmit(currentUser?.role);
+  const isOwnArticle = useMemo(() => {
+    if (!isEditing) return true;
+    const authorId = String(
+      formData.authorId || initialData?.authorId || "",
+    ).trim();
+    const userId = String(currentUser?._id ?? "").trim();
+    return Boolean(authorId && userId && authorId === userId);
+  }, [
+    isEditing,
+    formData.authorId,
+    initialData?.authorId,
+    currentUser?._id,
+  ]);
 
-  const secondarySubmitLabel =
-    isEditing && hasArticleFormStatusPickerAccess(currentUser?.role)
+  /** Status workflow: pakai status awal artikel agar tombol tidak berubah sebelum save selesai. */
+  const workflowStatus = isEditing
+    ? (initialData?.status ?? formData.status)
+    : formData.status;
+
+  const writerActions = useMemo(() => {
+    if (!isWriterRole(currentUser?.role)) return null;
+    return getWriterArticleActions(workflowStatus, {
+      isEditing,
+      isOwnArticle,
+    });
+  }, [currentUser?.role, workflowStatus, isEditing, isOwnArticle]);
+
+  const isViewOnly = writerActions?.isViewOnly ?? false;
+
+  const showSaveDraftHeader = writerActions
+    ? writerActions.showSaveDraft
+    : !isEditing || usesWriterArticleFormSubmit(currentUser?.role);
+
+  const showSecondarySave = writerActions
+    ? writerActions.showSecondarySave
+    : true;
+
+  const showTakeDownButton = writerActions
+    ? writerActions.showTakeDown
+    : isEditing; // editor / EIC / admin: take down artikel mana pun di mode edit
+
+  const secondarySubmitLabel = writerActions
+    ? writerActions.secondaryLabel
+    : isEditing && hasArticleFormStatusPickerAccess(currentUser?.role)
       ? "Save changes"
       : "Submit";
 
   const [pendingSubmit, setPendingSubmit] = useState<null | ArticleStatus>(
     null,
   );
+
+  // Kunci editor TipTap saat artikel Taken Down (writer view-only)
+  useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(!isViewOnly);
+  }, [editor, isViewOnly]);
 
   const hasRequiredFeaturedImage = useCallback((): boolean => {
     if (pendingFeaturedMedia) return true;
@@ -1659,6 +1682,7 @@ export default function ArticleEditorForm({
 
   const handleSubmitDraft = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isViewOnly) return;
     if (!hasRequiredFeaturedImage()) {
       toast.error("Featured image wajib ditambahkan sebelum menyimpan.");
       return;
@@ -1678,6 +1702,7 @@ export default function ArticleEditorForm({
 
   const handleSubmitPublish = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isViewOnly) return;
     if (!hasRequiredFeaturedImage()) {
       toast.error("Featured image wajib ditambahkan sebelum submit.");
       return;
@@ -1690,6 +1715,12 @@ export default function ArticleEditorForm({
         editor.commands.setContent(updatedHtml);
         setEditorContentSnapshot(updatedHtml);
       }
+    }
+    if (writerActions) {
+      const nextStatus = writerActions.secondaryStatus;
+      setFormData((prev) => ({ ...prev, status: nextStatus }));
+      setPendingSubmit(nextStatus);
+      return;
     }
     if (usesWriterArticleFormSubmit(currentUser?.role)) {
       const nextStatus = ArticleStatus.PENDING_REVIEW;
@@ -1735,6 +1766,10 @@ export default function ArticleEditorForm({
         handleSubmitDraft={handleSubmitDraft}
         handleSubmitPublish={handleSubmitPublish}
         showSaveDraftHeader={showSaveDraftHeader}
+        showSecondarySave={showSecondarySave}
+        showTakeDownButton={showTakeDownButton}
+        isViewOnly={isViewOnly}
+        showWriterStatusHints={Boolean(writerActions)}
         secondarySubmitLabel={secondarySubmitLabel}
         isPublishing={isPublishing}
         formData={formData}

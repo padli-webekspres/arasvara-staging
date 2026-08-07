@@ -53,12 +53,11 @@ export interface AutosaveParams {
 	storageKey?: string;
 	format?: ArticleDraftFormat;
 	galleryItems?: DraftGalleryItem[];
-	/** IDB key untuk featured image yang belum diunggah. */
-	pendingFeaturedIdbKey?: string | null;
-	/** Pasangan blobUrl ↔ idbKey untuk gambar di body editor. */
+	/** Temp media ID untuk featured image yang belum dipromosikan. */
+	pendingFeaturedTempId?: string | null;
+	/** Temp media ID untuk gambar di body editor yang belum dipromosikan. */
 	editorImageKeys?: Array<{
-		blobUrl: string;
-		idbKey: string;
+		tempMediaId: string;
 		meta?: { caption?: string; credit?: string; watermark?: boolean };
 	}>;
 	/** Jika mengembalikan false, draft tidak ditulis (mis. setelah submit berhasil). */
@@ -123,12 +122,12 @@ function serializeGalleryItems(
 	return items.map((item) => ({
 		id: item.id,
 		mediaId: item.mediaId ?? "",
-		// Pending: jangan andalkan blob URL setelah reload — pulihkan via idbKey
-		imageUrl: item.isPending ? "" : (item.imageUrl ?? ""),
+		// Pending: imageUrl adalah tempUrl server — aman setelah reload
+		imageUrl: item.imageUrl ?? "",
 		caption: item.caption ?? "",
 		credit: item.credit ?? "",
 		order: typeof item.order === "number" ? item.order : 0,
-		...(item.idbKey ? { idbKey: item.idbKey } : {}),
+		...(item.tempMediaId ? { tempMediaId: item.tempMediaId } : {}),
 		...(item.isPending ? { isPending: true } : {}),
 	}));
 }
@@ -138,7 +137,7 @@ function createDraftPayload({
 	editor,
 	activeParamArticle,
 	featuredImagePreviewUrl,
-	pendingFeaturedIdbKey,
+	pendingFeaturedTempId,
 	editorImageKeys,
 	format = "STANDARD",
 	galleryItems = [],
@@ -147,7 +146,7 @@ function createDraftPayload({
 	editor: EditorInstance | null;
 	activeParamArticle: string | null;
 	featuredImagePreviewUrl: string | null;
-	pendingFeaturedIdbKey?: string | null;
+	pendingFeaturedTempId?: string | null;
 	editorImageKeys?: AutosaveParams["editorImageKeys"];
 	format?: ArticleDraftFormat;
 	galleryItems?: DraftGalleryItem[];
@@ -172,7 +171,7 @@ function createDraftPayload({
 		status: formData.status ?? ArticleStatus.DRAFT,
 		scheduledAt: formData.scheduledAt ?? "",
 		featuredImagePreviewUrl: featuredImagePreviewUrl || null,
-		pendingFeaturedIdbKey: pendingFeaturedIdbKey ?? null,
+		pendingFeaturedTempId: pendingFeaturedTempId ?? null,
 		editorImageKeys: editorImageKeys ?? [],
 		relatedArticles: (formData.relatedArticles ?? []) as DraftArticle["relatedArticles"],
 		savedAt: new Date().toISOString(),
@@ -190,7 +189,7 @@ export function persistArticleDraftSync({
 	storageKey = DEFAULT_DRAFT_KEY,
 	format = "STANDARD",
 	galleryItems = [],
-	pendingFeaturedIdbKey = null,
+	pendingFeaturedTempId = null,
 	editorImageKeys = [],
 	shouldPersist,
 }: PersistArticleDraftSyncParams): void {
@@ -203,7 +202,7 @@ export function persistArticleDraftSync({
 		editor,
 		activeParamArticle,
 		featuredImagePreviewUrl,
-		pendingFeaturedIdbKey,
+		pendingFeaturedTempId,
 		editorImageKeys,
 		format,
 		galleryItems,
@@ -251,7 +250,7 @@ export async function autosaveArticle({
 	storageKey = DEFAULT_DRAFT_KEY,
 	format = "STANDARD",
 	galleryItems = [],
-	pendingFeaturedIdbKey = null,
+	pendingFeaturedTempId = null,
 	editorImageKeys = [],
 	shouldPersist,
 }: AutosaveParams): Promise<void> {
@@ -269,7 +268,7 @@ export async function autosaveArticle({
 				editor,
 				activeParamArticle,
 				featuredImagePreviewUrl,
-				pendingFeaturedIdbKey,
+				pendingFeaturedTempId,
 				editorImageKeys,
 				format,
 				galleryItems,

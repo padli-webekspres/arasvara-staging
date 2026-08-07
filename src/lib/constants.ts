@@ -94,16 +94,16 @@ export const ARTICLE_STATUS: {
 
 export const NAV_LINKS = [
   { name: "Home", href: "/" },
-  { name: "International", href: "/category/international" },
-  { name: "Business", href: "/category/business" },
-  { name: "Tech", href: "/category/tech" },
-  { name: "Sports", href: "/category/sports" },
-  { name: "Weather", href: "/category/weather" },
-  { name: "Entertainment", href: "/category/entertainment" },
-  { name: "Lifestyle", href: "/category/lifestyle" },
-  { name: "Automotive", href: "/category/automotive" },
-  { name: "Health", href: "/category/health" },
-  { name: "Food", href: "/category/food" },
+  { name: "International", href: "/international" },
+  { name: "Business", href: "/business" },
+  { name: "Tech", href: "/tech" },
+  { name: "Sports", href: "/sports" },
+  { name: "Weather", href: "/weather" },
+  { name: "Entertainment", href: "/entertainment" },
+  { name: "Lifestyle", href: "/lifestyle" },
+  { name: "Automotive", href: "/automotive" },
+  { name: "Health", href: "/health" },
+  { name: "Food", href: "/food" },
 ];
 
 export const FOOTER_SECTION_LINKS = [

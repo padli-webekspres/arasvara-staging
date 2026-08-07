@@ -1,30 +1,32 @@
-import { Metadata } from "next";
-import { CATEGORIES } from "@/lib/constants";
-import CategoryClient from "./CategoryClient";
+import { permanentRedirect } from "next/navigation";
 
 interface PageProps {
   params: Promise<{ category: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export async function generateMetadata(props: PageProps): Promise<Metadata> {
+export default async function LegacyCategoryRedirectPage(props: PageProps) {
   const { category: categorySlug } = await props.params;
-  const category = CATEGORIES.find((c) => c.slug === categorySlug);
-  const categoryName = category?.name || (typeof categorySlug === "string" ? categorySlug.charAt(0).toUpperCase() + categorySlug.slice(1) : "");
+  const rawSearchParams = props.searchParams ? await props.searchParams : {};
 
-  const title = `Kategori ${categoryName}`;
-  const description = `Baca berita terbaru, terpopuler, dan terpercaya seputar ${categoryName} di Arasvara. Menyajikan jurnalisme berkualitas untuk generasi digital.`;
+  // Formulasi query string jika terdapat searchParams dari URL legacy
+  const searchParamsObj = new URLSearchParams();
+  for (const [key, value] of Object.entries(rawSearchParams)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        searchParamsObj.append(key, item);
+      }
+    } else if (typeof value === "string") {
+      searchParamsObj.append(key, value);
+    }
+  }
 
-  return {
-    title,
-    description,
-    openGraph: {
-      title: `${title} | Arasvara`,
-      description,
-      type: "website",
-    },
-  };
-}
+  const queryString = searchParamsObj.toString();
+  const querySuffix = queryString ? `?${queryString}` : "";
 
-export default async function CategoryPage() {
-  return <CategoryClient />;
+  if (categorySlug) {
+    permanentRedirect(`/${encodeURIComponent(categorySlug)}${querySuffix}`);
+  }
+
+  permanentRedirect(`/${querySuffix}`);
 }

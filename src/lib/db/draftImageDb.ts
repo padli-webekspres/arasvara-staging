@@ -14,6 +14,8 @@ const storeFeatured = process.env.STORE_FEATURED || "featured-image";
 const storeEditor = process.env.STORE_EDITOR || "editor-images";
 const storeConfig = process.env.STORE_CONFIG_MEDIA || "configuration-media";
 
+let dbInstance: IDBDatabase | null = null;
+
 /**
  * Buka (atau buat) IndexedDB.
  * Di-export agar modul lain (mis. indexeddb-config.ts) bisa menggunakan
@@ -21,10 +23,18 @@ const storeConfig = process.env.STORE_CONFIG_MEDIA || "configuration-media";
  * @returns {Promise<IDBDatabase>}
  */
 export function openDraftImageDb(): Promise<IDBDatabase> {
+  if (dbInstance) {
+    return Promise.resolve(dbInstance);
+  }
   return new Promise((resolve, reject) => {
     if (typeof window === "undefined")
       return reject(new Error("Not in browser"));
     const request = indexedDB.open(dbName, dbVersion);
+
+    request.onblocked = () => {
+      console.warn("Membuka database terblokir oleh koneksi versi lama di tab lain.");
+    };
+
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBRequest).result as IDBDatabase;
       // Buat semua store jika belum ada (idempotent — aman untuk upgrade)
@@ -39,8 +49,18 @@ export function openDraftImageDb(): Promise<IDBDatabase> {
         db.createObjectStore(storeConfig, { keyPath: "key" });
       }
     };
-    request.onsuccess = (event) =>
-      resolve((event.target as IDBRequest).result as IDBDatabase);
+    request.onsuccess = (event) => {
+      const db = (event.target as IDBRequest).result as IDBDatabase;
+      dbInstance = db;
+
+      db.onversionchange = () => {
+        db.close();
+        dbInstance = null;
+        console.warn("Database ditutup karena perubahan versi dari tab lain.");
+      };
+
+      resolve(db);
+    };
     request.onerror = (event) => reject((event.target as IDBRequest).error);
   });
 }

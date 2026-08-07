@@ -19,6 +19,7 @@ import axios from "@/lib/axios";
 import type { CategoryWithParent } from "@/types/category";
 import { fetchAllCategoriesPages } from "@/components/categories/categoryModalFetch";
 import { SortableFeaturedCategoryCard } from "./SortableFeaturedCategoryCard";
+import { CategoryOrderModalLayout } from "./CategoryOrderModalLayout";
 import {
   buildFeaturedBulkPayload,
   categoryToFeaturedSortItem,
@@ -223,9 +224,105 @@ export default function FeaturedCategoriesOrderModal({
 
   const leftBusy = loadingFeaturedSeed && featuredItems.length === 0;
 
+  const orderPanel = (
+    <>
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-base font-semibold">Diunggulkan</h3>
+        <p className="text-sm font-normal text-muted-foreground">
+          {featuredItems.length} kategori
+        </p>
+      </div>
+      <div className="min-h-[200px] flex-1 overflow-y-auto overscroll-y-contain pr-1">
+        {leftBusy ? (
+          <div className="flex h-48 items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : featuredItems.length === 0 ? (
+          <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-border px-4 text-center text-sm text-muted-foreground">
+            Belum ada kategori yang diunggulkan. Tambahkan dari panel kanan
+            atau simpan kosong untuk menonaktifkan semua unggulan.
+          </div>
+        ) : (
+          <DragDropProvider onDragEnd={handleDragEnd}>
+            <div className="flex flex-col gap-2">
+              {featuredItems.map((item, index) => (
+                <SortableFeaturedCategoryCard
+                  key={item._id}
+                  category={item}
+                  index={index}
+                  onRemove={handleRemove}
+                />
+              ))}
+            </div>
+          </DragDropProvider>
+        )}
+      </div>
+    </>
+  );
+
+  const pickerPanel = (
+    <>
+      <h3 className="mb-3 text-base font-semibold">Cari &amp; tambahkan</h3>
+      <Input
+        type="search"
+        placeholder="Saring nama, slug, atau nama panggilan…"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="mb-3 text-base md:text-sm"
+        aria-label="Saring daftar kategori"
+      />
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-y-contain pr-1">
+        {loadingPicklist ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+          </div>
+        ) : filteredPicker.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {debouncedSearch.trim()
+              ? "Tidak ada kategori yang cocok dengan saringan."
+              : "Tidak ada kategori di sistem."}
+          </p>
+        ) : (
+          filteredPicker.map((cat) => {
+            const id = cat._id != null ? String(cat._id) : "";
+            const already = Boolean(id && selectedIds.has(id));
+            return (
+              <div
+                key={id || cat.slug}
+                className="rounded-lg border border-border bg-background p-3"
+              >
+                <p className="font-medium leading-tight">{cat.name}</p>
+                <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                  {cat.slug}
+                </p>
+                <div className="mt-2 flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={already || !id || saving}
+                    onClick={() => handleAdd(cat)}
+                    aria-label={
+                      already
+                        ? `${cat.name} sudah diunggulkan`
+                        : `Tambahkan ${cat.name} ke unggulan`
+                    }
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    {already ? "Sudah unggulan" : "Tambah ke unggulan"}
+                  </Button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] w-full lg:max-w-5xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex max-h-[90dvh] w-full lg:max-w-5xl flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="shrink-0 border-b border-border px-6 py-4 text-left">
           <DialogTitle>Urutan kategori unggulan</DialogTitle>
           <DialogDescription>
@@ -234,99 +331,13 @@ export default function FeaturedCategoriesOrderModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden lg:grid-cols-3 lg:gap-4 lg:p-4">
-          <div className="order-2 flex min-h-0 flex-col border-t border-border bg-card p-4 lg:order-1 lg:col-span-2 lg:rounded-lg lg:border lg:border-border">
-            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-base font-semibold">Diunggulkan</h3>
-              <p className="text-sm font-normal text-muted-foreground">
-                {featuredItems.length} kategori
-              </p>
-            </div>
-            <div className="min-h-[200px] flex-1 overflow-y-auto pr-1">
-              {leftBusy ? (
-                <div className="flex h-48 items-center justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : featuredItems.length === 0 ? (
-                <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-border px-4 text-center text-sm text-muted-foreground">
-                  Belum ada kategori yang diunggulkan. Tambahkan dari panel kanan
-                  atau simpan kosong untuk menonaktifkan semua unggulan.
-                </div>
-              ) : (
-                <DragDropProvider onDragEnd={handleDragEnd}>
-                  <div className="flex flex-col gap-2">
-                    {featuredItems.map((item, index) => (
-                      <SortableFeaturedCategoryCard
-                        key={item._id}
-                        category={item}
-                        index={index}
-                        onRemove={handleRemove}
-                      />
-                    ))}
-                  </div>
-                </DragDropProvider>
-              )}
-            </div>
-          </div>
-
-          <div className="order-1 flex max-h-[40vh] min-h-0 flex-col border-b border-border bg-card p-4 lg:order-2 lg:max-h-none lg:rounded-lg lg:border lg:border-border">
-            <h3 className="mb-3 text-base font-semibold">Cari &amp; tambahkan</h3>
-            <Input
-              type="search"
-              placeholder="Saring nama, slug, atau nama panggilan…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="mb-3"
-              aria-label="Saring daftar kategori"
-            />
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-              {loadingPicklist ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
-                </div>
-              ) : filteredPicker.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  {debouncedSearch.trim()
-                    ? "Tidak ada kategori yang cocok dengan saringan."
-                    : "Tidak ada kategori di sistem."}
-                </p>
-              ) : (
-                filteredPicker.map((cat) => {
-                  const id = cat._id != null ? String(cat._id) : "";
-                  const already = Boolean(id && selectedIds.has(id));
-                  return (
-                    <div
-                      key={id || cat.slug}
-                      className="rounded-lg border border-border bg-background p-3"
-                    >
-                      <p className="font-medium leading-tight">{cat.name}</p>
-                      <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                        {cat.slug}
-                      </p>
-                      <div className="mt-2 flex justify-end">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={already || !id || saving}
-                          onClick={() => handleAdd(cat)}
-                          aria-label={
-                            already
-                              ? `${cat.name} sudah diunggulkan`
-                              : `Tambahkan ${cat.name} ke unggulan`
-                          }
-                        >
-                          <Plus className="mr-1 h-4 w-4" />
-                          {already ? "Sudah unggulan" : "Tambah ke unggulan"}
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
+        <CategoryOrderModalLayout
+          orderTabLabel="Diunggulkan"
+          pickerTabLabel="Cari & tambah"
+          defaultMobileTab="picker"
+          orderPanel={orderPanel}
+          pickerPanel={pickerPanel}
+        />
 
         <DialogFooter className="shrink-0 flex-col gap-2 border-t border-border bg-muted/30 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-left text-xs text-muted-foreground">

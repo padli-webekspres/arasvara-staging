@@ -660,7 +660,7 @@ export async function createArticle(
       );
     }
 
-    // ── Validasi scheduledAt (backdate diizinkan) ──
+    // ── Validasi scheduledAt (backdate / waktu lampau diizinkan; cron: scheduledAt <= now) ──
     let validScheduledAt: Date | null = null;
     if (scheduledAt) {
       const d = new Date(scheduledAt);
@@ -1008,26 +1008,140 @@ export async function createArticle(
 
 // ─── Helper: Determine Final Status Based on Role ────────────────────────────
 /**
+ * Matriks status khusus role writer.
+ * Transisi tidak diizinkan → throw 403.
+ */
+function resolveWriterFinalStatus(
+  payloadStatus: ArticleStatus | undefined,
+  existingStatus: ArticleStatus,
+): ArticleStatus {
+  const requested = payloadStatus ?? existingStatus;
+
+  if (existingStatus === ArticleStatus.TAKEN_DOWN) {
+    throw Object.assign(
+      new Error(
+        "Artikel Taken Down tidak dapat diedit. Hubungi editor untuk mengaktifkan kembali.",
+      ),
+      { status: 403 },
+    );
+  }
+
+  const allowedByExisting: Record<string, ArticleStatus[]> = {
+    [ArticleStatus.DRAFT]: [ArticleStatus.DRAFT, ArticleStatus.PENDING_REVIEW],
+    [ArticleStatus.REJECTED]: [
+      ArticleStatus.DRAFT,
+      ArticleStatus.PENDING_REVIEW,
+    ],
+    [ArticleStatus.PENDING_REVIEW]: [
+      ArticleStatus.DRAFT,
+      ArticleStatus.PENDING_REVIEW,
+    ],
+    [ArticleStatus.PUBLISHED]: [
+      ArticleStatus.PENDING_REVIEW,
+      ArticleStatus.TAKEN_DOWN,
+    ],
+    [ArticleStatus.SCHEDULED]: [
+      ArticleStatus.PENDING_REVIEW,
+      ArticleStatus.TAKEN_DOWN,
+    ],
+  };
+
+  const allowed = allowedByExisting[existingStatus];
+  if (!allowed) {
+    throw Object.assign(
+      new Error(
+        `Writer tidak dapat mengubah artikel berstatus ${existingStatus}.`,
+      ),
+      { status: 403 },
+    );
+  }
+
+  if (!allowed.includes(requested)) {
+    throw Object.assign(
+      new Error(
+        `Transisi status dari ${existingStatus} ke ${requested} tidak diizinkan untuk writer.`,
+      ),
+      { status: 403 },
+    );
+  }
+
+  return requested;
+}
+
+/**
+ * Matriks status khusus role editor.
+ * Target harus dalam allowlist; DELETED dan status lain ditolak.
+ * Taken Down tetap boleh diedit (beda dari writer).
+ */
+function resolveEditorFinalStatus(
+  payloadStatus: ArticleStatus | undefined,
+  existingStatus: ArticleStatus,
+): ArticleStatus {
+  const requested = payloadStatus ?? existingStatus;
+
+  const allowedTargets: ArticleStatus[] = [
+    ArticleStatus.DRAFT,
+    ArticleStatus.PENDING_REVIEW,
+    ArticleStatus.PUBLISHED,
+    ArticleStatus.SCHEDULED,
+    ArticleStatus.REJECTED,
+    ArticleStatus.TAKEN_DOWN,
+  ];
+
+  if (!allowedTargets.includes(requested)) {
+    throw Object.assign(
+      new Error(
+        `Status ${requested} tidak diizinkan untuk editor.`,
+      ),
+      { status: 403 },
+    );
+  }
+
+  // Existing DELETED hanya boleh dipegang admin/EIC — editor tidak boleh mutasi
+  if (existingStatus === ArticleStatus.DELETED) {
+    throw Object.assign(
+      new Error("Artikel yang sudah dihapus tidak dapat diedit oleh editor."),
+      { status: 403 },
+    );
+  }
+
+  return requested;
+}
+
+/**
  * Menentukan status akhir artikel berdasarkan role user.
- * Role di bawah head-of (reporter, writer, contributor, editor) akan memaksa status ke PENDING_REVIEW.
- * Role head-of ke atas (head-of, managing-editor, editor-in-chief, admin) dapat mengubah status sesuai input.
+ * - writer: matriks eksplisit (lihat resolveWriterFinalStatus)
+ * - editor: allowlist status (lihat resolveEditorFinalStatus)
+ * - reporter/contributor: non-DRAFT → paksa PENDING_REVIEW (perilaku lama)
+ * - role lain: payload atau keep existing
  */
 function determineFinalStatus(
   userRole: string,
   payloadStatus: ArticleStatus | undefined,
   existingStatus: ArticleStatus,
 ): ArticleStatus {
-  const juniorRoles = ["reporter", "writer", "contributor"];
+  const role = (userRole || "").toLowerCase();
 
-  // Jika role adalah junior (di bawah head-of), paksa status ke PENDING_REVIEW
+  if (role === ROLES.WRITER.toLowerCase()) {
+    return resolveWriterFinalStatus(payloadStatus, existingStatus);
+  }
+
+  if (role === ROLES.EDITOR.toLowerCase()) {
+    return resolveEditorFinalStatus(payloadStatus, existingStatus);
+  }
+
+  const juniorRoles = ["reporter", "contributor"];
+
+  // Jika role adalah junior (reporter/contributor), paksa status ke PENDING_REVIEW
+  // kecuali artikel masih DRAFT (boleh Save Draft atau Submit).
   if (
     existingStatus !== ArticleStatus.DRAFT &&
-    juniorRoles.includes(userRole)
+    juniorRoles.includes(role)
   ) {
     return ArticleStatus.PENDING_REVIEW;
   }
 
-  // Jika role adalah head-of atau di atas, gunakan payload status atau keep existing
+  // Role head-of / managing-editor / EIC / admin: gunakan payload atau keep existing
   return payloadStatus || existingStatus;
 }
 
@@ -1075,6 +1189,19 @@ export async function updateArticle(
         status: 403,
       });
 
+    // Writer tidak boleh mengubah artikel Taken Down (view-only di CMS)
+    if (
+      role === ROLES.WRITER.toLowerCase() &&
+      existing.status === ArticleStatus.TAKEN_DOWN
+    ) {
+      throw Object.assign(
+        new Error(
+          "Artikel Taken Down tidak dapat diedit. Hubungi editor untuk mengaktifkan kembali.",
+        ),
+        { status: 403 },
+      );
+    }
+
     // ─── Format Validation ────────────────────────────────────────────────────
     // Format tidak bisa diubah setelah artikel dibuat (immutable property)
     const existingFormat = existing.format || "STANDARD";
@@ -1087,7 +1214,7 @@ export async function updateArticle(
       );
     }
 
-    // scheduledAt validation (backdate diizinkan)
+    // scheduledAt validation (backdate / waktu lampau diizinkan; cron: scheduledAt <= now)
     let validScheduledAt: Date | null = null;
     if (payload.scheduledAt) {
       const d = new Date(payload.scheduledAt);
@@ -1149,11 +1276,29 @@ export async function updateArticle(
         : undefined;
 
     // ───────────────── POINT 1: Deteksi Role & Tentukan Status Final ────────────
-    const finalStatus = determineFinalStatus(
-      role,
-      payload.status as ArticleStatus | undefined,
-      existing.status as ArticleStatus,
-    );
+    let finalStatus: ArticleStatus;
+    try {
+      finalStatus = determineFinalStatus(
+        role,
+        payload.status as ArticleStatus | undefined,
+        existing.status as ArticleStatus,
+      );
+    } catch (statusErr: unknown) {
+      const err = statusErr as { status?: number; message?: string };
+      if (err?.status === 403) {
+        logger.warn(
+          {
+            articleId,
+            role,
+            from: existing.status,
+            to: payload.status,
+            message: err.message,
+          },
+          "updateArticle: transisi status ditolak",
+        );
+      }
+      throw statusErr;
+    }
     const statusChanged = finalStatus !== existing.status;
 
     // ───────────────── POINT 2: Tambahkan Data ke Revision History ──────────────
@@ -1180,24 +1325,36 @@ export async function updateArticle(
       }
 
       const existingTitle = String(existing.title ?? "");
-      const titleChanged =
+      // Exact text (case/punctuation-sensitive) vs semantic identity (normalized).
+      const rawTitleChanged = trimmedTitle !== existingTitle;
+      const normalizedTitleChanged =
         normalizeArticleTitle(trimmedTitle) !==
         normalizeArticleTitle(existingTitle);
 
-      if (titleChanged) {
-        await assertUniqueArticleTitle(db, trimmedTitle, articleId);
+      if (rawTitleChanged) {
+        if (normalizedTitleChanged) {
+          // Semantic change: uniqueness check + slug regeneration.
+          await assertUniqueArticleTitle(db, trimmedTitle, articleId);
 
-        const newSlug = isPlaceholderArticleTitle(trimmedTitle)
-          ? resolveArticleSlug(trimmedTitle, new ObjectId(articleId))
-          : generateArticleSlug(trimmedTitle);
-        await assertUniqueArticleSlug(db, newSlug, articleId);
+          const newSlug = isPlaceholderArticleTitle(trimmedTitle)
+            ? resolveArticleSlug(trimmedTitle, new ObjectId(articleId))
+            : generateArticleSlug(trimmedTitle);
+          await assertUniqueArticleSlug(db, newSlug, articleId);
 
-        titleSlugUpdates = {
-          title: trimmedTitle,
-          metaTitle: trimmedTitle,
-          titleNormalized: titleNormalizedForStorage(trimmedTitle),
-          slug: newSlug,
-        };
+          titleSlugUpdates = {
+            title: trimmedTitle,
+            metaTitle: trimmedTitle,
+            titleNormalized: titleNormalizedForStorage(trimmedTitle),
+            slug: newSlug,
+          };
+        } else {
+          // Case / punctuation / whitespace-only change: persist display text as typed.
+          // Slug and titleNormalized are unchanged (normalized form is identical).
+          titleSlugUpdates = {
+            title: trimmedTitle,
+            metaTitle: trimmedTitle,
+          };
+        }
       }
     }
 
@@ -1230,13 +1387,27 @@ export async function updateArticle(
       updatedAt: new Date(),
     };
 
-    // Auto-set publishedAt when transitioning to PUBLISHED
+    // Auto-set publishedAt when transitioning to PUBLISHED.
+    // Jika artikel pernah publish (publishedAt sudah ada), pertahankan waktu asli.
     if (
       finalStatus === ArticleStatus.PUBLISHED &&
       existing.status !== ArticleStatus.PUBLISHED
     ) {
       const publishNow = new Date();
-      updates.publishedAt = publishNow;
+      const existingPublishedAt =
+        existing.publishedAt instanceof Date
+          ? existing.publishedAt
+          : existing.publishedAt
+            ? new Date(String(existing.publishedAt))
+            : null;
+      const hasPriorPublish =
+        existingPublishedAt instanceof Date &&
+        !Number.isNaN(existingPublishedAt.getTime());
+
+      if (!hasPriorPublish) {
+        updates.publishedAt = publishNow;
+      }
+      // dateModified SEO: selalu refresh saat (re)publish dari status non-PUBLISHED
       updates.contentUpdatedAt = publishNow;
     } else if (
       finalStatus === ArticleStatus.PUBLISHED &&
@@ -1244,6 +1415,15 @@ export async function updateArticle(
     ) {
       // Hanya update dateModified SEO saat title/excerpt/content berubah
       updates.contentUpdatedAt = new Date();
+    }
+
+    // Stamp submittedAt saat pertama kali masuk antrian review
+    if (
+      finalStatus === ArticleStatus.PENDING_REVIEW &&
+      existing.status !== ArticleStatus.PENDING_REVIEW &&
+      !existing.submittedAt
+    ) {
+      updates.submittedAt = new Date();
     }
 
     // dari PENDING_REVIEW ke published / scheduled / rejected: editor dapat mengisi editorId
@@ -1262,10 +1442,8 @@ export async function updateArticle(
       }
     }
 
-    // lakukan pengecekan: jika finalstatus nya == publised, dan revisionentry.from dan revisionentry.to nya berbeda, maka pastikan actionnya adalah publish, bukan update serta publishedBy nya diisi dengan userId
-    let actionActivity: AuditLogAction = AuditLogAction.UPDATE;
+    // Auto-set publishedBy saat transisi ke PUBLISHED
     if (finalStatus === ArticleStatus.PUBLISHED && statusChanged) {
-      actionActivity = AuditLogAction.PUBLISH;
       updates.publishedBy =
         typeof userId === "string" ? new ObjectId(userId) : userId;
     }
@@ -1328,7 +1506,9 @@ export async function updateArticle(
               ? AuditLogAction.SCHEDULE
               : finalStatus === ArticleStatus.REJECTED
                 ? AuditLogAction.REJECT
-                : AuditLogAction.UPDATE,
+                : finalStatus === ArticleStatus.TAKEN_DOWN
+                  ? AuditLogAction.TAKE_DOWN
+                  : AuditLogAction.UPDATE,
         entity: AuditLogEntity.ARTICLES,
         entityId: articleId,
         details: editReason

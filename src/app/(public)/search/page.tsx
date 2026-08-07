@@ -17,6 +17,15 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
   return {
     title,
     description,
+    // Halaman pencarian tidak diindeks (thin/duplicate query URLs)
+    robots: {
+      index: false,
+      follow: true,
+      googleBot: {
+        index: false,
+        follow: true,
+      },
+    },
     openGraph: {
       title: `${title} | Arasvara`,
       description,

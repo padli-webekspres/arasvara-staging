@@ -35,7 +35,7 @@ const TitleHomepage: React.FC<TitleHomepageProps> = ({
           href={seeMoreLink}
           className={cn(
             " text-lg transition-all hover:font-semibold ",
-            variant === "light" ? "text-hijauSawah" : "text-white/80",
+            variant === "light" ? "text-hijauSawah" : "text-white",
           )}
         >
           Lihat Semua

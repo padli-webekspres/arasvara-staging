@@ -102,6 +102,14 @@ interface ArticleEditorFormUiProps {
   handleSubmitPublish: (e?: React.FormEvent) => void;
   /** Tombol Save Draft di header — disembunyikan untuk editor+/admin dalam mode edit. */
   showSaveDraftHeader?: boolean;
+  /** Tombol sekunder (Submit / Save / Save changes). Disembunyikan saat view-only. */
+  showSecondarySave?: boolean;
+  /** Tombol Take Down — writer hanya pada artikel milik sendiri Published/Scheduled. */
+  showTakeDownButton?: boolean;
+  /** Writer + Taken Down: form hanya baca. */
+  isViewOnly?: boolean;
+  /** Tampilkan petunjuk alur status khusus writer. */
+  showWriterStatusHints?: boolean;
   /** Teks tombol utama samping Save Draft — "Publish" (create / penulis) atau "Save changes" (editor edit). */
   secondarySubmitLabel?: string;
   isEditing: boolean;
@@ -222,6 +230,10 @@ const ArticleEditorFormUi: React.FC<ArticleEditorFormUiProps> = ({
   handleSubmitDraft,
   handleSubmitPublish,
   showSaveDraftHeader = true,
+  showSecondarySave = true,
+  showTakeDownButton = true,
+  isViewOnly = false,
+  showWriterStatusHints = false,
   secondarySubmitLabel = "Publish",
   format = "STANDARD",
   galleryItems,
@@ -388,6 +400,11 @@ const ArticleEditorFormUi: React.FC<ArticleEditorFormUiProps> = ({
                 Last saved: {lastSaved.toLocaleTimeString()}
               </p>
             )}
+            {isViewOnly && (
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                Artikel Taken Down — hanya bisa dilihat, tidak bisa diedit.
+              </p>
+            )}
           </div>
         </div>
 
@@ -406,7 +423,7 @@ const ArticleEditorFormUi: React.FC<ArticleEditorFormUiProps> = ({
               />
             </>
           )}
-          {isEditing && (
+          {isEditing && showTakeDownButton && (
             <AlertDialog
               open={takeDownDialogOpen}
               onOpenChange={setTakeDownDialogOpen}
@@ -452,34 +469,42 @@ const ArticleEditorFormUi: React.FC<ArticleEditorFormUiProps> = ({
               </AlertDialogContent>
             </AlertDialog>
           )}
-          {showSaveDraftHeader && (
+          {showSaveDraftHeader && !isViewOnly && (
             <HeaderActionButton
               onClick={handleSubmitDraft}
               icon={Save}
               label="Save Draft"
             />
           )}
-          <Button
-            onClick={handleSubmitPublish}
-            disabled={isPublishing}
-            type="button"
-            className="h-9 shrink-0 px-2.5 sm:px-3"
-            aria-label={isPublishing ? "Publishing" : secondarySubmitLabel}
-          >
-            {isPublishing ? (
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-            ) : (
-              <Eye className="h-4 w-4 shrink-0" />
-            )}
-            <span className="ml-2 truncate max-w-[6.5rem] sm:max-w-none">
-              {isPublishing ? "Publishing..." : secondarySubmitLabel}
-            </span>
-          </Button>
+          {showSecondarySave && !isViewOnly && (
+            <Button
+              onClick={handleSubmitPublish}
+              disabled={isPublishing}
+              type="button"
+              className="h-9 shrink-0 px-2.5 sm:px-3"
+              aria-label={isPublishing ? "Publishing" : secondarySubmitLabel}
+            >
+              {isPublishing ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              ) : (
+                <Eye className="h-4 w-4 shrink-0" />
+              )}
+              <span className="ml-2 truncate max-w-[6.5rem] sm:max-w-none">
+                {isPublishing ? "Publishing..." : secondarySubmitLabel}
+              </span>
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Editor + Sidebar — layout 2 kolom hanya di xl (desktop lebar) */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 min-w-0">
+      <div
+        className={cn(
+          "grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 min-w-0",
+          isViewOnly && "pointer-events-none opacity-90",
+        )}
+        aria-readonly={isViewOnly || undefined}
+      >
         {/* Main Editor */}
         <div className="xl:col-span-2 min-w-0 space-y-4 sm:space-y-6 order-1">
           <Input
@@ -888,17 +913,41 @@ const ArticleEditorFormUi: React.FC<ArticleEditorFormUiProps> = ({
                       }}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Waktu publish hanya bisa kelipatan 5 menit (misal: 10:00,
-                      10:05, dst)
+                      Kelipatan 5 menit (mis. 10:00, 10:05). Waktu yang sudah
+                      lewat diizinkan — artikel akan terbit pada cron berikutnya.
                     </p>
                   </div>
                 )}
               </>
             ) : (
               <p className="text-xs text-muted-foreground pt-1">
-                Sebagai penulis: gunakan <strong>Save Draft</strong> untuk
-                menyimpan draf, atau <strong>{secondarySubmitLabel}</strong>{" "}
-                untuk mengajukan ke peninjauan editor.
+                {isViewOnly ? (
+                  <>
+                    Artikel ini berstatus <strong>Taken Down</strong> dan tidak
+                    dapat diedit.
+                  </>
+                ) : showWriterStatusHints &&
+                  (formData.status === ArticleStatus.PUBLISHED ||
+                    formData.status === ArticleStatus.SCHEDULED) ? (
+                  <>
+                    Gunakan <strong>Save changes</strong> untuk mengajukan
+                    revisi ke peninjauan, atau <strong>Take Down</strong> untuk
+                    menurunkan artikel dari publik.
+                  </>
+                ) : showWriterStatusHints &&
+                  formData.status === ArticleStatus.PENDING_REVIEW ? (
+                  <>
+                    Gunakan <strong>Save</strong> untuk menyimpan tanpa
+                    mengubah status, atau <strong>Save Draft</strong> untuk
+                    menarik kembali ke Waiting.
+                  </>
+                ) : (
+                  <>
+                    Sebagai penulis: gunakan <strong>Save Draft</strong> untuk
+                    menyimpan draf, atau <strong>{secondarySubmitLabel}</strong>{" "}
+                    untuk mengajukan ke peninjauan editor.
+                  </>
+                )}
               </p>
             )}
           </div>

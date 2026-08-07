@@ -1,21 +1,20 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import HeroVideo from "./HeroVideo";
 import HeadlineSlider from "@/components/news/HeadlineSlider";
-import type { Article } from "@/types/article";
 import { useSnapScroll } from "@/hooks/animation/useSnapScrollHomepage";
-import PopularNewsCarousel from "./carousel/PopularNewsCarousel";
-// import { VideoSocmedCarousel } from "./carousel/VideoSocmedCarousel";
-import TitleHomepage from "@/components/homepage/TitleHomepage";
 import Link from "next/link";
 import { SectionArticleItem } from "@/types/articleSection";
-import Image from "next/image";
-import AdsCarousel from "../ads/carousel/AdsCarousel";
 import { AdsCarouselVariant, type HomepageAdItem } from "@/types/ads";
-import SectionText from "../aboutUs/SectionText";
+
+const AdsCarousel = dynamic(() => import("../ads/carousel/AdsCarousel"), {
+  ssr: false,
+  loading: () => <div className="mt-8 min-h-[80px] w-full" aria-hidden="true" />,
+});
 
 interface SnapWrapperProps {
   heroVideoUrl: string;
@@ -23,17 +22,19 @@ interface SnapWrapperProps {
   headlines: SectionArticleItem[];
   videoSectionBgUrl?: string;
   headlineCarouselAds: HomepageAdItem[];
-  /** Server-rendered monogram LCP — dari page.tsx */
+  /** Server-rendered monogram — dari page.tsx */
   lcpMonogram: ReactNode;
+  /** Server-rendered hero poster untuk LCP */
+  lcpPoster?: ReactNode;
 }
 
 const SnapWrapper = ({
   heroVideoUrl,
   heroVideoPosterUrl,
   headlines,
-  videoSectionBgUrl,
   headlineCarouselAds,
   lcpMonogram,
+  lcpPoster,
 }: SnapWrapperProps) => {
   const wrapperRef = useSnapScroll();
   const router = useRouter();
@@ -49,46 +50,22 @@ const SnapWrapper = ({
   };
 
   return (
-    // Pasang ref di container paling luar
     <div ref={wrapperRef} className="w-full relative isolate">
-      {/* SECTION 1: Hero — sticky agar tertutup overlay saat scroll */}
       <section className="snap-panel sticky top-0 h-screen w-full z-0">
         <div className="relative h-screen w-full overflow-hidden">
-          <HeroVideo videoUrl={heroVideoUrl} posterUrl={heroVideoPosterUrl} />
+          <HeroVideo
+            videoUrl={heroVideoUrl}
+            posterUrl={heroVideoPosterUrl}
+            lcpPoster={lcpPoster}
+          />
           {lcpMonogram}
         </div>
       </section>
 
-      {/* snap-panel 2: About Us */}
-      {/* <SectionText
-        title="About us"
-        snapPanel
-        hideIconMouseBouncing
-        variant="light"
-      >
-        <p className="text-base md:text-lg leading-relaxed">
-          Seiring dengan pesatnya perkembangan zaman dan kemajuan teknologi,
-          industri media massa mengalami transformasi yang signifikan. Di tengah
-          dinamika tersebut serta kompetisi yang semakin kompetitif, khususnya
-          pada sektor media portal di Indonesia, Arasvara hadir sebagai entitas
-          media baru yang berkomitmen menjawab tantangan dan kebutuhan industri.
-        </p>
-        <p className="text-base md:text-lg leading-relaxed">
-          Nama Arasvara lahir dari diskusi internal yang melibatkan talenta
-          muda. Media ini awalnya dirancang dengan nama Arah Suara, kemudian
-          dikembangkan menjadi Arasvara agar memiliki identitas yang lebih
-          modern, kuat, dan relevan bagi generasi digital. Kata
-          &ldquo;Svara&rdquo;, yang berasal dari bahasa Sanskerta dan bermakna
-          &ldquo;nada&rdquo; atau &ldquo;suara&rdquo;, merepresentasikan
-          aspirasi untuk menghadirkan informasi yang mendengar serta memantulkan
-          suara generasi muda Milenial dan Gen Z.
-        </p>
-      </SectionText> */}
-
-      {/* SECTION 2: Headlines Slider — scroll di atas hero (overlay) */}
-      <section className="snap-panel relative z-10 h-screen w-full flex items-center bg-background overflow-x-hidden">
-        <div className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 py-6">
-          <form
+      {/* Tinggi mengikuti konten (bukan h-screen) agar layout aman saat konten pendek/panjang */}
+      <section className="relative z-10 w-full bg-background overflow-x-hidden min-h-screen flex items-center">
+        <div className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 py-8 md:py-10 lg:py-12">
+          {/* <form
             onSubmit={handleSearchSubmit}
             className="relative flex items-center w-full max-w-xl mx-auto mb-10 bg-foreground/5 backdrop-blur-sm border border-foreground/10 rounded-full shadow-inner focus-within:ring-2 focus-within:ring-hijauSawah/30 focus-within:border-hijauSawah/50 transition-all duration-300 group"
           >
@@ -106,7 +83,7 @@ const SnapWrapper = ({
             >
               Cari
             </button>
-          </form>
+          </form> */}
           <div className="flex items-center md:items-end justify-between mb-4 flex-col md:flex-row">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-center w-full md:w-auto text-primary">
               Headline Berita
@@ -120,7 +97,6 @@ const SnapWrapper = ({
           </div>
           <HeadlineSlider articles={headlines} />
 
-          {/* banner carousel iklan headline berita */}
           <div className="w-full mt-8">
             <AdsCarousel
               variant={AdsCarouselVariant.HORIZONTAL_LONG}
@@ -129,8 +105,6 @@ const SnapWrapper = ({
           </div>
         </div>
       </section>
-
-      {/* SECTION 3: Terpopuler News */}
     </div>
   );
 };

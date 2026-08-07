@@ -10,6 +10,7 @@ import { getUserFromRequest } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db/db";
 import { sendMpEvent } from "@/lib/measurement-protocol";
 import type { ArticleGaPayload } from "@/lib/google-analytics";
+import { shouldCountArticleView } from "@/lib/articleViewAccess";
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,6 +22,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!ObjectId.isValid(String(data.articleId))) {
+      return NextResponse.json(
+        { error: "articleId tidak valid" },
+        { status: 400 },
+      );
+    }
+
+    const db = await connectToDatabase();
+    const article = await db.collection("articles").findOne(
+      { _id: new ObjectId(String(data.articleId)) },
+      { projection: { status: 1 } },
+    );
+    if (!article || !shouldCountArticleView(article.status)) {
+      return NextResponse.json({ success: false, skipped: true });
+    }
+
     // Get userId from JWT (if available)
     let userId: ObjectId | undefined = undefined;
     try {
@@ -28,7 +45,7 @@ export async function POST(req: NextRequest) {
       if (user?._id) {
         userId = new ObjectId(user._id);
       }
-    } catch (e) {
+    } catch {
       // Ignore if user not available
     }
 
@@ -36,7 +53,7 @@ export async function POST(req: NextRequest) {
     try {
       const cookie = req.cookies.get(ACCESS_TOKEN_COOKIE);
       if (cookie && typeof cookie.value === "string") sessionId = cookie.value;
-    } catch (e) {
+    } catch {
       // Ignore if not available
     }
 
@@ -47,7 +64,7 @@ export async function POST(req: NextRequest) {
         req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
         req.headers.get("x-real-ip") ||
         undefined;
-    } catch (e) {
+    } catch {
       // Ignore if not available
     }
 
@@ -66,10 +83,9 @@ export async function POST(req: NextRequest) {
     try {
       // Increment viewCount
       await incrementArticleViewCount(data.articleId);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Compensating action: rollback log view jika increment gagal
       try {
-        const db = await connectToDatabase();
         // Ensure _id is ObjectId for the filter
         const _id =
           typeof savedView._id === "string"
@@ -83,7 +99,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            err.message ||
+            (err instanceof Error ? err.message : "") ||
             "Failed to increment viewCount, log view rolled back",
         },
         { status: 500 },
@@ -121,9 +137,12 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true, view: savedView });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { error: err.message || "Internal server error" },
+      {
+        error:
+          err instanceof Error ? err.message : "Internal server error",
+      },
       { status: 500 },
     );
   }

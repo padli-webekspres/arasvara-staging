@@ -522,7 +522,6 @@ export class AdsManagementService {
 	private static validateCreatePayload(p: CreateAdsHomepagePayload): void {
 		const errors: string[] = [];
 
-		if (!p.linkUrl?.trim()) errors.push("linkUrl wajib diisi");
 		if (!p.position?.trim()) errors.push("position wajib diisi");
 		if (!p.name?.trim()) errors.push("name wajib diisi");
 

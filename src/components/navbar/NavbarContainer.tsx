@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { usePushNotification } from "@/hooks/usePushNotification";
 import { useCategoriesNavbar } from "@/hooks/useCategory";
 import { Category } from "@/types/category";
 import { Button } from "../ui/button";
@@ -61,7 +60,7 @@ function CategoryBulletLinks({
             </span>
           )}
           <Link
-            href={`/category/${cat.slug}`}
+            href={`/${cat.slug}`}
             title={cat.name}
             className={mastheadLinkClassName}
           >
@@ -157,7 +156,6 @@ const NavbarContainer = () => {
   };
 
   const { data: user } = useCurrentUser();
-  usePushNotification();
   const { data: categories, isPending: isCategoriesPending } =
     useCategoriesNavbar();
 
@@ -375,14 +373,14 @@ const NavbarContainer = () => {
               <div className="w-full flex items-center justify-between">
                 <Link
                   href="/"
+                  aria-label="Beranda Arasvara"
                   className="shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-hijauSawah/40 rounded-md"
                 >
                   <Image
-                    src="/logo-arasvara/main-logo/main-logo-hitam-gema.png"
-                    alt="Arasvara"
+                    src="/logo-arasvara/main-logo/main-logo-hitam-gema-w640.webp"
+                    alt=""
                     width={220}
-                    height={88}
-                    priority
+                    height={35}
                     unoptimized
                     className="w-auto h-9 sm:h-10 object-contain"
                   />
@@ -429,7 +427,7 @@ const NavbarContainer = () => {
                           )}
                           {item.type === "category" ? (
                             <Link
-                              href={`/category/${item.cat.slug}`}
+                              href={`/${item.cat.slug}`}
                               title={item.cat.name}
                               className={mobileMastheadLinkClassName}
                             >
@@ -476,11 +474,10 @@ const NavbarContainer = () => {
                 className="justify-self-center shrink-0 px-4 xl:px-6 outline-none focus-visible:ring-2 focus-visible:ring-hijauSawah/40 rounded-md"
               >
                 <Image
-                  src="/logo-arasvara/main-logo/main-logo-hitam-gema.png"
+                  src="/logo-arasvara/main-logo/main-logo-hitam-gema-w640.webp"
                   alt="Arasvara"
                   width={240}
-                  height={96}
-                  priority
+                  height={38}
                   unoptimized
                   className="w-auto h-12  object-contain"
                 />

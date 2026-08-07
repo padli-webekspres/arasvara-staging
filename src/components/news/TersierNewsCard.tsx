@@ -2,10 +2,9 @@
 
 import React from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
 import { Article, ArticleListResponse } from "@/types/article";
 import { ImageNotFound } from "@/components/image-notfound/ImageNotFound";
-import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { resolvePublicArticleHref } from "@/lib/article-public-path";
 
 interface TersierNewsCardProps {
@@ -23,7 +22,7 @@ const TersierNewsCard = ({ article }: TersierNewsCardProps) => {
   const showImageFallback = !imageUrl || imageFailed;
   const hasImage = !showImageFallback;
 
-  let title = article.title || "";
+  const title = article.title || "";
   let highlight = "";
   let main = title;
   const match = title.match(/(.+)([.!?]\s+[^.!?]+)$/);
@@ -49,14 +48,12 @@ const TersierNewsCard = ({ article }: TersierNewsCardProps) => {
             className="border-0 shadow-none"
           />
         ) : (
-          <Image
+          <ResponsiveMediaImage
             src={imageUrl}
-            alt={article.title}
-            fill
-            className="object-cover w-full h-full"
-            sizes="(max-width: 768px) 100vw, 50vw"
+            alt=""
+            className="absolute inset-0 object-cover w-full h-full"
+            sizes="(max-width: 768px) 92vw, 50vw"
             onError={() => setImageFailed(true)}
-            unoptimized={shouldUnoptimizeNewsCardImage(imageUrl)}
           />
         )}
         {/* Overlay gradient */}

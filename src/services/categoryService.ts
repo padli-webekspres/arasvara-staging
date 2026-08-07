@@ -10,6 +10,7 @@ import slugify from "slugify";
 import logger from "@/lib/logger";
 import { createAuditLog, requireAuditActor } from "@/services/auditLogService";
 import { normalizeFeaturedImage } from "@/lib/helper-article";
+import { isReservedRootSegment } from "@/lib/article-public-path";
 import type { ArticleListResponse } from "@/types/article";
 import type { UserProfile } from "@/types/user";
 
@@ -151,6 +152,13 @@ export async function createCategory(
 			throw err;
 		}
 		const slug = slugify(name, { lower: true, strict: true });
+		if (isReservedRootSegment(slug)) {
+			const err: any = new Error(
+				`Category slug "${slug}" is a reserved root segment.`,
+			);
+			err.status = 400;
+			throw err;
+		}
 		// Slug uniqueness check
 		const slugExists = await db.collection("categories").findOne({ slug });
 		if (slugExists) {
@@ -320,6 +328,13 @@ export async function updateCategory(
 		let slug = existingCategory.slug;
 		if (name !== undefined && name !== existingCategory.name) {
 			slug = slugify(name, { lower: true, strict: true });
+			if (isReservedRootSegment(slug)) {
+				const err: any = new Error(
+					`Category slug "${slug}" is a reserved root segment.`,
+				);
+				err.status = 400;
+				throw err;
+			}
 			const slugExists = await db
 				.collection("categories")
 				.findOne({ slug, _id: { $ne: existingCategory._id } });

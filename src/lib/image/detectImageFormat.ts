@@ -53,3 +53,25 @@ export function detectImageFormat(
 export function isValidWebpBuffer(buffer: Buffer | Uint8Array): boolean {
   return detectImageFormat(buffer) === "webp";
 }
+
+let isWebpSupported: boolean | null = null;
+
+/**
+ * Deteksi apakah browser mendukung ekspor canvas ke image/webp (CORS/Safari fallback).
+ * Bernilai false pada browser Safari di iOS < 17.2.
+ */
+export function checkWebpSupport(): boolean {
+  if (typeof window === "undefined") return false;
+  if (isWebpSupported !== null) return isWebpSupported;
+
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const dataUrl = canvas.toDataURL("image/webp");
+    isWebpSupported = dataUrl.startsWith("data:image/webp");
+  } catch {
+    isWebpSupported = false;
+  }
+  return isWebpSupported;
+}

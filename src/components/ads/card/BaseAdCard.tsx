@@ -1,5 +1,5 @@
-import { cn, shouldUnoptimizeNewsCardImage } from "@/lib/utils";
-import Image from "next/image";
+import { cn } from "@/lib/utils";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
 
 /** Gambar iklan: cegah drag & highlight seperti asset gambar biasa. */
 const AD_IMAGE_NO_DRAG_CLASS = "select-none [-webkit-user-drag:none]" as const;
@@ -13,12 +13,12 @@ export interface BaseAdCardProps {
   className?: string;
   /**
    * Mengisi tinggi/lebar parent (biasanya wrapper dengan aspect-ratio).
-   * Gambar memakai `fill`; tidak menyetel inline aspectRatio pada root.
+   * Gambar memakai absolute fill; tidak menyetel inline aspectRatio pada root.
    */
   fill?: boolean;
   /** Saat true (mis. di dalam `<a>`), aktifkan pointer-events untuk bisa diklik. */
   interactive?: boolean;
-  /** Paksa bypass image optimizer Next jika URL sumber perlu direct-fetch. */
+  /** Deprecated: CDN variants handled by ResponsiveMediaImage. */
   unoptimized?: boolean;
 }
 
@@ -35,14 +35,13 @@ export default function BaseAdCard({
   className,
   fill = false,
   interactive = false,
-  unoptimized,
 }: BaseAdCardProps) {
   const pointerClass = interactive
     ? "pointer-events-auto"
     : "pointer-events-none";
   const resolvedSrc = src || defaultSrc;
-  const shouldUnoptimize =
-    unoptimized ?? shouldUnoptimizeNewsCardImage(resolvedSrc);
+  const imageAlt =
+    alt === "Advertisement" || alt === "Iklan" || !alt?.trim() ? "" : alt;
 
   if (fill) {
     return (
@@ -56,14 +55,15 @@ export default function BaseAdCard({
         <div className="absolute top-4 -right-8 w-36 transform rotate-45 bg-black/60 backdrop-blur-sm text-white text-center py-1 text-[10px] font-bold uppercase tracking-wider z-20 shadow-sm pointer-events-none">
           Iklan
         </div>
-        <Image
+        <ResponsiveMediaImage
           src={resolvedSrc}
-          alt={alt}
-          fill
+          alt={imageAlt}
           draggable={false}
-          className={cn("object-cover", AD_IMAGE_NO_DRAG_CLASS)}
+          className={cn(
+            "absolute inset-0 h-full w-full object-cover",
+            AD_IMAGE_NO_DRAG_CLASS,
+          )}
           sizes={`(max-width: 1024px) min(100vw, 384px), ${width}px`}
-          unoptimized={shouldUnoptimize}
         />
       </div>
     );
@@ -78,15 +78,15 @@ export default function BaseAdCard({
       )}
       style={{ aspectRatio: `${width} / ${height}` }}
     >
-      <Image
+      <ResponsiveMediaImage
         src={resolvedSrc}
-        alt={alt}
+        alt={imageAlt}
         draggable={false}
-        className={cn("object-cover w-full h-full", AD_IMAGE_NO_DRAG_CLASS)}
-        width={width}
-        height={height}
+        className={cn(
+          "absolute inset-0 h-full w-full object-cover",
+          AD_IMAGE_NO_DRAG_CLASS,
+        )}
         sizes={`(max-width: ${width}px) 100vw, ${width}px`}
-        unoptimized={shouldUnoptimize}
       />
     </div>
   );

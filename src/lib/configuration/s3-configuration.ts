@@ -2,6 +2,11 @@ import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { s3Client } from "@/lib/s3";
 import logger from "@/lib/logger";
 import { withImmutableCacheControl } from "@/lib/s3/object-cache";
+import {
+  generateImageVariants,
+  getVariantKey,
+  RESPONSIVE_IMAGE_WIDTHS,
+} from "@/lib/image/generateImageVariants";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -13,50 +18,95 @@ const CONFIGURATION_BUCKET =
 interface UploadConfigurationFileResult {
   storageKey: string;
   mimeType: string;
+  width?: number;
+  height?: number;
+}
+
+function isImageUpload(file: File): boolean {
+  return (
+    file.type.startsWith("image/") ||
+    /\.(webp|jpe?g|png|gif|avif)$/i.test(file.name)
+  );
+}
+
+function variantKeysFor(storageKey: string): string[] {
+  if (!/\.webp$/i.test(storageKey)) return [];
+  if (/-w(?:640|1280)\.webp$/i.test(storageKey)) return [];
+  return RESPONSIVE_IMAGE_WIDTHS.map((width) =>
+    getVariantKey(storageKey, width),
+  );
 }
 
 // ── Upload Configuration File ──────────────────────────────────────────────
 
 /**
- * Upload configuration file (video, image, etc.) ke S3/MinIO
- * @param file File object dari request FormData
- * @param fileType Tipe file untuk naming (mis: "hero_video", "hero_thumbnail")
- * @returns Object dengan storageKey dan mimeType
+ * Upload configuration file (video, image, etc.) ke S3/MinIO.
+ * Image juga menulis varian `-w640` / `-w1280` (penting untuk LCP hero poster).
  */
 export async function uploadConfigurationFile(
   file: File,
   fileType: string,
 ): Promise<UploadConfigurationFileResult> {
   try {
-    // Convert File ke Buffer
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Generate storage key dengan timestamp
+    let buffer: Buffer = Buffer.from(arrayBuffer);
+    let contentType = file.type || "application/octet-stream";
     const timestamp = Date.now();
-    const fileExtension = file.name.includes(".")
-      ? file.name.substring(file.name.lastIndexOf("."))
-      : "";
-    const storageKey = `${fileType}_${timestamp}${fileExtension}`;
+    let width: number | undefined;
+    let height: number | undefined;
 
-    // Upload ke S3/MinIO
+    let storageKey: string;
+
+    if (isImageUpload(file)) {
+      const variants = await generateImageVariants(buffer);
+      buffer = variants.original.buffer;
+      contentType = "image/webp";
+      width = variants.original.width;
+      height = variants.original.height;
+      storageKey = `${fileType}_${timestamp}.webp`;
+
+      await Promise.all(
+        RESPONSIVE_IMAGE_WIDTHS.map((w) =>
+          s3Client.send(
+            new PutObjectCommand(
+              withImmutableCacheControl({
+                Bucket: CONFIGURATION_BUCKET,
+                Key: getVariantKey(storageKey, w),
+                Body: variants[`w${w}`].buffer,
+                ContentType: "image/webp",
+              }),
+            ),
+          ),
+        ),
+      );
+    } else {
+      const fileExtension = file.name.includes(".")
+        ? file.name.substring(file.name.lastIndexOf("."))
+        : "";
+      storageKey = `${fileType}_${timestamp}${fileExtension}`;
+    }
+
     await s3Client.send(
-      new PutObjectCommand(withImmutableCacheControl({
-        Bucket: CONFIGURATION_BUCKET,
-        Key: storageKey,
-        Body: buffer,
-        ContentType: file.type || "application/octet-stream",
-      })),
+      new PutObjectCommand(
+        withImmutableCacheControl({
+          Bucket: CONFIGURATION_BUCKET,
+          Key: storageKey,
+          Body: buffer,
+          ContentType: contentType,
+        }),
+      ),
     );
 
     logger.info(
-      { fileType, storageKey, size: file.size },
+      { fileType, storageKey, size: buffer.length, contentType, width, height },
       "Configuration file uploaded successfully",
     );
 
     return {
       storageKey,
-      mimeType: file.type || "application/octet-stream",
+      mimeType: contentType,
+      width,
+      height,
     };
   } catch (error) {
     logger.error({ fileType, error }, "Failed to upload configuration file");
@@ -69,21 +119,29 @@ export async function uploadConfigurationFile(
 // ── Delete Configuration File ──────────────────────────────────────────────
 
 /**
- * Hapus configuration file dari S3/MinIO berdasarkan storageKey
- * @param storageKey Storage key dari konfigurasi lama
+ * Hapus configuration file (+ varian responsif bila ada) dari S3/MinIO.
  */
 export async function deleteConfigurationFile(
   storageKey: string,
 ): Promise<void> {
+  const keys = [storageKey, ...variantKeysFor(storageKey)];
+
   try {
-    await s3Client.send(
-      new DeleteObjectCommand({
-        Bucket: CONFIGURATION_BUCKET,
-        Key: storageKey,
-      }),
+    await Promise.all(
+      keys.map((key) =>
+        s3Client.send(
+          new DeleteObjectCommand({
+            Bucket: CONFIGURATION_BUCKET,
+            Key: key,
+          }),
+        ),
+      ),
     );
 
-    logger.info({ storageKey }, "Configuration file deleted successfully");
+    logger.info(
+      { storageKey, keys },
+      "Configuration file deleted successfully",
+    );
   } catch (error) {
     logger.error({ storageKey, error }, "Failed to delete configuration file");
     throw new Error(

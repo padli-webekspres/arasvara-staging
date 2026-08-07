@@ -7,13 +7,13 @@
 
 import type { ArticleMedia } from "@/types/article";
 import type { Editor } from "@tiptap/react";
+import { buildTempMediaViewUrl } from "@/lib/media/tempMedia";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Metadata yang disimpan bersama setiap blob URL di editorImageKeys. */
+/** Metadata yang disimpan bersama setiap media temp di editorImageKeys. */
 interface EditorImageKeyEntry {
-  blobUrl: string;
-  idbKey: string;
+  tempMediaId: string;
   meta: {
     caption?: string;
     credit?: string;
@@ -28,7 +28,7 @@ interface TiptapJsonNode {
   content?: TiptapJsonNode[];
 }
 
-/** Hasil upload satu media — dikirim sebagai Map dari blobUrl ke data final. */
+/** Hasil promote satu media — dikirim sebagai Map dari tempUrl ke data final. */
 export interface UploadedMediaEntry {
   mediaId: string;
   url: string;
@@ -41,12 +41,12 @@ export interface UploadedMediaEntry {
  * Mengekstrak daftar `ArticleMedia` dari semua node `imageFigure` di editor Tiptap.
  *
  * Dipanggil SETELAH `uploadAllPendingMedia` selesai sehingga:
- * - Gambar yang baru di-upload: blobUrl-nya ada di `uploadedMediaMap` → gunakan mediaId final
+ * - Gambar yang baru di-promote: tempUrl-nya ada di `uploadedMediaMap` → gunakan mediaId final
  * - Gambar existing dari galeri: mediaKey berisi filename → gunakan sebagai mediaId
  *
  * @param editor         Instance Tiptap Editor (bisa null jika belum siap)
- * @param editorImageKeys Daftar pasangan blobUrl ↔ idbKey untuk gambar pending
- * @param uploadedMediaMap Map dari blobUrl → data media setelah upload selesai
+ * @param editorImageKeys Daftar tempMediaId untuk gambar pending
+ * @param uploadedMediaMap Map dari tempUrl → data media setelah promote selesai
  */
 export function extractContentMediaFromEditor(
   editor: Editor | null,
@@ -65,11 +65,11 @@ export function extractContentMediaFromEditor(
         const src = String(node.attrs.src ?? "");
         const caption = String(node.attrs.caption ?? "");
         const credit = String(node.attrs.credit ?? "");
-        const idbKey = String(node.attrs.idbKey ?? "");
+        const tempMediaId = String(node.attrs.tempMediaId ?? "");
         const mediaKey = String(node.attrs.mediaKey ?? "");
 
         // ── Kasus 1: gambar pending yang sudah terupload ──────────────────
-        // Lookup via blobUrl yang tersimpan di node saat insert
+        // Lookup via tempUrl yang tersimpan di node saat insert
         const uploaded = uploadedMediaMap.get(src);
         if (uploaded) {
           result.push({
@@ -80,28 +80,28 @@ export function extractContentMediaFromEditor(
           });
 
         // ── Kasus 2: gambar pending yang belum/tidak terupload ────────────
-        // idbKey ada tapi tidak ada di uploadedMediaMap — cari di editorImageKeys
-        } else if (idbKey) {
+        // tempMediaId ada tapi tidak ada di uploadedMediaMap — cari di editorImageKeys
+        } else if (tempMediaId) {
           const keyEntry = editorImageKeys.find(
-            (e) => e.idbKey === idbKey || e.blobUrl === src,
+            (e) => e.tempMediaId === tempMediaId,
           );
-          // Jika ada di uploadedMediaMap via blobUrl lama (sebelum replace HTML)
-          const uploadedByBlobUrl = keyEntry
-            ? uploadedMediaMap.get(keyEntry.blobUrl)
+          // Jika ada di uploadedMediaMap via tempUrl (sebelum replace HTML)
+          const uploadedByTempUrl = keyEntry
+            ? uploadedMediaMap.get(buildTempMediaViewUrl(tempMediaId))
             : undefined;
 
-          if (uploadedByBlobUrl) {
+          if (uploadedByTempUrl) {
             result.push({
-              mediaId: uploadedByBlobUrl.mediaId,
-              url: uploadedByBlobUrl.url,
+              mediaId: uploadedByTempUrl.mediaId,
+              url: uploadedByTempUrl.url,
               caption,
               credit,
             });
           } else {
-            // Masih pending — simpan dengan idbKey sementara
+            // Masih pending — simpan dengan tempMediaId sementara
             // (seharusnya tidak terjadi jika uploadAllPendingMedia berhasil)
             result.push({
-              mediaId: keyEntry?.idbKey ?? idbKey,
+              mediaId: keyEntry?.tempMediaId ?? tempMediaId,
               url: src,
               caption,
               credit,

@@ -25,7 +25,7 @@ function restoreEnv() {
   for (const key of ENV_KEYS) {
     const value = originalEnv[key];
     if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
+    else (process.env as Record<string, string | undefined>)[key] = value;
   }
 }
 
@@ -48,7 +48,7 @@ describe("resolveFirebaseClientConfig", () => {
   });
 
   it("fallback ke prod saat env kosong dan NODE_ENV production", () => {
-    process.env.NODE_ENV = "production";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     delete process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
     const config = resolveFirebaseClientConfig();
@@ -56,7 +56,7 @@ describe("resolveFirebaseClientConfig", () => {
   });
 
   it("fallback ke dev saat env kosong dan NODE_ENV development", () => {
-    process.env.NODE_ENV = "development";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "development";
     delete process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
     const config = resolveFirebaseClientConfig();

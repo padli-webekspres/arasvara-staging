@@ -7,6 +7,10 @@ export interface SectionTextProps {
   className?: string;
   variant?: "light" | "dark";
   /**
+   * Tag elemen heading yang digunakan ("h1" | "h2"). Default adalah "h2".
+   */
+  asHeading?: "h1" | "h2";
+  /**
    * Ketika `true`, section menjadi tepat satu viewport tingginya (`h-screen`)
    * dan mendapat class `snap-panel` agar bisa masuk zona GSAP snap scroll.
    * Padding vertikal (`py-16 lg:py-24`) diganti dengan `overflow-hidden`
@@ -21,9 +25,12 @@ export default function SectionText({
   children,
   className,
   variant = "light",
+  asHeading = "h2",
   snapPanel = false,
   hideIconMouseBouncing = false,
 }: SectionTextProps) {
+  const HeadingTag = asHeading;
+
   return (
     <section
       className={cn(
@@ -34,14 +41,14 @@ export default function SectionText({
       )}
     >
       <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-8">
-        <h2
+        <HeadingTag
           className={cn(
             "text-3xl md:text-4xl lg:text-5xl font-bold w-full md:w-1/3",
             variant === "light" ? "text-primary" : "text-background",
           )}
         >
           {title}
-        </h2>
+        </HeadingTag>
         <div className="w-full md:w-2/3 space-y-2">{children}</div>
       </div>
       {!hideIconMouseBouncing && (

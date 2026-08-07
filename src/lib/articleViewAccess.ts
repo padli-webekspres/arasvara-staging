@@ -42,6 +42,13 @@ export function normalizeArticleStatus(
     .toUpperCase();
 }
 
+/** Hanya artikel yang sudah dipublikasikan yang boleh menambah metrik views. */
+export function shouldCountArticleView(
+  status: ArticleStatus | string | undefined | null,
+): boolean {
+  return normalizeArticleStatus(status) === ArticleStatus.PUBLISHED;
+}
+
 export function isCmsPreviewStatus(status: ArticleStatus | string): boolean {
   return CMS_PREVIEW_STATUSES.has(
     normalizeArticleStatus(status) as ArticleStatus,

@@ -25,12 +25,6 @@ import type {
 /** Durasi presigned URL (detik). */
 export const PRESIGN_EXPIRES_IN = 5 * 60;
 
-/** Batas dimensi output WebP — gambar tidak di-upscale melebihi ini. */
-export const WEBP_MAX_DIMENSION = 2400;
-
-/** Kualitas WebP output. */
-export const WEBP_QUALITY = 82;
-
 // ─── Utility functions ────────────────────────────────────────────────────────
 
 /** Ambil nama file dari path S3 dan bersihkan karakter ilegal. */
@@ -168,31 +162,41 @@ export async function finalizeMedia(
     await getResponse.Body.transformToByteArray(),
   );
 
-  // 2. Konversi ke WebP dengan Sharp
-  //    rotate() menghormati metadata EXIF; resize hanya memperkecil
-  const sharp = (await import("sharp")).default;
+  // 2. Konversi ke WebP + varian responsif
+  const {
+    generateImageVariants,
+    getVariantKey,
+    RESPONSIVE_IMAGE_WIDTHS,
+  } = await import("@/lib/image/generateImageVariants");
 
-  const webpBuffer = await sharp(rawBuffer)
-    .rotate()
-    .resize(WEBP_MAX_DIMENSION, WEBP_MAX_DIMENSION, {
-      fit: "inside",
-      withoutEnlargement: true,
-    })
-    .webp({ quality: WEBP_QUALITY })
-    .toBuffer();
-
-  // 3. Upload ke folder production
+  const variants = await generateImageVariants(rawBuffer);
   const finalKey = `${s3PrefixFinal}/${ulid()}.webp`;
 
-  await s3Client.send(
-    new PutObjectCommand(withImmutableCacheControl({
-      Bucket: S3_BUCKET,
-      Key: finalKey,
-      Body: webpBuffer,
-      ContentType: "image/webp",
-      ContentLength: webpBuffer.length,
-    })),
-  );
+  await Promise.all([
+    s3Client.send(
+      new PutObjectCommand(
+        withImmutableCacheControl({
+          Bucket: S3_BUCKET,
+          Key: finalKey,
+          Body: variants.original.buffer,
+          ContentType: "image/webp",
+          ContentLength: variants.original.buffer.length,
+        }),
+      ),
+    ),
+    ...RESPONSIVE_IMAGE_WIDTHS.map((width) =>
+      s3Client.send(
+        new PutObjectCommand(
+          withImmutableCacheControl({
+            Bucket: S3_BUCKET,
+            Key: getVariantKey(finalKey, width),
+            Body: variants[`w${width}`].buffer,
+            ContentType: "image/webp",
+          }),
+        ),
+      ),
+    ),
+  ]);
 
   // 4. Hapus file incoming (best-effort)
   try {
@@ -207,10 +211,11 @@ export async function finalizeMedia(
   }
 
   // 5. Buat URL publik melalui route API view lokal
+  // NOTE: keep response shape — finalKey is original webp
   const viewUrl = `/api/media/view?key=${encodeURIComponent(finalKey)}`;
 
   logger.info(
-    { finalKey, bytes: webpBuffer.length },
+    { finalKey, bytes: variants.original.buffer.length },
     "adsSharedHelpers: banner finalized",
   );
 
@@ -220,7 +225,7 @@ export async function finalizeMedia(
       url: viewUrl,
       filename: finalKey,
       mimetype: "image/webp",
-      size: webpBuffer.length,
+      size: variants.original.buffer.length,
     },
   };
 }

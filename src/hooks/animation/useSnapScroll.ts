@@ -1,18 +1,10 @@
 import { useRef } from "react";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
-
-if (typeof window !== "undefined") {
-  gsap.registerPlugin(ScrollTrigger);
-}
 
 /**
  * Generic GSAP snap scroll hook.
- * Pasang ref ini ke container wrapper, lalu tambahkan class `snap-panel`
- * ke setiap child section yang ingin di-snap.
- *
- * Cocok dipakai di beberapa halaman (homepage, about, dst.) tanpa duplikasi.
+ * GSAP/ScrollTrigger di-load dinamis dan dinonaktifkan di mobile /
+ * prefers-reduced-motion agar tidak memicu long task + forced reflow.
  */
 export function useSnapScroll() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -20,29 +12,63 @@ export function useSnapScroll() {
   useGSAP(
     () => {
       if (!containerRef.current) return;
+      if (typeof window === "undefined") return;
 
-      const panels = gsap.utils.toArray<HTMLElement>(
-        ".snap-panel",
-        containerRef.current,
-      );
+      const prefersReducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      const isMobile = window.matchMedia("(max-width: 767px)").matches;
+      if (prefersReducedMotion || isMobile) return;
 
-      if (panels.length < 2) return;
+      let killed = false;
+      let st: { kill: () => void } | null = null;
+      let cancelDeferred: (() => void) | undefined;
 
-      const st = ScrollTrigger.create({
-        trigger: containerRef.current,
-        start: "top top",
-        end: "bottom bottom",
-        refreshPriority: -1,
-        snap: {
-          snapTo: 1 / (panels.length - 1),
-          duration: { min: 0.3, max: 1 },
-          delay: 0,
-          ease: "power1.out",
-        },
-      });
+      const setup = async () => {
+        const [{ gsap }, { ScrollTrigger }] = await Promise.all([
+          import("gsap"),
+          import("gsap/ScrollTrigger"),
+        ]);
+        if (killed || !containerRef.current) return;
+
+        gsap.registerPlugin(ScrollTrigger);
+
+        const panels = gsap.utils.toArray<HTMLElement>(
+          ".snap-panel",
+          containerRef.current,
+        );
+        if (panels.length < 2) return;
+
+        st = ScrollTrigger.create({
+          trigger: containerRef.current,
+          start: "top top",
+          end: "bottom bottom",
+          refreshPriority: -1,
+          snap: {
+            snapTo: 1 / (panels.length - 1),
+            duration: { min: 0.3, max: 1 },
+            delay: 0,
+            ease: "power1.out",
+          },
+        });
+      };
+
+      if (typeof window.requestIdleCallback === "function") {
+        const idle = window.requestIdleCallback(() => {
+          void setup();
+        });
+        cancelDeferred = () => window.cancelIdleCallback(idle);
+      } else {
+        const timeout = setTimeout(() => {
+          void setup();
+        }, 1200);
+        cancelDeferred = () => clearTimeout(timeout);
+      }
 
       return () => {
-        st.kill();
+        killed = true;
+        cancelDeferred?.();
+        st?.kill();
       };
     },
     { scope: containerRef },

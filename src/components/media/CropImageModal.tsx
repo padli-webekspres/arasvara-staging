@@ -42,6 +42,8 @@ interface CropImageModalProps {
   layout?: "portrait" | "landscape";
 }
 
+const MAX_IMAGE_RETRIES = 2;
+
 function cropModalChrome(aspect: number, layout?: "portrait" | "landscape") {
   const isLandscape = layout === "landscape" || (layout == null && aspect >= 1);
   return {
@@ -67,17 +69,17 @@ export default function CropImageModal({
   const [crop, setCrop] = useState<Crop | undefined>(undefined);
   const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
   const [loading, setLoading] = useState(false);
+  const [imageReady, setImageReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  /** Naikkan nilai ini untuk memaksa remount <img> (retry decode). */
+  const [reloadToken, setReloadToken] = useState(0);
+  const retryCountRef = useRef(0);
 
-  useEffect(() => {
-    if (open) {
-      setCrop(undefined);
-      setCompletedCrop(null);
-    }
-  }, [open, imageSrc]);
+  const applyInitialCrop = useCallback(
+    (img: HTMLImageElement) => {
+      const { width, height } = img;
+      if (!width || !height) return;
 
-  const onImageLoad = useCallback(
-    (e: React.SyntheticEvent<HTMLImageElement>) => {
-      const { width, height } = e.currentTarget;
       const percentCrop = centerCrop(
         makeAspectCrop({ unit: "%", width: 90 }, aspect, width, height),
         width,
@@ -86,18 +88,70 @@ export default function CropImageModal({
       setCrop(percentCrop);
       // Implikasikan completedCrop langsung agar tombol crop bisa diklik tanpa harus drag dulu
       setCompletedCrop(convertToPixelCrop(percentCrop, width, height));
+      setImageReady(true);
+      setLoadError(false);
     },
     [aspect],
   );
 
-  // Jangan render <img> tanpa src valid — komponen ini selalu ter-mount dari parent
-  // dengan `imageSrc={cropSrc ?? ""}` meski modal tertutup.
-  if (!imageSrc) {
-    return null;
-  }
+  // Reset state saat modal dibuka / sumber gambar berubah.
+  // Jika gambar sudah ter-cache (img.complete), onLoad mungkin tidak fire lagi —
+  // inisialisasi crop secara manual.
+  useEffect(() => {
+    if (!open || !imageSrc) return;
+
+    setCrop(undefined);
+    setCompletedCrop(null);
+    setImageReady(false);
+    setLoadError(false);
+    retryCountRef.current = 0;
+    setReloadToken(0);
+
+    const frameId = requestAnimationFrame(() => {
+      const img = imgRef.current;
+      if (img?.complete && img.naturalWidth > 0) {
+        applyInitialCrop(img);
+      }
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [open, imageSrc, applyInitialCrop]);
+
+  const onImageLoad = useCallback(
+    (e: React.SyntheticEvent<HTMLImageElement>) => {
+      applyInitialCrop(e.currentTarget);
+    },
+    [applyInitialCrop],
+  );
+
+  const remountImage = useCallback(() => {
+    setLoadError(false);
+    setImageReady(false);
+    setCrop(undefined);
+    setCompletedCrop(null);
+    setReloadToken((token) => token + 1);
+  }, []);
+
+  const retryImageLoad = useCallback(() => {
+    // Manual retry: izinkan auto-retry kembali dari awal
+    retryCountRef.current = 0;
+    remountImage();
+  }, [remountImage]);
+
+  const onImageError = useCallback(() => {
+    if (retryCountRef.current < MAX_IMAGE_RETRIES) {
+      retryCountRef.current += 1;
+      // Remount <img> — sering berhasil di mobile setelah gagal decode pertama
+      remountImage();
+      return;
+    }
+    setLoadError(true);
+    setImageReady(false);
+    setCompletedCrop(null);
+  }, [remountImage]);
 
   const handleCrop = async () => {
-    if (!completedCrop || !imgRef.current) return;
+    if (!completedCrop || !imgRef.current || !imageSrc) return;
     setLoading(true);
     const naturalCrop = toNaturalPixelCrop(imgRef.current, completedCrop);
     let blob: Blob;
@@ -122,6 +176,12 @@ export default function CropImageModal({
     }
   };
 
+  // Jangan render dialog tanpa src valid — parent sering mount dengan imageSrc=""
+  // saat modal tertutup.
+  if (!imageSrc) {
+    return null;
+  }
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
       <DialogContent className={dialogClass}>
@@ -133,31 +193,54 @@ export default function CropImageModal({
           className="relative flex w-full items-center justify-center overflow-hidden rounded-md bg-black"
           style={{ height: viewportHeight }}
         >
-          <ReactCrop
-            crop={crop}
-            onChange={(c) => setCrop(c)}
-            onComplete={(c) => setCompletedCrop(c)}
-            aspect={aspect}
-            keepSelection
-            className="max-h-full"
-            style={{ maxHeight: viewportHeight }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- react-image-crop butuh <img> native untuk mengakses naturalWidth/naturalHeight via ref */}
-            <img
-              ref={imgRef}
-              src={imageSrc}
-              alt="Crop preview"
-              onLoad={onImageLoad}
-              style={{ maxHeight: viewportHeight, width: "auto" }}
-            />
-          </ReactCrop>
+          {loadError ? (
+            <div className="flex max-w-sm flex-col items-center gap-3 px-4 text-center">
+              <p className="text-sm text-muted-foreground">
+                Preview gambar gagal dimuat. Ini kadang terjadi di perangkat
+                mobile — coba muat ulang preview.
+              </p>
+              <Button type="button" variant="secondary" onClick={retryImageLoad}>
+                Muat ulang preview
+              </Button>
+            </div>
+          ) : (
+            <ReactCrop
+              crop={crop}
+              onChange={(c) => setCrop(c)}
+              onComplete={(c) => setCompletedCrop(c)}
+              aspect={aspect}
+              keepSelection
+              className="max-h-full"
+              style={{ maxHeight: viewportHeight }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- react-image-crop butuh <img> native untuk naturalWidth/naturalHeight via ref */}
+              <img
+                key={`${imageSrc}-${reloadToken}`}
+                ref={imgRef}
+                src={imageSrc}
+                alt="Crop preview"
+                onLoad={onImageLoad}
+                onError={onImageError}
+                style={{ maxHeight: viewportHeight, width: "auto" }}
+              />
+            </ReactCrop>
+          )}
+
+          {!loadError && !imageReady && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40">
+              <p className="text-sm text-muted-foreground">Memuat preview…</p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onCancel} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleCrop} disabled={loading || !completedCrop}>
+          <Button
+            onClick={handleCrop}
+            disabled={loading || !completedCrop || loadError || !imageReady}
+          >
             {loading ? "Processing..." : "Use This Image"}
           </Button>
         </DialogFooter>

@@ -168,7 +168,8 @@ const AdsCarousel: React.FC<AdsCarouselProps> = ({
         ))}
       </Swiper>
 
-      <div
+      <button
+        type="button"
         className={cn(
           prevEl,
           "absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-background/90 backdrop-blur rounded-full flex items-center justify-center shadow-md cursor-pointer text-foreground opacity-0 group-hover:opacity-100 transition-opacity",
@@ -176,8 +177,9 @@ const AdsCarousel: React.FC<AdsCarouselProps> = ({
         aria-label="Previous Ad"
       >
         <ChevronLeft className="w-5 h-5" />
-      </div>
-      <div
+      </button>
+      <button
+        type="button"
         className={cn(
           nextEl,
           "absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-background/90 backdrop-blur rounded-full flex items-center justify-center shadow-md cursor-pointer text-foreground opacity-0 group-hover:opacity-100 transition-opacity",
@@ -185,7 +187,7 @@ const AdsCarousel: React.FC<AdsCarouselProps> = ({
         aria-label="Next Ad"
       >
         <ChevronRight className="w-5 h-5" />
-      </div>
+      </button>
     </div>
   );
 };

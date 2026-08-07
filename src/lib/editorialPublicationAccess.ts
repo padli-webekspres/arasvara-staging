@@ -55,6 +55,114 @@ export function usesWriterArticleFormSubmit(role: string | undefined): boolean {
   return !hasArticleFormStatusPickerAccess(role);
 }
 
+/** Hanya role `writer` (bukan reporter/contributor). */
+export function isWriterRole(role: string | undefined): boolean {
+  return (role ?? "").toLowerCase() === ROLES.WRITER.toLowerCase();
+}
+
+/** Hanya role `editor` (bukan EIC/admin). */
+export function isEditorRole(role: string | undefined): boolean {
+  return (role ?? "").toLowerCase() === ROLES.EDITOR.toLowerCase();
+}
+
+export type WriterArticleActions = {
+  showSaveDraft: boolean;
+  showSecondarySave: boolean;
+  /** Label tombol sekunder: Submit | Save | Save changes */
+  secondaryLabel: "Submit" | "Save" | "Save changes";
+  /** Status yang dikirim saat tombol sekunder diklik */
+  secondaryStatus: ArticleStatus;
+  showTakeDown: boolean;
+  isViewOnly: boolean;
+};
+
+/**
+ * Matriks tombol/aksi form artikel khusus role writer.
+ * Create / DRAFT / REJECTED: Save Draft + Submit.
+ * PENDING_REVIEW: Save Draft + Save (tetap pending).
+ * PUBLISHED / SCHEDULED: Save changes → pending + Take down (milik sendiri).
+ * TAKEN_DOWN: view-only.
+ */
+export function getWriterArticleActions(
+  status: ArticleStatus | undefined,
+  options: { isEditing: boolean; isOwnArticle: boolean },
+): WriterArticleActions {
+  const { isEditing, isOwnArticle } = options;
+
+  if (!isEditing) {
+    return {
+      showSaveDraft: true,
+      showSecondarySave: true,
+      secondaryLabel: "Submit",
+      secondaryStatus: ArticleStatus.PENDING_REVIEW,
+      showTakeDown: false,
+      isViewOnly: false,
+    };
+  }
+
+  const current = status ?? ArticleStatus.DRAFT;
+
+  if (current === ArticleStatus.TAKEN_DOWN) {
+    return {
+      showSaveDraft: false,
+      showSecondarySave: false,
+      secondaryLabel: "Save",
+      secondaryStatus: ArticleStatus.TAKEN_DOWN,
+      showTakeDown: false,
+      isViewOnly: true,
+    };
+  }
+
+  if (
+    current === ArticleStatus.PUBLISHED ||
+    current === ArticleStatus.SCHEDULED
+  ) {
+    return {
+      showSaveDraft: false,
+      showSecondarySave: true,
+      secondaryLabel: "Save changes",
+      secondaryStatus: ArticleStatus.PENDING_REVIEW,
+      showTakeDown: isOwnArticle,
+      isViewOnly: false,
+    };
+  }
+
+  if (current === ArticleStatus.PENDING_REVIEW) {
+    return {
+      showSaveDraft: true,
+      showSecondarySave: true,
+      secondaryLabel: "Save",
+      secondaryStatus: ArticleStatus.PENDING_REVIEW,
+      showTakeDown: false,
+      isViewOnly: false,
+    };
+  }
+
+  // DRAFT, REJECTED, dan status lain yang diperlakukan seperti Waiting
+  return {
+    showSaveDraft: true,
+    showSecondarySave: true,
+    secondaryLabel: "Submit",
+    secondaryStatus: ArticleStatus.PENDING_REVIEW,
+    showTakeDown: false,
+    isViewOnly: false,
+  };
+}
+
+/** Writer boleh take down artikel milik sendiri yang Published/Scheduled. */
+export function canWriterTakeDownArticle(
+  role: string | undefined,
+  status: ArticleStatus | string | undefined,
+  isOwnArticle: boolean,
+): boolean {
+  if (!isWriterRole(role) || !isOwnArticle) return false;
+  const normalized = (status ?? "").toString().toUpperCase();
+  return (
+    normalized === ArticleStatus.PUBLISHED ||
+    normalized === ArticleStatus.SCHEDULED
+  );
+}
+
 /** Label konsisten untuk dropdown (sinkron `/lib/constants` ARTICLE_STATUS). */
 export function articleStatusDropdownLabel(status: ArticleStatus): string {
   const row = ARTICLE_STATUS.find((r) => r.status === status);
@@ -68,8 +176,19 @@ const CREATE_EDITOR_FLOW: ArticleStatus[] = [
   ArticleStatus.SCHEDULED,
 ];
 
+/** Admin / EIC: edit tanpa PENDING_REVIEW (kecuali status saat ini sudah pending). */
 const EDIT_EDITOR_FLOW: ArticleStatus[] = [
   ArticleStatus.DRAFT,
+  ArticleStatus.PUBLISHED,
+  ArticleStatus.SCHEDULED,
+  ArticleStatus.REJECTED,
+  ArticleStatus.TAKEN_DOWN,
+];
+
+/** Role editor: dropdown edit menyertakan PENDING_REVIEW. */
+const EDIT_EDITOR_ROLE_FLOW: ArticleStatus[] = [
+  ArticleStatus.DRAFT,
+  ArticleStatus.PENDING_REVIEW,
   ArticleStatus.PUBLISHED,
   ArticleStatus.SCHEDULED,
   ArticleStatus.REJECTED,
@@ -90,18 +209,19 @@ export function articleEditorCreateStatusChoices(): ArticleEditorStatusChoice[] 
 }
 
 /**
- * Dropdown status untuk mode **edit** oleh editor+: published / scheduled /
- * rejected, plus status saat ini jika lain (mis. artikel legacy masih DRAFT).
+ * Dropdown status untuk mode **edit**.
+ * Role `editor`: termasuk PENDING_REVIEW.
+ * Admin / EIC: tanpa PENDING_REVIEW (kecuali status saat ini sudah pending).
  */
 export function articleEditorEditStatusChoices(
   current?: ArticleStatus,
+  role?: string,
 ): ArticleEditorStatusChoice[] {
-  const statuses = [...EDIT_EDITOR_FLOW];
-  if (
-    current &&
-    !EDIT_EDITOR_FLOW.includes(current) &&
-    statuses.indexOf(current) === -1
-  ) {
+  const baseFlow = isEditorRole(role)
+    ? EDIT_EDITOR_ROLE_FLOW
+    : EDIT_EDITOR_FLOW;
+  const statuses = [...baseFlow];
+  if (current && !statuses.includes(current)) {
     statuses.unshift(current);
   }
   return statuses.map((status) => ({

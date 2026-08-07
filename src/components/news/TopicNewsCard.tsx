@@ -2,8 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { cn, shouldUnoptimizeNewsCardImage } from "@/lib/utils";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
+import { cn } from "@/lib/utils";
 import { resolvePublicArticleHref } from "@/lib/article-public-path";
 import { ImageNotFound } from "@/components/image-notfound/ImageNotFound";
 
@@ -44,14 +44,12 @@ const TopicNewsCard = ({ article, className }: TopicNewsCardProps) => {
               className="border-0 shadow-none"
             />
           ) : (
-            <Image
+            <ResponsiveMediaImage
               src={imageUrl}
-              alt={article.title}
-              fill
-              className="object-cover transition-transform duration-300 group-hover:scale-105"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 30vw, 400px"
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              sizes="(max-width: 768px) 50vw, (max-width: 1200px) 30vw, 400px"
               onError={() => setImageFailed(true)}
-              unoptimized={shouldUnoptimizeNewsCardImage(imageUrl)}
             />
           )}
         </div>

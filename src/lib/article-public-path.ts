@@ -18,12 +18,13 @@ import { ArticleStatus, type ArticleUrlFormat } from "@/types/article";
 const WIB_ZONE = "Asia/Jakarta";
 const LEGACY_NEWS_PREFIX = "/news";
 
-/** Root segments yang tidak boleh jadi category slug (bukan termasuk `news`). */
+/** Root segments yang tidak boleh jadi category slug (bukan termasuk `news` karena `news` diizinkan untuk 5-segmen structured article path). */
 export const RESERVED_ROOT_SEGMENTS = new Set([
   "category",
   "search",
   "indeks",
   "author",
+  "penulis",
   "about-us",
   "disclaimer",
   "pedoman-media-siber",

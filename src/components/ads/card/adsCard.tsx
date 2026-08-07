@@ -1,5 +1,5 @@
-import Image from "next/image";
-import { cn, shouldUnoptimizeNewsCardImage } from "@/lib/utils";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
+import { cn } from "@/lib/utils";
 import {
   AdsCardSpan,
   AdsCardVariant,
@@ -34,7 +34,10 @@ function aspectClass(
   return span === 2 ? "aspect-8/5" : "aspect-4/5";
 }
 
-function variantShellClass(variant: AdsCardVariant): string {
+function variantShellClass(
+  variant: AdsCardVariant,
+  clickable: boolean,
+): string {
   if (variant === AdsCardVariant.FEATURED) {
     return cn(
       "h-full w-full min-h-0 rounded-2xl shadow-lg",
@@ -42,7 +45,10 @@ function variantShellClass(variant: AdsCardVariant): string {
     );
   }
   if (variant === AdsCardVariant.VIDEO) {
-    return "group cursor-pointer flex justify-center items-center";
+    return cn(
+      "group flex justify-center items-center",
+      clickable && "cursor-pointer",
+    );
   }
   return "";
 }
@@ -72,6 +78,7 @@ export function AdsCard({
   bannerUrl = ADS_CARD_DEFAULT_BANNER,
   className,
   alt = "Iklan",
+  clickable = false,
 }: AdsCardProps) {
   const safeSpan = normalizeSpan(span);
 
@@ -80,7 +87,7 @@ export function AdsCard({
       className={cn(
         "relative w-full overflow-hidden",
         roundedOuterClass(variant),
-        variantShellClass(variant),
+        variantShellClass(variant, clickable),
         aspectClass(variant, safeSpan, position),
         className,
       )}
@@ -89,10 +96,9 @@ export function AdsCard({
         Iklan
       </div>
 
-      <Image
+      <ResponsiveMediaImage
         src={bannerUrl}
-        alt={alt}
-        fill
+        alt={alt === "Iklan" ? "" : alt}
         sizes={
           variant === AdsCardVariant.FEATURED
             ? "(max-width: 768px) 90vw, (max-width: 1024px) 75vw, 60vw"
@@ -100,8 +106,7 @@ export function AdsCard({
               ? "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 28vw"
               : "(max-width: 768px) 70vw, 320px"
         }
-        className={cn("object-cover", imageRoundedClass(variant))}
-        unoptimized={shouldUnoptimizeNewsCardImage(bannerUrl)}
+        className={cn("absolute inset-0 h-full w-full object-cover", imageRoundedClass(variant))}
       />
     </div>
   );

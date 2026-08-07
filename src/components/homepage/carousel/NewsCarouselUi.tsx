@@ -112,12 +112,12 @@ const NewsCarouselUi: React.FC<NewsCarouselUiProps> = ({
           ))
         )}
       </Swiper>
-      <div className={`${prevEl} left-2 swiper-button-custom`}>
+      <button type="button" aria-label="Artikel sebelumnya" className={`${prevEl} left-2 swiper-button-custom`}>
         <ChevronLeft className="w-5 h-5" />
-      </div>
-      <div className={`${nextEl} right-2 swiper-button-custom`}>
+      </button>
+      <button type="button" aria-label="Artikel selanjutnya" className={`${nextEl} right-2 swiper-button-custom`}>
         <ChevronRight className="w-5 h-5" />
-      </div>
+      </button>
     </div>
   );
 };

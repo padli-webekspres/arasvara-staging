@@ -3,7 +3,7 @@
 import React, { useRef } from "react";
 import "@/styles/swiper";
 import Link from "next/link";
-import Image from "next/image";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation, Scrollbar, Mousewheel, FreeMode } from "swiper/modules";
 import type { Swiper as SwiperType } from "swiper";
@@ -16,7 +16,6 @@ import { AdsCardVariant } from "@/types/ads";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import "./carousel.css";
 import { useHomepageAdsGrouped } from "@/hooks/useAds";
-import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { resolvePublicArticleHref } from "@/lib/article-public-path";
 
 export interface FotografiCarouselProps {
@@ -60,14 +59,12 @@ const FotografiCard = ({ article }: FotografiCardProps) => {
                 className="border-0 shadow-none rounded-2xl"
               />
             ) : (
-              <Image
+              <ResponsiveMediaImage
                 src={imageUrl}
-                alt={article.title}
-                fill
-                className="object-cover rounded-2xl"
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover rounded-2xl"
                 sizes="(max-width: 640px) 50vw, (max-width: 900px) 33vw, 25vw"
                 onError={() => setImageFailed(true)}
-                unoptimized={shouldUnoptimizeNewsCardImage(imageUrl)}
               />
             )}
             <div
@@ -77,14 +74,14 @@ const FotografiCard = ({ article }: FotografiCardProps) => {
           </div>
           <div className="absolute inset-0 rounded-2xl pointer-events-none transition-colors duration-300 group-hover:bg-black/20 z-10" />
           <div className="absolute bottom-0 left-0 w-full p-4 z-20 flex flex-col gap-1 rounded-2xl">
-            <span className="text-base lg:text-lg font-medium lg:font-semibold text-white/80 drop-shadow-sm mb-1">
+            <span className="text-base lg:text-lg font-medium lg:font-semibold text-white drop-shadow-sm mb-1">
               {categoryLabel}
             </span>
             <span className="text-xl lg:text-2xl font-bold text-white drop-shadow-md">
               {truncateTitle(article.title, 40)}
             </span>
             {authorLabel ? (
-              <span className="text-base text-white/80 drop-shadow-sm">
+              <span className="text-base text-white drop-shadow-sm">
                 {authorLabel}
               </span>
             ) : null}
@@ -193,16 +190,20 @@ const FotografiCarousel: React.FC<FotografiCarouselProps> = ({
                   </SwiperSlide>
                 ))}
       </Swiper>
-      <div
+      <button
+        type="button"
+        aria-label="Galeri sebelumnya"
         className={`${prevEl} swiper-button-prev-custom swiper-button-custom`}
       >
         <ChevronLeft className="w-5 h-5" />
-      </div>
-      <div
+      </button>
+      <button
+        type="button"
+        aria-label="Galeri selanjutnya"
         className={`${nextEl} swiper-button-next-custom swiper-button-custom`}
       >
         <ChevronRight className="w-5 h-5" />
-      </div>
+      </button>
     </div>
   );
 };

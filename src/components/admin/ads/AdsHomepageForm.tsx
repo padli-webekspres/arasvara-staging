@@ -428,10 +428,6 @@ export default function AdsHomepageForm({
       toast.error("Nama iklan tidak boleh kosong");
       return;
     }
-    if (!linkUrl.trim()) {
-      toast.error("Link URL tidak boleh kosong");
-      return;
-    }
     if (!banner || (!banner.blob && !banner.serverData)) {
       toast.error(`Banner (${sidebarCropSpec.label}) harus diisi`);
       return;
@@ -586,7 +582,6 @@ export default function AdsHomepageForm({
 
   const canAdd =
     name.trim().length > 0 &&
-    linkUrl.trim().length > 0 &&
     banner !== null &&
     (banner.blob != null || banner.serverData != null);
 
@@ -743,12 +738,12 @@ export default function AdsHomepageForm({
 
           <div className="space-y-1.5">
             <Label htmlFor="linkUrl">
-              Link URL <span className="text-destructive">*</span>
+              Link URL <span className="text-muted-foreground">(opsional)</span>
             </Label>
             <Input
               id="linkUrl"
               type="url"
-              placeholder="https://example.com/promo"
+              placeholder="Kosongkan jika iklan tidak perlu diklik"
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
             />

@@ -14,6 +14,8 @@ import {
   DollarSign,
   Shield,
   Layers,
+  FolderOpen,
+  PenLine,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -115,6 +117,11 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="h-28 bg-muted rounded-lg border border-border"></div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-64 bg-muted rounded-lg border border-border"></div>
           ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -310,6 +317,144 @@ export default function AdminDashboard() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Terjadwal rilis otomatis hari ini
                   </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Row 1b: Top Channel / Author / Upcoming Scheduled */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <Card className="border border-border flex flex-col">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <FolderOpen className="h-4 w-4 text-hijauSawah" />
+                    Top Channel (14 hari)
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    5 channel dengan views terbanyak dari article_views.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0 flex-1">
+                  <div className="divide-y divide-border">
+                    {(stats.topCategories14d ?? []).length > 0 ? (
+                      (stats.topCategories14d ?? []).map((row, idx) => (
+                        <div
+                          key={row.categoryId || idx}
+                          className="flex items-center justify-between gap-3 px-4 py-3"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">
+                              {idx + 1}. {row.name}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {row.articleCount.toLocaleString("id-ID")} artikel
+                            </p>
+                          </div>
+                          <span className="text-sm font-bold text-foreground shrink-0">
+                            {row.views.toLocaleString("id-ID")}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-6 text-center text-xs text-muted-foreground">
+                        Belum ada data views 14 hari terakhir.
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border border-border flex flex-col">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <PenLine className="h-4 w-4 text-terakota" />
+                    Top Author (14 hari)
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    5 penulis dengan views terbanyak (author_id).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0 flex-1">
+                  <div className="divide-y divide-border">
+                    {(stats.topAuthors14d ?? []).length > 0 ? (
+                      (stats.topAuthors14d ?? []).map((row, idx) => (
+                        <div
+                          key={row.authorId || idx}
+                          className="flex items-center justify-between gap-3 px-4 py-3"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">
+                              {idx + 1}. {row.name}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {row.articleCount.toLocaleString("id-ID")} artikel
+                            </p>
+                          </div>
+                          <span className="text-sm font-bold text-foreground shrink-0">
+                            {row.views.toLocaleString("id-ID")}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-6 text-center text-xs text-muted-foreground">
+                        Belum ada data views 14 hari terakhir.
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border border-border flex flex-col">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-amber-500" />
+                    Scheduled Terdekat
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    5 artikel terjadwal dengan waktu rilis paling dekat.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0 flex-1">
+                  <div className="divide-y divide-border">
+                    {(stats.upcomingScheduled ?? []).length > 0 ? (
+                      (stats.upcomingScheduled ?? []).map((row) => {
+                        const when = row.scheduledAt
+                          ? new Date(row.scheduledAt)
+                          : null;
+                        const whenLabel =
+                          when && !Number.isNaN(when.getTime())
+                            ? when.toLocaleString("id-ID", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                timeZone: "Asia/Jakarta",
+                              })
+                            : "—";
+                        return (
+                          <div
+                            key={row.id}
+                            className="flex items-start justify-between gap-3 px-4 py-3"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-foreground line-clamp-2">
+                                {row.title}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {row.authorName}
+                              </p>
+                            </div>
+                            <span className="text-[11px] font-medium text-muted-foreground shrink-0 text-right">
+                              {whenLabel}
+                            </span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="p-6 text-center text-xs text-muted-foreground">
+                        Tidak ada artikel terjadwal.
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </div>

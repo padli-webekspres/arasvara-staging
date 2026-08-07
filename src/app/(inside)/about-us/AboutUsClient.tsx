@@ -3,8 +3,10 @@
 import SectionText from "@/components/aboutUs/SectionText";
 import Footer from "@/components/Footer";
 import DividerHorizontal from "@/components/homepage/DividerHorizontal";
+import HeroVideo from "@/components/homepage/HeroVideo";
 import { Button } from "@/components/ui/button";
 import { useSnapScroll } from "@/hooks/animation/useSnapScroll";
+import { BRAND_LOGO, BRAND_LOGO_IMAGE_PROPS } from "@/lib/brand-logos";
 import { AboutUsData } from "@/types/aboutUs";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,10 +17,9 @@ interface AboutUsClientProps {
 }
 
 export default function AboutUsClient({ data }: AboutUsClientProps) {
-  // Dua zona snap terpisah; area di antara keduanya (Susunan Redaksi)
-  // serta area di bawah Zone 2 (Kontak, Alamat, Footer) bebas di-scroll.
+  // Satu zona snap: Hero · About Us · Visi & Misi.
+  // Area di bawahnya (Redaksi, CTA, Quotes, Kontak, Alamat, Footer) bebas di-scroll.
   const zone1Ref = useSnapScroll();
-  const zone2Ref = useSnapScroll();
 
   // Normalize misi: jika ada baris baru, jadikan list item; jika tidak, jadikan paragraf biasa
   const misiLines = data.misi
@@ -41,47 +42,59 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
       <main className="min-h-screen bg-background">
         {/* ── ZONA SNAP 1: Hero · About Us · Visi · Misi ──────────────── */}
         <div ref={zone1Ref} className="relative">
-          {/* snap-panel 1: Hero */}
-          <section className="snap-panel h-screen w-full bg-background container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 flex items-center">
-            <div className="flex flex-col gap-8 items-center justify-center pointer-events-none z-10 w-full">
-              <Image
-                src="/logo-arasvara/main-logo/main-logo-hitam-gema.png"
-                alt="Arasvara Monogram"
-                className="h-12 md:h-20 lg:h-24 object-contain select-none"
-                draggable={false}
-                unoptimized
-                width={500}
-                height={500}
+          {/* snap-panel 1: Hero — video background + overlay seperti homepage */}
+          <section className="snap-panel sticky top-0 h-screen w-full z-0 overflow-hidden">
+            <div className="relative h-screen w-full overflow-hidden">
+              <HeroVideo
+                videoUrl={data.heroVideoUrl ?? ""}
+                posterUrl={data.heroVideoPosterUrl}
               />
-              {data.tagline && (
-                <p className="text-foreground/90 text-center text-xl md:text-2xl font-medium">
-                  {data.tagline}
-                </p>
-              )}
-              {data.subTagline && (
-                <p className="text-foreground/90 text-center text-xl md:text-2xl font-medium">
-                  {data.subTagline}
-                </p>
-              )}
-              {/* Fallback jika tidak ada tagline dari config */}
-              {!data.tagline && !data.subTagline && (
-                <>
-                  <p className="text-foreground/90 text-center text-xl md:text-2xl font-medium">
-                    is more than a brand. It is a vessel for voices
+              <div className="absolute inset-0 flex flex-col gap-8 items-center justify-center pointer-events-none z-10 w-full px-4">
+                <Image
+                  src={BRAND_LOGO.mainLight}
+                  alt="Arasvara Monogram"
+                  className="h-12 md:h-20 lg:h-24 object-contain select-none"
+                  draggable={false}
+                  {...BRAND_LOGO_IMAGE_PROPS}
+                  width={500}
+                  height={500}
+                />
+                {data.tagline && (
+                  <p className="text-white/90 text-center text-xl md:text-2xl font-medium">
+                    {data.tagline}
                   </p>
-                  <p className="text-foreground/90 text-center text-xl md:text-2xl font-medium">
-                    — a medium where stories flow without interruption, where
-                    every word carries weight, and every sound matters.
+                )}
+                {data.subTagline && (
+                  <p className="text-white/90 text-center text-xl md:text-2xl font-medium">
+                    {data.subTagline}
                   </p>
-                </>
-              )}
+                )}
+                {/* Fallback jika tidak ada tagline dari config */}
+                {!data.tagline && !data.subTagline && (
+                  <>
+                    <p className="text-white/90 text-center text-xl md:text-2xl font-medium">
+                      is more than a brand. It is a vessel for voices
+                    </p>
+                    <p className="text-white/90 text-center text-xl md:text-2xl font-medium">
+                      — a medium where stories flow without interruption, where
+                      every word carries weight, and every sound matters.
+                    </p>
+                  </>
+                )}
+              </div>
+              <MouseBouncing variant="light" />
             </div>
-
-            <MouseBouncing variant="light" />
           </section>
 
-          {/* snap-panel 2: About Us */}
-          <SectionText title="About us" snapPanel variant="light">
+          {/* snap-panel 2: About Us — z-10 agar overlay di atas sticky hero */}
+          <SectionText
+            title="About us"
+            asHeading="h1"
+            snapPanel
+            variant="light"
+            hideIconMouseBouncing
+            className="z-10"
+          >
             {data.aboutUsText ? (
               data.aboutUsText
                 .split("\n\n")
@@ -113,7 +126,7 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
           </SectionText>
 
           {/* snap-panel 3: Visi & Misi */}
-          <section className="snap-panel min-h-screen overflow-hidden bg-background flex flex-col justify-center relative gap-8">
+          <section className="snap-panel min-h-screen overflow-hidden bg-background flex flex-col justify-center relative gap-8 z-10">
             <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-8">
               <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold w-full md:w-1/3 text-primary">
                 Visi
@@ -146,7 +159,6 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
                 )}
               </div>
             </div>
-            <MouseBouncing variant="dark" />
           </section>
         </div>
         {/* ── AKHIR ZONA SNAP 1 ────────────────────────────────────────── */}
@@ -229,134 +241,82 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
           </section>
         )}
 
-        {/* ── ZONA SNAP 2: Sections CTA · Quotes ──────────────────────── */}
-        <div ref={zone2Ref} className="relative">
-          {/* Render setiap section CTA dari konfigurasi admin sebagai snap-panel */}
-          {data.sections.length > 0 ? (
-            <section className="snap-panel h-screen overflow-hidden bg-foreground flex flex-col justify-center relative gap-12 md:gap-16 xl:gap-24">
-              {data.sections.map((section, idx) => {
-                const isExternalLink = section.link_button
-                  ? /^https?:\/\//i.test(section.link_button)
-                  : false;
+        {/* ── FREE SCROLL: CTA · Quotes ────────────────────────────────── */}
+        {/* Render setiap section CTA dari konfigurasi admin */}
+        {data.sections.length > 0 ? (
+          <section className="bg-foreground flex flex-col justify-center relative gap-12 md:gap-16 xl:gap-24 py-24 md:py-32">
+            {data.sections.map((section, idx) => {
+              const isExternalLink = section.link_button
+                ? /^https?:\/\//i.test(section.link_button)
+                : false;
 
-                return (
-                  <div
-                    key={idx}
-                    className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-8"
-                  >
-                    {section.title && (
-                      <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold w-full md:w-1/3 text-background">
-                        {section.title}
-                      </h2>
+              return (
+                <div
+                  key={idx}
+                  className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-8"
+                >
+                  {section.title && (
+                    <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold w-full md:w-1/3 text-background">
+                      {section.title}
+                    </h2>
+                  )}
+                  <div className="w-full md:w-2/3 space-y-2">
+                    {section.description && (
+                      <p className="text-base md:text-lg leading-relaxed text-background/75 mb-8">
+                        {section.description}
+                      </p>
                     )}
-                    <div className="w-full md:w-2/3 space-y-2">
-                      {section.description && (
-                        <p className="text-base md:text-lg leading-relaxed text-background/75 mb-8">
-                          {section.description}
-                        </p>
-                      )}
-                      {section.link_button && section.button_text && (
-                        <Button variant="outline" size="lg" className="w-fit">
-                          <Link
-                            href={section.link_button}
-                            {...(isExternalLink
-                              ? {
-                                  target: "_blank",
-                                  rel: "noopener noreferrer",
-                                }
-                              : {})}
-                          >
-                            {section.button_text}
-                          </Link>
-                        </Button>
-                      )}
-                    </div>
+                    {section.link_button && section.button_text && (
+                      <Button variant="outline" size="lg" className="w-fit">
+                        <Link
+                          href={section.link_button}
+                          {...(isExternalLink
+                            ? {
+                                target: "_blank",
+                                rel: "noopener noreferrer",
+                              }
+                            : {})}
+                        >
+                          {section.button_text}
+                        </Link>
+                      </Button>
+                    )}
                   </div>
-                );
-              })}
-              <MouseBouncing variant="light" />
-            </section>
-          ) : (
-            // Fallback: tampilkan Pedoman & Ketentuan hardcoded jika belum ada sections dari config
-            // <section className="snap-panel h-screen overflow-hidden bg-foreground flex flex-col justify-center relative gap-8">
-            //   <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-8">
-            //     <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold w-full md:w-1/3 text-background">
-            //       Pedoman Media Siber
-            //     </h2>
-            //     <div className="w-full md:w-2/3 space-y-2">
-            //       <p className="text-base md:text-lg leading-relaxed text-background/75 mb-8">
-            //         Sebagai representasi suara generasi digital, integritas
-            //         adalah prioritas utama kami. Seluruh tata kelola redaksi
-            //         Arasvara berpedoman pada aturan Dewan Pers untuk memastikan
-            //         informasi yang kamu terima selalu akurat, berimbang, dan
-            //         dapat dipertanggungjawabkan.
-            //       </p>
-            //       <Button variant="outline" size="lg" className="w-fit">
-            //         <Link href="/inside/pedoman-media-siber">
-            //           Baca Pedoman Media Siber
-            //         </Link>
-            //       </Button>
-            //     </div>
-            //   </div>
-            //   <DividerHorizontal
-            //     variant="light"
-            //     className="mx-auto max-w-3xl"
-            //   />
-            //   <div className="container xl:max-w-6xl relative flex flex-col md:flex-row mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 gap-8">
-            //     <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold w-full md:w-1/3 text-background">
-            //       Ketentuan Konten
-            //     </h2>
-            //     <div className="w-full md:w-2/3 space-y-2">
-            //       <p className="text-base md:text-lg leading-relaxed text-background/75 mb-8">
-            //         Seluruh konten yang dipublikasikan pada platform Arasvara
-            //         disediakan untuk tujuan informasi umum, edukasi, dan
-            //         referensi. Artikel opini atau ulasan berbasis perspektif
-            //         merupakan pandangan pribadi penulis dan tidak selalu
-            //         mencerminkan sikap resmi redaksi.
-            //       </p>
-            //       <Button variant="outline" size="lg" className="w-fit">
-            //         <Link href="/inside/ketentuan-konten">
-            //           Baca Ketentuan Konten
-            //         </Link>
-            //       </Button>
-            //     </div>
-            //   </div>
-            //   <MouseBouncing variant="light" />
-            // </section>
-            <></>
-          )}
+                </div>
+              );
+            })}
+          </section>
+        ) : (
+          <></>
+        )}
 
-          {/* snap-panel: Quotes */}
-          {(data.quotes || data.quotesOwner) && (
-            <section className="snap-panel h-screen overflow-hidden bg-foreground flex items-center">
-              <div className="container xl:max-w-6xl text-center mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
-                <h3 className="text-2xl md:text-3xl lg:text-4xl font-bold text-background text-center mb-4">
-                  &ldquo;{data.quotes}&rdquo;
-                </h3>
-                {data.quotesOwner && (
-                  <p className="text-background/75 text-center md:text-xl">
-                    {data.quotesOwner}
-                  </p>
-                )}
-              </div>
-              <MouseBouncing variant="light" />
-            </section>
-          )}
+        {/* Quotes */}
+        {(data.quotes || data.quotesOwner) && (
+          <section className="bg-foreground flex items-center py-24 md:py-32">
+            <div className="container xl:max-w-6xl text-center mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
+              <h3 className="text-2xl md:text-3xl lg:text-4xl font-bold text-background text-center mb-4">
+                &ldquo;{data.quotes}&rdquo;
+              </h3>
+              {data.quotesOwner && (
+                <p className="text-background/75 text-center md:text-xl">
+                  {data.quotesOwner}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
 
-          {/* Fallback quotes jika tidak ada dari config */}
-          {!data.quotes && !data.quotesOwner && (
-            <section className="snap-panel h-screen overflow-hidden bg-foreground flex items-center">
-              <div className="container xl:max-w-6xl text-center mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
-                <h3 className="text-2xl md:text-3xl lg:text-4xl font-bold text-background text-center mb-4">
-                  &ldquo;Arasvara hadir untuk menjadi suara yang mendengar dan
-                  memantulkan aspirasi generasi muda.&rdquo;
-                </h3>
-              </div>
-              <MouseBouncing variant="light" />
-            </section>
-          )}
-        </div>
-        {/* ── AKHIR ZONA SNAP 2 ────────────────────────────────────────── */}
+        {/* Fallback quotes jika tidak ada dari config */}
+        {!data.quotes && !data.quotesOwner && (
+          <section className="bg-foreground flex items-center py-24 md:py-32">
+            <div className="container xl:max-w-6xl text-center mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
+              <h3 className="text-2xl md:text-3xl lg:text-4xl font-bold text-background text-center mb-4">
+                &ldquo;Arasvara hadir untuk menjadi suara yang mendengar dan
+                memantulkan aspirasi generasi muda.&rdquo;
+              </h3>
+            </div>
+          </section>
+        )}
 
         {/* ── FREE SCROLL: Kontak · Alamat · Footer ────────────────────── */}
 

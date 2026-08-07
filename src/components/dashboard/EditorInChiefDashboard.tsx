@@ -25,12 +25,14 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { Doughnut } from "react-chartjs-2";
+import { Doughnut, Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
+  LineElement,
+  Filler,
   ArcElement,
   Title,
   Tooltip,
@@ -42,6 +44,8 @@ ChartJS.register(
   CategoryScale,
   LinearScale,
   PointElement,
+  LineElement,
+  Filler,
   ArcElement,
   Title,
   Tooltip,
@@ -92,6 +96,90 @@ export default function EditorInChiefDashboard() {
       cutout: "68%",
     };
   }, []);
+
+  const productionLineData = useMemo(() => {
+    const rows = stats?.productionLast14d ?? [];
+    return {
+      labels: rows.map((r) => r.date),
+      datasets: [
+        {
+          label: "Artikel terbit",
+          data: rows.map((r) => r.count),
+          borderColor: "#10B981",
+          backgroundColor: "rgba(16, 185, 129, 0.12)",
+          fill: true,
+          tension: 0.35,
+          pointRadius: 3,
+          pointBackgroundColor: "#10B981",
+        },
+      ],
+    };
+  }, [stats?.productionLast14d]);
+
+  const productionLineOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx: { raw?: unknown }) =>
+              ` ${Number(ctx.raw ?? 0).toLocaleString("id-ID")} artikel`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 10 } },
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            precision: 0,
+            font: { size: 10 },
+          },
+          grid: { color: "rgba(148, 163, 184, 0.2)" },
+        },
+      },
+    }),
+    [],
+  );
+
+  const unpublishedDoughnutData = useMemo(() => {
+    const rows = stats?.unpublishedByStatus ?? [];
+    return {
+      labels: rows.map((r) => r.label),
+      datasets: [
+        {
+          data: rows.map((r) => r.count),
+          backgroundColor: rows.map((r) => r.color),
+          borderWidth: 1.5,
+          borderColor: "rgba(255, 255, 255, 0.4)",
+          hoverOffset: 6,
+        },
+      ],
+    };
+  }, [stats?.unpublishedByStatus]);
+
+  const unpublishedDoughnutOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (context: { label?: string; raw?: unknown }) =>
+              ` ${context.label}: ${Number(context.raw ?? 0).toLocaleString("id-ID")} naskah`,
+          },
+        },
+      },
+      cutout: "68%",
+    }),
+    [],
+  );
 
   // Pemetaan Ikon Beranda secara dinamis berdasarkan kontainer/slot
   const homepageSections = useMemo(() => {
@@ -261,6 +349,94 @@ export default function EditorInChiefDashboard() {
             <p className="text-xs text-muted-foreground mt-1">
               Memenuhi target standard mutu SEO
             </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Row 1b: Produksi 14 hari + komposisi non-publish */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2 border border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-hijauSawah" />
+              Produksi Artikel (14 hari)
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Jumlah artikel berstatus PUBLISHED per hari (Asia/Jakarta).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="min-w-0 h-[220px] sm:h-[260px] relative">
+              {(stats.productionLast14d ?? []).every((r) => r.count === 0) ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center space-y-2">
+                  <TrendingUp className="h-7 w-7 text-muted-foreground/35" />
+                  <p className="text-xs font-bold text-foreground">
+                    Belum ada publikasi
+                  </p>
+                  <p className="text-[10px] text-muted-foreground max-w-[240px]">
+                    Artikel yang terbit dalam 14 hari terakhir akan muncul di
+                    sini.
+                  </p>
+                </div>
+              ) : (
+                <Line data={productionLineData} options={productionLineOptions} />
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-border flex flex-col">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <PieChart className="h-4 w-4 text-amber-500" />
+              Pipeline Non-Publish
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Draft, pending, scheduled, dan rejected (tanpa taken down).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex-1">
+            {(stats.unpublishedByStatus ?? []).length === 0 ? (
+              <div className="h-[220px] flex flex-col items-center justify-center text-center space-y-2">
+                <PieChart className="h-7 w-7 text-muted-foreground/35" />
+                <p className="text-xs font-bold text-foreground">
+                  Pipeline kosong
+                </p>
+                <p className="text-[10px] text-muted-foreground max-w-[200px]">
+                  Tidak ada naskah non-publish aktif saat ini.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="relative h-[180px] w-[180px] shrink-0">
+                  <Doughnut
+                    data={unpublishedDoughnutData}
+                    options={unpublishedDoughnutOptions}
+                  />
+                </div>
+                <div className="flex-1 w-full space-y-2">
+                  {(stats.unpublishedByStatus ?? []).map((row) => (
+                    <div
+                      key={row.status}
+                      className="flex items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: row.color }}
+                        />
+                        <span className="font-medium text-foreground truncate">
+                          {row.label}
+                        </span>
+                      </div>
+                      <span className="font-bold text-foreground shrink-0">
+                        {row.count.toLocaleString("id-ID")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -445,94 +621,203 @@ export default function EditorInChiefDashboard() {
         </Card>
       </div>
 
-      {/* Row 4: Side-by-Side Tables (Top Authors & Top Editors) */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Table 1: Top Authors */}
-        <Card className="border border-border">
+      {/* Row 4: Performa Author | Editor (views) | Top Artikel — 14 hari, 1:1:1 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {/* Panel 1: Performa Author */}
+        <Card className="border border-border min-w-0">
           <CardHeader>
             <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Users className="h-4 w-4 text-hijauSawah" />
-              Top Authors
+              <Users className="h-4 w-4 text-hijauSawah shrink-0" />
+              Performa Author
             </CardTitle>
             <CardDescription className="text-xs">
-              5 Kontributor terproduktif yang mempublikasikan naskah terbanyak sebagai penulis utama.
+              Top 5 penulis berdasarkan views 14 hari terakhir (artikel terbit, rerata, dan perubahan vs 14 hari sebelumnya).
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left border-collapse">
+              <table className="w-full text-xs text-left border-collapse min-w-[320px]">
                 <thead>
                   <tr className="border-b border-border bg-muted/40 font-bold text-foreground">
-                    <th className="p-4 w-12 text-center">Rank</th>
-                    <th className="p-4">Nama Penulis</th>
-                    <th className="p-4 text-center">Artikel Terbit</th>
-                    <th className="p-4 text-right">Total Views</th>
+                    <th className="p-3 w-10 text-center">#</th>
+                    <th className="p-3">Nama</th>
+                    <th className="p-3 text-center whitespace-nowrap">Artikel</th>
+                    <th className="p-3 text-right whitespace-nowrap">Views</th>
+                    <th className="p-3 text-right whitespace-nowrap">Rerata</th>
+                    <th className="p-3 text-right whitespace-nowrap">%Δ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {stats.topAuthors.map((author) => (
-                    <tr key={author.rank} className="hover:bg-muted/15 transition-all">
-                      <td className="p-4 text-center font-extrabold text-muted-foreground">
-                        {author.rank}
-                      </td>
-                      <td className="p-4 font-bold text-foreground flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-hijauSawah/20 border border-hijauSawah/30 shrink-0" />
-                        {author.name}
-                      </td>
-                      <td className="p-4 text-center font-semibold text-foreground">
-                        {author.articles}
-                      </td>
-                      <td className="p-4 text-right font-extrabold text-terakota">
-                        {author.views.toLocaleString()}
+                  {(stats.authorPerformance14d ?? []).length > 0 ? (
+                    stats.authorPerformance14d.map((author) => (
+                      <tr
+                        key={`author-${author.rank}-${author.name}`}
+                        className="hover:bg-muted/15 transition-all"
+                      >
+                        <td className="p-3 text-center font-extrabold text-muted-foreground">
+                          {author.rank}
+                        </td>
+                        <td className="p-3 font-bold text-foreground max-w-[8rem] truncate">
+                          {author.name}
+                        </td>
+                        <td className="p-3 text-center font-semibold text-foreground">
+                          {author.articles}
+                        </td>
+                        <td className="p-3 text-right font-extrabold text-terakota">
+                          {author.views.toLocaleString()}
+                        </td>
+                        <td className="p-3 text-right font-semibold text-foreground">
+                          {author.avgViews.toLocaleString()}
+                        </td>
+                        <td
+                          className={`p-3 text-right font-extrabold ${
+                            author.deltaPct == null
+                              ? "text-muted-foreground"
+                              : author.deltaPct >= 0
+                                ? "text-hijauSawah"
+                                : "text-terakota"
+                          }`}
+                        >
+                          {author.deltaPct == null
+                            ? "—"
+                            : `${author.deltaPct >= 0 ? "+" : ""}${author.deltaPct}%`}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="p-8 text-center text-xs text-muted-foreground"
+                      >
+                        Belum ada data performa author 14 hari.
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
           </CardContent>
         </Card>
 
-        {/* Table 2: Top Editors */}
-        <Card className="border border-border">
+        {/* Panel 2: Performa Editor (views) */}
+        <Card className="border border-border min-w-0">
           <CardHeader>
             <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Clock className="h-4 w-4 text-terakota" />
-              Top Editors
+              <Clock className="h-4 w-4 text-terakota shrink-0" />
+              Performa Editor
             </CardTitle>
             <CardDescription className="text-xs">
-              5 Editor redaksi teraktif yang memproses dan meloloskan naskah terbanyak dari meja review.
+              Top 5 editor berdasarkan views 14 hari pada naskah yang mereka sunting, plus jumlah naskah dan SLA.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left border-collapse">
+              <table className="w-full text-xs text-left border-collapse min-w-[300px]">
                 <thead>
                   <tr className="border-b border-border bg-muted/40 font-bold text-foreground">
-                    <th className="p-4 w-12 text-center">Rank</th>
-                    <th className="p-4">Nama Editor</th>
-                    <th className="p-4 text-center">Naskah Diproses</th>
-                    <th className="p-4 text-right">Rata-rata SLA</th>
+                    <th className="p-3 w-10 text-center">#</th>
+                    <th className="p-3">Nama</th>
+                    <th className="p-3 text-right whitespace-nowrap">Views</th>
+                    <th className="p-3 text-center whitespace-nowrap">Naskah</th>
+                    <th className="p-3 text-right whitespace-nowrap">SLA</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {stats.topEditors.map((editor) => (
-                    <tr key={editor.rank} className="hover:bg-muted/15 transition-all">
-                      <td className="p-4 text-center font-extrabold text-muted-foreground">
-                        {editor.rank}
-                      </td>
-                      <td className="p-4 font-bold text-foreground flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-terakota/20 border border-terakota/30 shrink-0" />
-                        {editor.name}
-                      </td>
-                      <td className="p-4 text-center font-semibold text-foreground">
-                        {editor.articles}
-                      </td>
-                      <td className="p-4 text-right font-extrabold text-hijauSawah">
-                        {editor.sla}
+                  {(stats.editorPerformance14d ?? []).length > 0 ? (
+                    stats.editorPerformance14d.map((editor) => (
+                      <tr
+                        key={`editor-${editor.rank}-${editor.name}`}
+                        className="hover:bg-muted/15 transition-all"
+                      >
+                        <td className="p-3 text-center font-extrabold text-muted-foreground">
+                          {editor.rank}
+                        </td>
+                        <td className="p-3 font-bold text-foreground max-w-[8rem] truncate">
+                          {editor.name}
+                        </td>
+                        <td className="p-3 text-right font-extrabold text-terakota">
+                          {editor.views.toLocaleString()}
+                        </td>
+                        <td className="p-3 text-center font-semibold text-foreground">
+                          {editor.articles}
+                        </td>
+                        <td className="p-3 text-right font-extrabold text-hijauSawah">
+                          {editor.sla}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="p-8 text-center text-xs text-muted-foreground"
+                      >
+                        Belum ada data performa editor 14 hari.
                       </td>
                     </tr>
-                  ))}
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Panel 3: Top Artikel */}
+        <Card className="border border-border min-w-0 md:col-span-2 xl:col-span-1">
+          <CardHeader>
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <Eye className="h-4 w-4 text-hijauSawah shrink-0" />
+              Top Artikel
+            </CardTitle>
+            <CardDescription className="text-xs">
+              5 artikel dengan views tertinggi dalam 14 hari terakhir.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse min-w-[280px]">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40 font-bold text-foreground">
+                    <th className="p-3 w-10 text-center">#</th>
+                    <th className="p-3">Judul</th>
+                    <th className="p-3 whitespace-nowrap">Author</th>
+                    <th className="p-3 text-right whitespace-nowrap">Views</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {(stats.topArticles14d ?? []).length > 0 ? (
+                    stats.topArticles14d.map((article) => (
+                      <tr
+                        key={`article-${article.rank}-${article.id}`}
+                        className="hover:bg-muted/15 transition-all"
+                      >
+                        <td className="p-3 text-center font-extrabold text-muted-foreground align-top">
+                          {article.rank}
+                        </td>
+                        <td className="p-3 font-bold text-foreground">
+                          <span className="line-clamp-2 leading-snug">
+                            {article.title}
+                          </span>
+                        </td>
+                        <td className="p-3 text-muted-foreground max-w-[6rem] truncate align-top">
+                          {article.author}
+                        </td>
+                        <td className="p-3 text-right font-extrabold text-terakota align-top whitespace-nowrap">
+                          {article.views.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="p-8 text-center text-xs text-muted-foreground"
+                      >
+                        Belum ada data top artikel 14 hari.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

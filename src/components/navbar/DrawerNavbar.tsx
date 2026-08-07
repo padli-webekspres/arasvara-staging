@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import PageNavbar from "./PageNavbar";
 import { FOOTER_MORE, FOOTER_SECTION_LINKS } from "@/lib/constants";
-import { useRootCategories } from "@/hooks/useCategory";
+import { useCategories } from "@/hooks/useCategory";
 import type { Category } from "@/types/category";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConfiguration } from "@/hooks/useConfiguration";
@@ -30,9 +30,9 @@ import {
 
 function categoryDrawerHref(cat: Category): string {
   const slug = String(cat.slug ?? "").trim();
-  if (slug) return `/category/${encodeURIComponent(slug)}`;
+  if (slug) return `/${encodeURIComponent(slug)}`;
   const id = cat._id != null ? String(cat._id) : "";
-  return id ? `/category/${encodeURIComponent(id)}` : "#";
+  return id ? `/${encodeURIComponent(id)}` : "#";
 }
 
 const linkClass =
@@ -54,7 +54,7 @@ const DrawerNavbar = ({
   onChangeInput,
   onKeyDownInput,
 }: DrawerNavbarProps) => {
-  const { data: categories = [], isPending } = useRootCategories();
+  const { data: categories = [], isPending } = useCategories();
   const { getStringValue, isLoading } = useConfiguration();
 
   const instagramLink = getStringValue("social_instagram_link");
@@ -231,8 +231,8 @@ const DrawerNavbar = ({
           <span className="mb-4 block text-xs font-bold uppercase tracking-widest text-hijauSawah">
             Ikuti kami
           </span>
-          <div
-            className="flex flex-wrap items-center gap-5"
+          <nav
+            className="flex flex-wrap items-center gap-2"
             aria-label="Media sosial Arasvara"
           >
             {isLoading ? (
@@ -240,7 +240,7 @@ const DrawerNavbar = ({
                 {[...Array(3)].map((_, i) => (
                   <div
                     key={i}
-                    className="h-7 w-7 animate-pulse rounded-full bg-foreground/10 sm:h-8 sm:w-8"
+                    className="h-11 w-11 animate-pulse rounded-full bg-foreground/10"
                   />
                 ))}
               </>
@@ -253,7 +253,7 @@ const DrawerNavbar = ({
                       href={social.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-muted-foreground transition-colors hover:text-hijauSawah"
+                      className="inline-flex h-11 w-11 items-center justify-center text-muted-foreground transition-colors hover:text-hijauSawah"
                       aria-label={social.name}
                     >
                       <Icon className="h-7 w-7 sm:h-8 sm:w-8" />
@@ -262,7 +262,7 @@ const DrawerNavbar = ({
                 );
               })
             )}
-          </div>
+          </nav>
         </div>
       </div>
     </DrawerContent>

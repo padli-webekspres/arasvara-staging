@@ -2,6 +2,7 @@
 import { usePathname } from "next/navigation";
 import ArticleUi from "@/components/news/ArticleUi";
 import {
+  copyToClipboard,
   formatDateReadable,
   formatTimeReadable,
   splitContentByPageBreak,
@@ -20,6 +21,7 @@ import {
 } from "@/lib/google-analytics";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { trackPushOpen } from "@/lib/ga-events";
+import { shouldCountArticleView } from "@/lib/articleViewAccess";
 
 interface NewsDetailClientProps {
   article: Article;
@@ -45,6 +47,7 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
   const pathname = usePathname();
   useEffect(() => {
     if (!article?._id) return;
+    if (!shouldCountArticleView(article.status)) return;
     const key = `viewed_article_${article._id}`;
     if (typeof window !== "undefined" && !sessionStorage.getItem(key)) {
       (async () => {
@@ -109,9 +112,7 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
 
   const shareUrl = canonicalShareUrl;
   const handleCopy = () => {
-    navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    void copyToClipboard(shareUrl, setCopied);
   };
 
   const { data: latestPages, isLoading: isLoadingLatestArticles } =

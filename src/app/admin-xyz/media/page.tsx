@@ -183,7 +183,15 @@ export default function MediaPage() {
             Belum ada media
           </div>
         ) : (
-          media.map((item) => <CardMedia key={item._id} media={item} />)
+          media.map((item) => (
+            <CardMedia
+              key={item._id}
+              media={item}
+              onDeleted={(id) =>
+                setMedia((prev) => prev.filter((m) => m._id !== id))
+              }
+            />
+          ))
         )}
         {/* Infinite scroll sentinel */}
         {!loading && hasMore && (
@@ -200,10 +208,6 @@ export default function MediaPage() {
         )}
       </div>
 
-      {/* Delete Confirmation Placeholder */}
-      <div className="hidden">
-        {/* Dialog konfirmasi hapus (dummy, non-interaktif) */}
-      </div>
       {/* MediaFormModal */}
       {showMediaModal && (
         <MediaFormModal

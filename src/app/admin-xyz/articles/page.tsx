@@ -82,6 +82,10 @@ import { ListTable, ListTableColumn } from "@/components/table/ListTable";
 import api from "@/lib/axios";
 import { toast } from "sonner";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import {
+  canWriterTakeDownArticle,
+  isWriterRole,
+} from "@/lib/editorialPublicationAccess";
 import { ROLES } from "@/lib/auth-client";
 import { ADMIN_PAGINATION_WRAP } from "@/lib/admin-ui";
 import { adminPanelHref } from "@/lib/admin-panel-path";
@@ -494,14 +498,21 @@ const ArticlesPage = () => {
                 <span>Edit</span>
               </DropdownMenuItem>
             </Link>
-            <DropdownMenuItem
-              onClick={() => setTakeDownId(row._id || row.slug)}
-              disabled={row.status === "TAKEN_DOWN"}
-              className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
-            >
-              <Ban className="mr-2 h-4 w-4 text-destructive" />
-              <span>Take Down</span>
-            </DropdownMenuItem>
+            {(!isWriterRole(user?.role) ||
+              canWriterTakeDownArticle(
+                user?.role,
+                row.status,
+                String(row.authorId ?? "") === String(user?._id ?? ""),
+              )) && (
+              <DropdownMenuItem
+                onClick={() => setTakeDownId(row._id || row.slug)}
+                disabled={row.status === "TAKEN_DOWN"}
+                className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+              >
+                <Ban className="mr-2 h-4 w-4 text-destructive" />
+                <span>Take Down</span>
+              </DropdownMenuItem>
+            )}
             <Link
               href={adminPanelHref(`articles/${row.slug || row._id}/related`)}
               className="w-full"

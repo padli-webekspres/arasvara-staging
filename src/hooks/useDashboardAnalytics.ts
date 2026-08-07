@@ -39,6 +39,24 @@ export interface AdminDashboardData {
     createdAt: string;
     detail: string;
   }>;
+  topCategories14d?: Array<{
+    categoryId: string;
+    name: string;
+    views: number;
+    articleCount: number;
+  }>;
+  topAuthors14d?: Array<{
+    authorId: string;
+    name: string;
+    views: number;
+    articleCount: number;
+  }>;
+  upcomingScheduled?: Array<{
+    id: string;
+    title: string;
+    scheduledAt: string;
+    authorName: string;
+  }>;
 }
 
 interface AdminDashboardResponse {
@@ -71,17 +89,27 @@ export interface ChiefDashboardData {
     articleCount: number;
     totalViews30d: number;
   }>;
-  topAuthors: Array<{
+  authorPerformance14d: Array<{
     rank: number;
     name: string;
     articles: number;
     views: number;
+    avgViews: number;
+    deltaPct: number | null;
   }>;
-  topEditors: Array<{
+  editorPerformance14d: Array<{
     rank: number;
     name: string;
+    views: number;
     articles: number;
     sla: string;
+  }>;
+  topArticles14d: Array<{
+    rank: number;
+    id: string;
+    title: string;
+    author: string;
+    views: number;
   }>;
   scheduledArticles: Array<{
     id: string;
@@ -89,6 +117,16 @@ export interface ChiefDashboardData {
     publishedAt: string;
     channel: string;
     author: string;
+  }>;
+  productionLast14d?: Array<{
+    date: string;
+    count: number;
+  }>;
+  unpublishedByStatus?: Array<{
+    status: string;
+    label: string;
+    count: number;
+    color: string;
   }>;
 }
 

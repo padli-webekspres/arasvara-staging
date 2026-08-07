@@ -29,7 +29,13 @@ import {
 } from "@tanstack/react-query";
 import HomePageClient from "./HomePageClient";
 import HeroMonogram from "@/components/homepage/HeroMonogram";
-import { HERO_MONOGRAM_SRC } from "@/lib/homepage-lcp";
+import HeroLcpPoster from "@/components/homepage/HeroLcpPoster";
+import { getHeroPosterUrlFromConfigs } from "@/lib/homepage-lcp";
+import {
+  buildSrcSet,
+  resolveMediaVariantUrl,
+  resolvePublicMediaUrl,
+} from "@/lib/media/public-media-url";
 import {
   fetchConfigurationsServer,
   fetchHeadlineArticlesServer,
@@ -222,15 +228,43 @@ export default async function HomePage() {
     }),
   ]);
 
+  const configs =
+    queryClient.getQueryData<
+      Awaited<ReturnType<typeof fetchConfigurationsServer>>
+    >(["configuration", "all"]) ?? [];
+  const heroPosterUrl = getHeroPosterUrlFromConfigs(configs);
+  const resolvedHeroPoster = heroPosterUrl
+    ? resolvePublicMediaUrl(heroPosterUrl) || heroPosterUrl
+    : "";
+  const heroPosterIsWebp = /\.webp(?:$|[?#])/i.test(resolvedHeroPoster);
+  // Mobile-first: default src/preload ke w640; browser pilih dari srcset jika perlu.
+  const heroPosterPreloadHref = resolvedHeroPoster
+    ? heroPosterIsWebp
+      ? resolveMediaVariantUrl(resolvedHeroPoster, 640)
+      : resolvedHeroPoster
+    : "";
+  const heroPosterPreloadSrcSet =
+    resolvedHeroPoster && heroPosterIsWebp
+      ? buildSrcSet(resolvedHeroPoster)
+      : undefined;
+
   return (
     <>
-      <link
-        rel="preload"
-        as="image"
-        href={HERO_MONOGRAM_SRC}
-        fetchPriority="high"
-      />
-
+      {heroPosterPreloadHref ? (
+        <link
+          rel="preload"
+          as="image"
+          href={heroPosterPreloadHref}
+          // Samakan dengan ResponsiveMediaImage di HeroVideo agar tidak double-fetch.
+          {...(heroPosterPreloadSrcSet
+            ? {
+                imageSrcSet: heroPosterPreloadSrcSet,
+                imageSizes: "100vw",
+              }
+            : {})}
+          fetchPriority="high"
+        />
+      ) : null}
       {/* JSON-LD Structured Data untuk Google Knowledge Graph */}
       <script
         type="application/ld+json"
@@ -252,7 +286,17 @@ export default async function HomePage() {
         konten krusial (konfigurasi, headline, artikel terbaru).
       */}
       <HydrationBoundary state={dehydrate(queryClient)}>
-        <HomePageClient lcpMonogram={<HeroMonogram />} />
+        <HomePageClient
+          lcpMonogram={<HeroMonogram />}
+          lcpPoster={
+            heroPosterPreloadHref ? (
+              <HeroLcpPoster
+                src={heroPosterPreloadHref}
+                srcSet={heroPosterPreloadSrcSet}
+              />
+            ) : null
+          }
+        />
       </HydrationBoundary>
     </>
   );

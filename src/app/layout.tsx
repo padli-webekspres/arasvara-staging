@@ -4,8 +4,8 @@ import Script from "next/script";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import ReactQueryProvider from "@/app/providers/ReactQueryProvider";
-import PushSubscriber from "@/components/notification/PushSubscriber";
 import GaRouteTracker from "@/components/analytics/GaRouteTracker";
+import DeferredPushSubscriber from "@/components/notification/DeferredPushSubscriber";
 import { Suspense } from "react";
 import { fetchConfigurationsServer } from "@/lib/server/fetchServerSide";
 import {
@@ -22,11 +22,6 @@ const rubik = localFont({
       style: "normal",
     },
     {
-      path: "../../public/fonts/Rubik/Rubik-Italic.woff2",
-      weight: "400",
-      style: "italic",
-    },
-    {
       path: "../../public/fonts/Rubik/Rubik-Medium.woff2",
       weight: "500",
       style: "normal",
@@ -40,11 +35,6 @@ const rubik = localFont({
       path: "../../public/fonts/Rubik/Rubik-Bold.woff2",
       weight: "700",
       style: "normal",
-    },
-    {
-      path: "../../public/fonts/Rubik/Rubik-BoldItalic.woff2",
-      weight: "700",
-      style: "italic",
     },
   ],
   variable: "--font-rubik",
@@ -132,12 +122,13 @@ export default function RootLayout({
         <link
           rel="icon"
           type="image/png"
-          href="/logo-arasvara/monogram/contained-monogram-putih-naskah.png"
-          sizes="512x512"
+          href="/logo-arasvara/monogram/contained-monogram-putih-naskah-32.png"
+          sizes="32x32"
         />
         <link
           rel="apple-touch-icon"
-          href="/logo-arasvara/monogram/contained-monogram-putih-naskah.png"
+          href="/logo-arasvara/monogram/contained-monogram-putih-naskah-180.png"
+          sizes="180x180"
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {/* Google Site Verification */}
@@ -151,14 +142,14 @@ export default function RootLayout({
       <body
         className={`${rubik.variable} antialiased min-h-screen bg-background hide-scrollbar`}
       >
-        {/* Google Analytics — dimuat setelah halaman interaktif */}
+        {/* Google Analytics — lazy agar tidak bersaing dengan LCP mobile */}
         {gaMeasurementId && (
           <>
             <Script
               src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
-              strategy="afterInteractive"
+              strategy="lazyOnload"
             />
-            <Script id="google-analytics" strategy="afterInteractive">
+            <Script id="google-analytics" strategy="lazyOnload">
               {`
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}
@@ -168,9 +159,9 @@ export default function RootLayout({
             </Script>
           </>
         )}
-        {/* Google Tag Manager — dimuat setelah halaman interaktif */}
+        {/* Google Tag Manager — lazyOnload */}
         {gtmId && (
-          <Script id="google-tag-manager" strategy="afterInteractive">
+          <Script id="google-tag-manager" strategy="lazyOnload">
             {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
@@ -189,8 +180,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           </noscript>
         )}
         <ReactQueryProvider>
-          {/* Silent push notification subscriber — tidak me-render UI */}
-          <PushSubscriber />
+          {/* Silent push — client-deferred, tidak di critical path SSR */}
+          <DeferredPushSubscriber />
           <Suspense fallback={null}>
             <GaRouteTracker />
           </Suspense>

@@ -8,6 +8,7 @@ import { Article, Tag } from "@/types/article";
  * - `tag_names` (CSV) dihapus → diganti `tag_1`, `tag_2`, `tag_3`
  * - Tambah: article_age_days, word_count, publish_hour, publish_day_of_week,
  *            has_video, has_gallery, user_type, referrer_type, session_source
+ * - Tambah atribusi editor: editor_id, editor_name, editor_slug
  */
 export type ArticleGaPayload = {
   article_id: string;
@@ -15,6 +16,9 @@ export type ArticleGaPayload = {
   article_title: string;
   author_id: string;
   author_name: string;
+  editor_id: string;
+  editor_name: string;
+  editor_slug: string;
   category_id: string;
   category_name: string;
   category_slug: string;
@@ -307,6 +311,9 @@ export function buildArticleGaParams(
     article_title: article.title ?? "",
     author_id: String(article.authorId ?? ""),
     author_name: article.author?.name ?? "Anonim",
+    editor_id: String(article.editorId ?? article.editor?._id ?? ""),
+    editor_name: article.editor?.name ?? "",
+    editor_slug: article.editor?.slug ?? "",
     category_id: String(article.categoryId ?? article.category?._id ?? ""),
     category_name: article.category?.name ?? "Uncategorized",
     category_slug: article.category?.slug ?? "",
@@ -364,6 +371,9 @@ export type ArticleReadCompletePayload = {
   article_title: string;
   category_name: string;
   article_format: string;
+  editor_id: string;
+  editor_name: string;
+  editor_slug: string;
   /** Fixed value: 80 — penanda threshold yang dicapai */
   scroll_depth: number;
   /** Detik sejak halaman di-load sampai marker masuk viewport */
@@ -388,6 +398,9 @@ export function trackArticleReadComplete(
     article_title: article.title ?? "",
     category_name: article.category?.name ?? "Uncategorized",
     article_format: article.format ?? "STANDARD",
+    editor_id: String(article.editorId ?? article.editor?._id ?? ""),
+    editor_name: article.editor?.name ?? "",
+    editor_slug: article.editor?.slug ?? "",
     scroll_depth: 80,
     time_on_page_seconds: Math.max(0, Math.round(timeOnPageSeconds)),
     content_page: contentPage === "all" ? "all" : String(contentPage),

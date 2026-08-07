@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Edit2, Trash2, GripVertical } from "lucide-react";
 import Image from "next/image";
 import { useSortable } from "@dnd-kit/react/sortable";
+import { sortableVideoDragHandleClass } from "@/lib/admin/sortableStyles";
 import { SectionVideoItem } from "@/types/articleSection";
 
 // ── Type Definition ───────────────────────────────────────────────────────
@@ -59,7 +60,10 @@ export const VideoFormCard = ({
       {/* Drag handle */}
       <div
         ref={handleRef}
-        className="absolute z-5 top-2 left-2 p-1 bg-background/80 backdrop-blur rounded-md cursor-grab active:cursor-grabbing opacity-50 hover:opacity-100 transition-opacity shadow-sm"
+        className={sortableVideoDragHandleClass}
+        style={{ touchAction: "none" }}
+        aria-label="Geser untuk mengurutkan video"
+        title="Geser untuk mengurutkan video"
       >
         <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
       </div>

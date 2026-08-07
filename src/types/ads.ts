@@ -560,4 +560,5 @@ export interface AdsCardProps {
   bannerUrl?: string;
   className?: string;
   alt?: string;
+  clickable?: boolean;
 }

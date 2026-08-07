@@ -3,6 +3,10 @@ import { useSortable } from "@dnd-kit/react/sortable"; // Import dari path baru
 import { GripVertical, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SecondaryNewsCard from "@/components/news/SecondaryNewsCard";
+import {
+  sortableDragHandleClass,
+  sortableRemoveButtonClass,
+} from "@/lib/admin/sortableStyles";
 import { SectionArticleItem } from "@/types/articleSection";
 
 interface SortableArticleCardProps {
@@ -32,7 +36,7 @@ export const SortableArticleCard = ({
       {/* Area Drag Handle */}
       <div
         ref={handleRef}
-        className="absolute top-2 left-2 z-10 p-1.5 bg-background/80 backdrop-blur rounded-md cursor-grab active:cursor-grabbing opacity-25 group-hover:opacity-75 !hover:opacity-100 transition-opacity shadow-sm"
+        className={sortableDragHandleClass}
       >
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </div>
@@ -41,7 +45,7 @@ export const SortableArticleCard = ({
       <Button
         variant="destructive"
         size="icon"
-        className="absolute top-2 right-2 z-10 h-7 w-7 opacity-25 group-hover:opacity-75 !hover:opacity-100 transition-opacity shadow-sm"
+        className={sortableRemoveButtonClass}
         onClick={() => onRemove(editorChoice._id)}
       >
         <X className="h-4 w-4" />

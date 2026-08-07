@@ -23,7 +23,7 @@ import {
 import { getArticleShareLinks } from "@/lib/article-share";
 import { resolveAuthorPublicHref } from "@/lib/author-public-path";
 import { useState, useCallback, useMemo } from "react";
-import Image from "next/image";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
 import GalleryContent from "./GalleryContent";
 import TitleHomepage from "../homepage/TitleHomepage";
 import {
@@ -270,7 +270,7 @@ const ArticleUi = ({
                 <BreadcrumbItem>
                   <BreadcrumbLink
                     className="text-base "
-                    href={`/category/${article.category.slug}`}
+                    href={`/${article.category.slug}`}
                   >
                     <Button
                       className="px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded-lg"
@@ -310,14 +310,14 @@ const ArticleUi = ({
           {article.featuredImage && article.format === "STANDARD" && (
             <div className="mb-6">
               <div className="w-full relative rounded-2xl overflow-hidden">
-                <Image
+                <ResponsiveMediaImage
                   priority
-                  unoptimized
-                  width={1920}
-                  height={1080}
                   src={article.featuredImage.url}
                   alt={article.featuredImage.caption || article.title}
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 960px"
                   className="object-cover w-full h-full"
+                  width={1920}
+                  height={1080}
                 />
               </div>
               {article.featuredImage.caption && (

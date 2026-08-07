@@ -32,14 +32,14 @@ export interface ImageFigureAttrs {
   /**
    * Filename media di server — digunakan saat submit untuk memetakan
    * gambar ini ke objek `ArticleMedia` yang tepat.
-   * Untuk pending media, ini berisi idbKey sementara.
+   * Untuk pending media, ini berisi tempMediaId sementara.
    */
   mediaKey: string;
   /**
-   * Key IndexedDB untuk gambar yang belum diunggah ke server.
-   * Akan dikosongkan setelah upload berhasil.
+   * ID media temp di object storage (`temp/`) untuk gambar yang belum
+   * dipromosikan. Akan dikosongkan setelah promote berhasil.
    */
-  idbKey: string;
+  tempMediaId: string;
 }
 
 // ─── Command Declaration ──────────────────────────────────────────────────────
@@ -93,10 +93,10 @@ export const ImageFigure = Node.create({
         parseHTML: (element) =>
           element.getAttribute("data-media-key") ?? "",
       },
-      idbKey: {
+      tempMediaId: {
         default: "",
         parseHTML: (element) =>
-          element.getAttribute("data-idb-key") ?? "",
+          element.getAttribute("data-temp-media-id") ?? "",
       },
     };
   },
@@ -120,7 +120,7 @@ export const ImageFigure = Node.create({
       "data-image-figure": "true",
       "data-credit": attrs.credit || "",
       "data-media-key": attrs.mediaKey || "",
-      "data-idb-key": attrs.idbKey || "",
+      "data-temp-media-id": attrs.tempMediaId || "",
     });
 
     const imgAttrs = {
@@ -151,7 +151,7 @@ export const ImageFigure = Node.create({
               caption: attrs.caption ?? "",
               credit: attrs.credit ?? "",
               mediaKey: attrs.mediaKey ?? "",
-              idbKey: attrs.idbKey ?? "",
+              tempMediaId: attrs.tempMediaId ?? "",
             },
           });
         },

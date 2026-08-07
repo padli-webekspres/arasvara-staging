@@ -1,17 +1,11 @@
 // useHeroCardSplitText.ts
 import { useRef, useEffect } from "react";
-import { gsap } from "gsap";
-import { SplitText } from "gsap/SplitText";
-
-if (typeof window !== "undefined" && gsap && SplitText) {
-  gsap.registerPlugin(SplitText);
-}
 
 const MIN_TITLE_WIDTH_PX = 160;
 
 /**
- * Animasi masuk judul HeroCard — split per kata (bukan per karakter / baris)
- * agar teks tetap melebar mengikuti lebar container (2/3 kartu).
+ * Animasi masuk judul HeroCard — GSAP/SplitText di-import dinamis
+ * dan hanya di desktop (mobile skip untuk hemat main thread).
  */
 export function useHeroCardSplitText(titleKey?: string) {
   const parentRef = useRef<HTMLDivElement | null>(null);
@@ -30,8 +24,8 @@ export function useHeroCardSplitText(titleKey?: string) {
       parentRef.current.querySelector<HTMLElement>(".titleHeroCard");
     if (!title) return;
 
-    let split: SplitText | null = null;
-    let anim: gsap.core.Tween | null = null;
+    let split: { revert: () => void; words: Element[] } | null = null;
+    let anim: { kill: () => void } | null = null;
     let observer: IntersectionObserver | null = null;
     let cancelled = false;
 
@@ -46,17 +40,24 @@ export function useHeroCardSplitText(titleKey?: string) {
       }
     };
 
-    const runSplitAnimation = () => {
+    const runSplitAnimation = async () => {
       if (cancelled || !title.isConnected) return false;
       if (title.offsetWidth < MIN_TITLE_WIDTH_PX) return false;
 
       cleanupSplit();
 
-      // Hanya "words" — hindari konflik layout dengan line-clamp / -webkit-box
-      split = new SplitText(title, { type: "words" });
-      gsap.set(split.words, { y: 28, opacity: 0 });
+      const [{ gsap }, { SplitText }] = await Promise.all([
+        import("gsap"),
+        import("gsap/SplitText"),
+      ]);
+      if (cancelled || !title.isConnected) return false;
 
-      anim = gsap.to(split.words, {
+      gsap.registerPlugin(SplitText);
+      const nextSplit = new SplitText(title, { type: "words" });
+      split = nextSplit;
+      gsap.set(nextSplit.words, { y: 28, opacity: 0 });
+
+      anim = gsap.to(nextSplit.words, {
         y: 0,
         opacity: 1,
         duration: 0.55,
@@ -69,13 +70,13 @@ export function useHeroCardSplitText(titleKey?: string) {
     };
 
     const tryStartWhenReady = (attempt = 0) => {
-      if (runSplitAnimation()) return;
-      if (attempt < 8) {
+      void runSplitAnimation().then((ok) => {
+        if (ok || attempt >= 8) return;
         requestAnimationFrame(() => tryStartWhenReady(attempt + 1));
-      }
+      });
     };
 
-    if (typeof window !== "undefined" && "IntersectionObserver" in window) {
+    if ("IntersectionObserver" in window) {
       observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {

@@ -12,6 +12,8 @@ import { SectionVideoItem } from "@/types/articleSection";
 import VideoCarouselItem from "./VideoCarouselItem";
 import { AdsCard } from "@/components/ads/card/adsCard";
 import { AdsCardVariant, HomepageAdItem } from "@/types/ads";
+import { trackAdClick } from "@/lib/trackAdClick";
+import { trackGaAdClick } from "@/lib/ga-events";
 import {
   getSocmedMaxVisibleVideos,
   getSocmedSlideWidthClasses,
@@ -117,12 +119,41 @@ export const VideoSocmedCarousel = ({
               }
               key={ad._id}
             >
-              <AdsCard
-                variant={AdsCardVariant.VIDEO}
-                span={ad.span}
-                position={ad.position}
-                bannerUrl={ad.banner.url}
-              />
+              {(() => {
+                const href = ad.linkUrl?.trim();
+                const card = (
+                  <AdsCard
+                    variant={AdsCardVariant.VIDEO}
+                    span={ad.span}
+                    position={ad.position}
+                    bannerUrl={ad.banner.url}
+                    clickable={Boolean(href)}
+                  />
+                );
+
+                if (!href) return card;
+
+                return (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full h-full"
+                    onClick={() => {
+                      trackAdClick(ad._id, "homepage");
+                      trackGaAdClick({
+                        ad_id: ad._id,
+                        ad_position: String(ad.position),
+                        ad_size: AdsCardVariant.VIDEO,
+                        ad_sponsor: ad.name,
+                        ad_destination_url: href,
+                      });
+                    }}
+                  >
+                    {card}
+                  </a>
+                );
+              })()}
             </SwiperSlide>
           ))}
 
@@ -140,12 +171,12 @@ export const VideoSocmedCarousel = ({
           ))}
       </Swiper>
 
-      <div className="swiper-button-prev-custom swiper-button-custom">
+      <button type="button" aria-label="Video sebelumnya" className="swiper-button-prev-custom swiper-button-custom">
         <ChevronLeft className="w-5 h-5" />
-      </div>
-      <div className="swiper-button-next-custom swiper-button-custom">
+      </button>
+      <button type="button" aria-label="Video selanjutnya" className="swiper-button-next-custom swiper-button-custom">
         <ChevronRight className="w-5 h-5" />
-      </div>
+      </button>
     </div>
   );
 };

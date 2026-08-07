@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Images, Upload, Check, X, AlertCircle, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Images, Upload, Check, X, AlertCircle, Loader2, SearchIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import DraftImageUploadForm from "@/components/media/DraftImageUploadForm";
 import CropImageModal from "@/components/media/CropImageModal";
 import ArticleAttributionDialog from "@/components/ui/ArticleAttributionDialog";
@@ -100,6 +106,11 @@ export default function ImagePickerModal({
   const [hasMore, setHasMore] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
   const [selectedMediaArray, setSelectedMediaArray] = useState<Media[]>([]);
+  const [gallerySearch, setGallerySearch] = useState("");
+  const [debouncedGallerySearch, setDebouncedGallerySearch] = useState("");
+  const gallerySearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   // ─── State Upload (fase 1 → crop → fase 2) ─────────────────────────────────
   /** blobUrl gambar asli yang dipilih user — dikirim ke CropModal */
@@ -117,19 +128,6 @@ export default function ImagePickerModal({
     Media | PendingMedia | null
   >(null);
 
-  // ─── Reset semua state saat modal ditutup ───────────────────────────────────
-  useEffect(() => {
-    if (!open) {
-      setSelectedMedia(null);
-      setSelectedMediaArray([]);
-      setTab("upload");
-      resetUploadState();
-      setAttributionOpen(false);
-      setPendingResultMedia(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
   const resetUploadState = useCallback(() => {
     // Revoke blob URL lama agar tidak ada memory leak
     if (cropSrc) {
@@ -140,25 +138,74 @@ export default function ImagePickerModal({
     setCroppedBlob(null);
   }, [cropSrc]);
 
-  // ─── Load gallery saat tab gallery aktif ───────────────────────────────────
+  // ─── Reset semua state saat modal ditutup ───────────────────────────────────
+  // Jangan reset jika crop/atribusi masih terbuka — di mobile, nested Dialog Radix
+  // kadang memicu onOpenChange(false) pada picker saat crop baru dibuka, yang
+  // sebelumnya merevoke blob URL dan menampilkan broken "Crop preview".
   useEffect(() => {
-    if (tab === "gallery" && open) {
-      setMediaList([]);
-      setGalleryPage(1);
-      setHasMore(false);
-      loadGallery(1, true);
+    if (!open && !cropOpen && !attributionOpen) {
+      setSelectedMedia(null);
+      setSelectedMediaArray([]);
+      setTab("upload");
+      setGallerySearch("");
+      setDebouncedGallerySearch("");
+      resetUploadState();
+      setPendingResultMedia(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, open]);
+  }, [open, cropOpen, attributionOpen]);
 
-  const loadGallery = async (page: number, reset = false) => {
+  /** Nested crop/atribusi: cegah picker menutup & merevoke blob URL. */
+  const hasNestedOverlay = cropOpen || attributionOpen;
+
+  const handlePickerOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen && hasNestedOverlay) return;
+      if (!nextOpen) onClose();
+    },
+    [hasNestedOverlay, onClose],
+  );
+
+  const preventOutsideDismissWhileNested = useCallback(
+    (event: Event) => {
+      if (hasNestedOverlay) {
+        event.preventDefault();
+      }
+    },
+    [hasNestedOverlay],
+  );
+
+  // Debounce search input (sama pola halaman /admin-xyz/media)
+  useEffect(() => {
+    if (gallerySearchDebounceRef.current) {
+      clearTimeout(gallerySearchDebounceRef.current);
+    }
+    gallerySearchDebounceRef.current = setTimeout(() => {
+      setDebouncedGallerySearch(gallerySearch);
+    }, 300);
+    return () => {
+      if (gallerySearchDebounceRef.current) {
+        clearTimeout(gallerySearchDebounceRef.current);
+      }
+    };
+  }, [gallerySearch]);
+
+  const loadGallery = useCallback(async (page: number, reset = false, query = "") => {
     setGalleryLoading(true);
     try {
+      const params = new URLSearchParams({
+        filter: "image",
+        page: String(page),
+        limit: String(GALLERY_LIMIT),
+      });
+      const trimmed = query.trim();
+      if (trimmed) params.set("query", trimmed);
+
       const res = await api.get<{
         success: boolean;
         media: Media[];
         total?: number;
-      }>(`/media?filter=image&page=${page}&limit=${GALLERY_LIMIT}`);
+      }>(`/media?${params.toString()}`);
       const items: Media[] = res.data.media ?? [];
       setMediaList((prev) => (reset ? items : [...prev, ...items]));
       setHasMore(items.length === GALLERY_LIMIT);
@@ -167,12 +214,22 @@ export default function ImagePickerModal({
     } finally {
       setGalleryLoading(false);
     }
-  };
+  }, []);
+
+  // ─── Load gallery saat tab gallery aktif atau query berubah ───────────────
+  useEffect(() => {
+    if (tab === "gallery" && open) {
+      setMediaList([]);
+      setGalleryPage(1);
+      setHasMore(false);
+      void loadGallery(1, true, debouncedGallerySearch);
+    }
+  }, [tab, open, debouncedGallerySearch, loadGallery]);
 
   const handleLoadMore = () => {
     const next = galleryPage + 1;
     setGalleryPage(next);
-    loadGallery(next);
+    void loadGallery(next, false, debouncedGallerySearch);
   };
 
   // ─── Helper: cek status seleksi ────────────────────────────────────────────
@@ -275,6 +332,14 @@ export default function ImagePickerModal({
     });
   }, []);
 
+  // Jika parent memaksa menutup picker (navigasi / unmount state), bersihkan crop
+  // agar tidak tersisa modal orphan dengan blob URL basi.
+  useEffect(() => {
+    if (!open && cropOpen) {
+      handleCropCancel();
+    }
+  }, [open, cropOpen, handleCropCancel]);
+
   /**
    * Fase 2: user selesai isi metadata, media siap.
    * Buka attribution dialog dengan default dari metadata media.
@@ -323,10 +388,19 @@ export default function ImagePickerModal({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <Dialog open={open} onOpenChange={handlePickerOpenChange}>
         <DialogContent
           className="max-w-2xl w-full md:max-w-3xl flex flex-col overflow-hidden"
           style={{ maxHeight: "90vh" }}
+          onPointerDownOutside={preventOutsideDismissWhileNested}
+          onInteractOutside={preventOutsideDismissWhileNested}
+          onFocusOutside={preventOutsideDismissWhileNested}
+          onEscapeKeyDown={(event) => {
+            // Escape harus menutup crop/atribusi dulu, bukan picker + revoke URL
+            if (hasNestedOverlay) {
+              event.preventDefault();
+            }
+          }}
         >
           <DialogHeader>
             <DialogTitle>Pilih Gambar</DialogTitle>
@@ -369,20 +443,35 @@ export default function ImagePickerModal({
             {/* Tab Gallery */}
             {tab === "gallery" && (
               <div className="space-y-3">
+                <InputGroup>
+                  <InputGroupInput
+                    placeholder="Cari gambar..."
+                    value={gallerySearch}
+                    onChange={(e) => setGallerySearch(e.target.value)}
+                  />
+                  <InputGroupAddon>
+                    <SearchIcon />
+                  </InputGroupAddon>
+                </InputGroup>
+
                 {galleryLoading && mediaList.length === 0 ? (
                   <div className="flex items-center justify-center py-16">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : mediaList.length === 0 ? (
                   <p className="text-center text-sm text-muted-foreground py-16">
-                    Belum ada gambar di galeri.
+                    {debouncedGallerySearch.trim()
+                      ? "Tidak ada gambar yang cocok dengan pencarian."
+                      : "Belum ada gambar di galeri."}
                   </p>
                 ) : (
                   <>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 items-start">
                       {mediaList.map((item) => {
                         const isSelected = isMediaSelected(item._id);
                         const isAlreadyInGallery = isMediaAlreadyInGallery(item._id);
+                        const credit = item.credit?.trim();
+                        const caption = item.caption?.trim();
                         return (
                           <button
                             key={item._id}
@@ -397,39 +486,57 @@ export default function ImagePickerModal({
                               }
                             }}
                             disabled={isAlreadyInGallery && !isMultiSelect}
-                            className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${isAlreadyInGallery
+                            className={`group text-left rounded-lg border overflow-hidden transition-all ${
+                              isAlreadyInGallery
                                 ? "border-destructive opacity-60 cursor-not-allowed"
                                 : isSelected
-                                  ? "border-hijauSawah"
-                                  : "border-transparent hover:border-muted-foreground"
-                              }`}
+                                  ? "border-hijauSawah ring-1 ring-hijauSawah"
+                                  : "border-border hover:border-muted-foreground"
+                            }`}
                             title={
                               isAlreadyInGallery
                                 ? "Sudah ada di galeri"
-                                : (item.caption ?? item.filename)
+                                : (caption || item.filename)
                             }
                           >
-                            <img
-                              src={`/api/media/view?key=${encodeURIComponent(item.filename)}`}
-                              alt={item.caption ?? item.filename}
-                              className="object-cover w-full h-full"
-                              loading="lazy"
-                            />
-                            {isAlreadyInGallery && !isMultiSelect && (
-                              <div className="absolute inset-0 bg-destructive/20 flex items-center justify-center">
-                                <X className="h-6 w-6 text-destructive drop-shadow" />
-                              </div>
-                            )}
-                            {isSelected && (
-                              <div className="absolute inset-0 bg-hijauSawah/20 flex items-center justify-center">
-                                <Check className="h-6 w-6 text-hijauSawah drop-shadow" />
-                              </div>
-                            )}
-                            {isAlreadyInGallery && isMultiSelect && (
-                              <div className="absolute inset-0 bg-destructive/20 flex items-end justify-end p-1">
-                                <AlertCircle className="h-4 w-4 text-destructive drop-shadow" />
-                              </div>
-                            )}
+                            <div className="relative aspect-video bg-muted">
+                              <img
+                                src={`/api/media/view?key=${encodeURIComponent(item.filename)}`}
+                                alt={caption || item.filename}
+                                className="object-cover w-full h-full"
+                                loading="lazy"
+                              />
+                              {isAlreadyInGallery && !isMultiSelect && (
+                                <div className="absolute inset-0 bg-destructive/20 flex items-center justify-center">
+                                  <X className="h-6 w-6 text-destructive drop-shadow" />
+                                </div>
+                              )}
+                              {isSelected && (
+                                <div className="absolute inset-0 bg-hijauSawah/20 flex items-center justify-center">
+                                  <Check className="h-6 w-6 text-hijauSawah drop-shadow" />
+                                </div>
+                              )}
+                              {isAlreadyInGallery && isMultiSelect && (
+                                <div className="absolute inset-0 bg-destructive/20 flex items-end justify-end p-1">
+                                  <AlertCircle className="h-4 w-4 text-destructive drop-shadow" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-2.5 space-y-1">
+                              <Badge variant="default" className="mb-1">
+                                Image
+                              </Badge>
+                              {credit ? (
+                                <p className="text-xs text-primary line-clamp-1">
+                                  Credit: {credit}
+                                </p>
+                              ) : null}
+                              {caption ? (
+                                <p className="text-xs text-primary line-clamp-2">
+                                  {caption}
+                                </p>
+                              ) : null}
+                            </div>
                           </button>
                         );
                       })}

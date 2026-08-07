@@ -533,8 +533,8 @@ export default function ArticleApprovalForm({
                       />
                     </FormControl>
                     <p className="text-xs text-muted-foreground mt-2">
-                      Waktu publikasi hanya bisa kelipatan 5 menit (misal:
-                      10:00, 10:05, dst)
+                      Kelipatan 5 menit (mis. 10:00, 10:05). Waktu yang sudah
+                      lewat diizinkan — artikel akan terbit pada cron berikutnya.
                     </p>
                     <FormMessage />
                   </FormItem>

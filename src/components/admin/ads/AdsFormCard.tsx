@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Edit2, Trash2, GripVertical } from "lucide-react";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { cn, shouldUnoptimizeNewsCardImage } from "@/lib/utils";
+import { sortableCompactDragHandleClass } from "@/lib/admin/sortableStyles";
 import {
   AdsPosition,
   adsHomepageBannerCropSpec,
@@ -88,7 +89,7 @@ export function AdsFormCard({
 
       <div
         ref={handleRef}
-        className="absolute left-2 top-2 z-10 cursor-grab rounded-md bg-background/80 p-1 opacity-50 shadow-sm backdrop-blur transition-opacity hover:opacity-100 active:cursor-grabbing"
+        className={sortableCompactDragHandleClass}
       >
         <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
       </div>

@@ -5,6 +5,10 @@ import {
 	PutObjectCommand,
 	DeleteObjectCommand,
 	GetObjectCommand,
+	HeadObjectCommand,
+	CopyObjectCommand,
+	ListObjectsV2Command,
+	DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { s3Client, S3_BUCKET } from "@/lib/s3";
@@ -16,8 +20,17 @@ import type {
 	MediaUsageInArticle,
 	PayloadCreateMedia,
 } from "@/types/media";
+import { ArticleStatus } from "@/types/article";
 import logger from "@/lib/logger";
-import { isAllowedArticleUploadFolder } from "@/lib/media/articleUploadScopes";
+import {
+	isAllowedArticleUploadFolder,
+	type ArticleObjectStorageFolder,
+} from "@/lib/media/articleUploadScopes";
+import {
+	buildTempMediaKey,
+	TEMP_MEDIA_FOLDER,
+	TEMP_MEDIA_MAX_AGE_MS,
+} from "@/lib/media/tempMedia";
 import type { AuditLogActor } from "@/types/auditLog";
 import { AuditLogAction } from "@/types/auditLog";
 import { createAuditLog, requireAuditActor } from "@/services/auditLogService";
@@ -25,7 +38,12 @@ import { ensurePresignedUploadIsWebp } from "@/lib/image/ensureObjectStorageWebp
 import {
 	ensureObjectCacheControl,
 	withImmutableCacheControl,
+	S3_IMMUTABLE_CACHE_CONTROL,
 } from "@/lib/s3/object-cache";
+import {
+	generateImageVariants,
+	getVariantKey,
+} from "@/lib/image/generateImageVariants";
 
 export interface UploadMediaResult {
 	fileName: string;
@@ -59,13 +77,23 @@ export async function uploadMedia(file: File): Promise<UploadMediaResult> {
 		const uniqueId = ulid();
 
 		if (file.type?.startsWith("image/")) {
-			const sharp = (await import("sharp")).default;
-			buffer = (await sharp(buffer)
-				.resize(1200, 800, { fit: "cover" })
-				.webp({ quality: 80 })
-				.toBuffer()) as Buffer;
+			const variants = await generateImageVariants(buffer);
+			buffer = variants.original.buffer;
 			contentType = "image/webp";
 			generatedFileName = `${uniqueId}.webp`;
+
+			await Promise.all(
+				([640, 1280] as const).map((width) =>
+					s3Client.send(
+						new PutObjectCommand(withImmutableCacheControl({
+							Bucket: S3_BUCKET,
+							Key: getVariantKey(generatedFileName, width),
+							Body: variants[`w${width}`].buffer,
+							ContentType: "image/webp",
+						})),
+					),
+				),
+			);
 		} else if (file.type?.startsWith("video/")) {
 			const ext =
 				file.name && file.name.includes(".")
@@ -513,7 +541,7 @@ export async function getMediaFromDB(params?: {
 }
 
 /**
- * Cek apakah media digunakan di artikel manapun (featuredImageId atau contentMediaIds).
+ * Cek apakah media digunakan di artikel (featuredImage / contentMedia / galleryItems).
  * @param mediaId string | ObjectId
  * @param returnDetail jika true, return array detail artikel; jika false, return boolean saja
  */
@@ -523,33 +551,33 @@ export async function findArticlesUsingMedia(
 ): Promise<boolean | MediaUsageInArticle[]> {
 	const db = await connectToDatabase();
 	let objId: ObjectId;
+	let idStr: string;
 	try {
 		objId = typeof mediaId === "string" ? new ObjectId(mediaId) : mediaId;
+		idStr = objId.toString();
 	} catch {
 		if (returnDetail) return [];
 		return false;
 	}
 
-	// Only check articles that are not soft deleted
+	const mediaIdMatchers = [idStr, objId];
+
 	const query = {
-		$and: [
-			{
-				$or: [
-					{ featuredImageId: objId },
-					{ contentMediaIds: { $in: [objId, objId.toString()] } },
-				],
-			},
-			{
-				$or: [{ deletedAt: { $exists: false } }, { deletedAt: null }],
-			},
+		$or: [
+			{ "featuredImage.mediaId": { $in: mediaIdMatchers } },
+			{ "contentMedia.mediaId": { $in: mediaIdMatchers } },
+			{ "galleryItems.mediaId": { $in: mediaIdMatchers } },
 		],
 	};
+
 	const projection = {
 		_id: 1,
 		title: 1,
 		slug: 1,
-		featuredImageId: 1,
-		contentMediaIds: 1,
+		status: 1,
+		featuredImage: 1,
+		contentMedia: 1,
+		galleryItems: 1,
 	};
 
 	if (!returnDetail) {
@@ -566,33 +594,409 @@ export async function findArticlesUsingMedia(
 		.find(query, { projection })
 		.toArray();
 
-	// Map usage type
 	const result: MediaUsageInArticle[] = articles.map((a) => {
-		const usedAs: ("featured" | "content")[] = [];
-		if (
-			a.featuredImageId &&
-			(a.featuredImageId.equals?.(objId) ||
-				a.featuredImageId === objId.toString())
-		) {
+		const usedAs: ("featured" | "content" | "gallery")[] = [];
+		const featuredId = a.featuredImage?.mediaId?.toString?.() ?? "";
+		if (featuredId === idStr) {
 			usedAs.push("featured");
 		}
-		if (Array.isArray(a.contentMediaIds)) {
-			if (
-				a.contentMediaIds.some(
-					(id: string | ObjectId) => id?.toString?.() === objId.toString(),
-				)
-			) {
-				usedAs.push("content");
-			}
+		if (
+			Array.isArray(a.contentMedia) &&
+			a.contentMedia.some(
+				(item: { mediaId?: string | ObjectId }) =>
+					item?.mediaId?.toString?.() === idStr,
+			)
+		) {
+			usedAs.push("content");
+		}
+		if (
+			Array.isArray(a.galleryItems) &&
+			a.galleryItems.some(
+				(item: { mediaId?: string | ObjectId }) =>
+					item?.mediaId?.toString?.() === idStr,
+			)
+		) {
+			usedAs.push("gallery");
 		}
 		return {
 			_id: a._id.toString(),
 			title: a.title,
 			slug: a.slug,
+			status: String(a.status ?? ""),
 			usedAs,
 		};
 	});
 	return result;
+}
+
+const MEDIA_SAFE_ARTICLE_STATUSES = new Set([
+	ArticleStatus.TAKEN_DOWN,
+	ArticleStatus.DELETED,
+]);
+
+export type MediaUsageSplit = {
+	blockingArticles: MediaUsageInArticle[];
+	safeArticles: MediaUsageInArticle[];
+};
+
+/** Pisahkan artikel pemakai media: blocking vs aman (TAKEN_DOWN / DELETED). */
+export async function getMediaUsageSplit(
+	mediaId: string | ObjectId,
+): Promise<MediaUsageSplit> {
+	const articles = (await findArticlesUsingMedia(
+		mediaId,
+		true,
+	)) as MediaUsageInArticle[];
+
+	const blockingArticles: MediaUsageInArticle[] = [];
+	const safeArticles: MediaUsageInArticle[] = [];
+
+	for (const article of articles) {
+		if (MEDIA_SAFE_ARTICLE_STATUSES.has(article.status as ArticleStatus)) {
+			safeArticles.push(article);
+		} else {
+			blockingArticles.push(article);
+		}
+	}
+
+	return { blockingArticles, safeArticles };
+}
+
+function mediaIdEquals(
+	value: string | ObjectId | undefined | null,
+	idStr: string,
+): boolean {
+	if (value == null) return false;
+	return value.toString() === idStr;
+}
+
+/**
+ * Hapus referensi media dari artikel Taken Down / Deleted.
+ */
+async function stripMediaRefsFromSafeArticles(
+	db: Db,
+	mediaIdStr: string,
+	safeArticles: MediaUsageInArticle[],
+): Promise<void> {
+	const now = new Date();
+
+	for (const article of safeArticles) {
+		const doc = await db.collection("articles").findOne({
+			_id: new ObjectId(article._id),
+		});
+		if (!doc) continue;
+
+		const updates: Record<string, unknown> = { updatedAt: now };
+		let changed = false;
+
+		if (
+			doc.featuredImage &&
+			mediaIdEquals(doc.featuredImage.mediaId, mediaIdStr)
+		) {
+			updates.featuredImage = null;
+			changed = true;
+		}
+
+		if (Array.isArray(doc.contentMedia)) {
+			const nextContent = doc.contentMedia.filter(
+				(item: { mediaId?: string | ObjectId }) =>
+					!mediaIdEquals(item?.mediaId, mediaIdStr),
+			);
+			if (nextContent.length !== doc.contentMedia.length) {
+				updates.contentMedia = nextContent;
+				changed = true;
+			}
+		}
+
+		if (Array.isArray(doc.galleryItems)) {
+			const nextGallery = doc.galleryItems.filter(
+				(item: { mediaId?: string | ObjectId }) =>
+					!mediaIdEquals(item?.mediaId, mediaIdStr),
+			);
+			if (nextGallery.length !== doc.galleryItems.length) {
+				updates.galleryItems = nextGallery;
+				changed = true;
+			}
+		}
+
+		if (changed) {
+			await db
+				.collection("articles")
+				.updateOne({ _id: doc._id }, { $set: updates });
+		}
+	}
+}
+
+/**
+ * Hard delete media (S3 + DB) hanya jika tidak dipakai artikel aktif.
+ * Artikel TAKEN_DOWN / DELETED: referensi dibersihkan dulu.
+ * Blocking articles → throw status 409.
+ */
+export async function hardDeleteMediaIfUnused(
+	db: Db,
+	mediaId: string,
+	actor: AuditLogActor,
+): Promise<void> {
+	const actorId =
+		typeof actor._id === "string" ? actor._id : actor._id?.toString?.();
+
+	logger.info(
+		{ mediaId, actorId },
+		"hardDeleteMediaIfUnused dimulai",
+	);
+
+	if (!/^[a-f\d]{24}$/i.test(mediaId)) {
+		throw Object.assign(new Error("Invalid media ID"), { status: 400 });
+	}
+
+	const existing = await db
+		.collection("media")
+		.findOne({ _id: new ObjectId(mediaId) });
+	if (!existing) {
+		throw Object.assign(new Error("Media not found"), { status: 404 });
+	}
+
+	const { blockingArticles, safeArticles } =
+		await getMediaUsageSplit(mediaId);
+
+	if (blockingArticles.length > 0) {
+		const blockingIds = blockingArticles.map((a) => a._id);
+		logger.warn(
+			{
+				mediaId,
+				blockingCount: blockingArticles.length,
+				blockingIds,
+			},
+			"hardDeleteMediaIfUnused diblokir: media masih dipakai artikel aktif",
+		);
+		throw Object.assign(
+			new Error(
+				"Media masih digunakan di artikel aktif dan tidak dapat dihapus.",
+			),
+			{ status: 409, blockingArticles },
+		);
+	}
+
+	if (safeArticles.length > 0) {
+		const strippedArticleIds = safeArticles.map((a) => a._id);
+		await stripMediaRefsFromSafeArticles(db, mediaId, safeArticles);
+		logger.info(
+			{
+				mediaId,
+				strippedArticleIds,
+				count: strippedArticleIds.length,
+			},
+			"hardDeleteMediaIfUnused: referensi artikel aman dibersihkan",
+		);
+	}
+
+	await deleteMediaDB(db, mediaId, actor);
+	logger.info({ mediaId }, "hardDeleteMediaIfUnused selesai");
+}
+
+/** Bentuk minimal dokumen media di MongoDB (untuk mapping tanpa `any`). */
+interface MediaDbDoc {
+	_id: { toString(): string };
+	url: string;
+	filename: string;
+	mimetype: string;
+	size: number;
+	caption?: string;
+	credit?: string;
+	watermark?: boolean;
+	createdAt: string;
+	updatedAt: string;
+}
+
+/** Map dokumen mongo (media) menjadi objek Media. */
+function mapMediaDoc(doc: MediaDbDoc): Media {
+	return {
+		_id: doc._id.toString(),
+		url: doc.url,
+		filename: doc.filename,
+		mimetype: doc.mimetype,
+		size: doc.size,
+		caption: doc.caption,
+		credit: doc.credit,
+		watermark: doc.watermark ?? false,
+		createdAt: doc.createdAt,
+		updatedAt: doc.updatedAt,
+	};
+}
+
+/**
+ * Promosikan media temp (`temp/{id}.webp`) ke folder final artikel
+ * (`featured | content-images | gallery-content`) dan buat row di koleksi `media`.
+ *
+ * Idempoten: row media dibuat via upsert by `filename`, sehingga retry / klik
+ * ganda tidak pernah membuat duplikat. Urutan operasi: copy → insert → hapus
+ * temp (best-effort) agar kegagalan DB masih bisa di-retry dari objek temp.
+ */
+export async function promoteTempMedia(params: {
+	tempMediaId: string;
+	folder: ArticleObjectStorageFolder;
+	caption?: string;
+	credit?: string;
+	watermark?: boolean;
+}): Promise<Media> {
+	const { tempMediaId, folder, caption, credit, watermark } = params;
+	const tempKey = buildTempMediaKey(tempMediaId);
+	const finalKey = `${folder}/${tempMediaId}.webp`;
+
+	const db = await connectToDatabase();
+
+	// 1. Pastikan objek temp ada & ambil ukurannya
+	let head;
+	try {
+		head = await s3Client.send(
+			new HeadObjectCommand({ Bucket: S3_BUCKET, Key: tempKey }),
+		);
+	} catch (err) {
+		logger.warn(
+			{ err, tempKey },
+			"promoteTempMedia: objek temp tidak ditemukan",
+		);
+		// Idempoten: retry setelah insert sukses (objek temp sudah dipindah) →
+		// kembalikan row media yang sudah ada alih-alih gagal permanen.
+		const existing = await db.collection("media").findOne({ filename: finalKey });
+		if (existing) {
+			return mapMediaDoc(existing as unknown as MediaDbDoc);
+		}
+		throw Object.assign(
+			new Error(`Temp media tidak ditemukan: ${tempMediaId}`),
+			{ status: 404 },
+		);
+	}
+	const size = head.ContentLength ?? 0;
+
+	// 2. Salin ke folder final (cache immutable)
+	await s3Client.send(
+		new CopyObjectCommand({
+			Bucket: S3_BUCKET,
+			Key: finalKey,
+			CopySource: `${S3_BUCKET}/${tempKey}`
+				.split("/")
+				.map((segment) => encodeURIComponent(segment))
+				.join("/"),
+			ContentType: "image/webp",
+			MetadataDirective: "REPLACE",
+			CacheControl: S3_IMMUTABLE_CACHE_CONTROL,
+		}),
+	);
+	await Promise.all(
+		([640, 1280] as const).map((width) => {
+			const sourceKey = getVariantKey(tempKey, width);
+			return s3Client.send(
+				new CopyObjectCommand({
+					Bucket: S3_BUCKET,
+					Key: getVariantKey(finalKey, width),
+					CopySource: `${S3_BUCKET}/${sourceKey}`
+						.split("/")
+						.map((segment) => encodeURIComponent(segment))
+						.join("/"),
+					ContentType: "image/webp",
+					MetadataDirective: "REPLACE",
+					CacheControl: S3_IMMUTABLE_CACHE_CONTROL,
+				}),
+			);
+		}),
+	);
+
+	// 3. Buat row media — idempoten (upsert by filename)
+	const url = `/api/media/view?key=${encodeURIComponent(finalKey)}`;
+	const now = new Date().toISOString();
+	const mediaDoc: Omit<Media, "_id"> = {
+		url,
+		filename: finalKey,
+		mimetype: "image/webp",
+		size,
+		caption,
+		credit,
+		watermark: watermark ?? false,
+		createdAt: now,
+		updatedAt: now,
+	};
+
+	const doc = await db.collection("media").findOneAndUpdate(
+		{ filename: finalKey },
+		{ $setOnInsert: mediaDoc },
+		{ upsert: true, returnDocument: "after" },
+	);
+
+	// 4. Hapus objek temp — best-effort (jika gagal, scheduler yang membersihkan)
+	try {
+		await s3Client.send(
+			new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: tempKey }),
+		);
+	} catch (err) {
+		logger.warn(
+			{ err, tempKey },
+			"promoteTempMedia: gagal hapus objek temp (akan dibersihkan scheduler)",
+		);
+	}
+
+	logger.info(
+		{ tempKey, finalKey, size },
+		"promoteTempMedia: media temp dipromosikan ke folder final",
+	);
+
+	return mapMediaDoc(doc as unknown as MediaDbDoc);
+}
+
+/**
+ * Bersihkan objek di folder `temp/` yang berusia > 24 jam (garbage collection).
+ * Dipanggil scheduler (lihat docker-compose) — objek temp yang tidak pernah
+ * di-promote (draft dibatalkan / belum disubmit) dibuang.
+ */
+export async function cleanupExpiredTempMedia(): Promise<{
+	scanned: number;
+	deleted: number;
+}> {
+	const now = Date.now();
+	const cutoff = now - TEMP_MEDIA_MAX_AGE_MS;
+	let scanned = 0;
+	let deleted = 0;
+	let continuationToken: string | undefined;
+
+	do {
+		const list = await s3Client.send(
+			new ListObjectsV2Command({
+				Bucket: S3_BUCKET,
+				Prefix: `${TEMP_MEDIA_FOLDER}/`,
+				...(continuationToken ? { ContinuationToken: continuationToken } : {}),
+			}),
+		);
+		const objects = list.Contents ?? [];
+		scanned += objects.length;
+
+		const stale = objects.filter((obj) => {
+			const lastModified = obj.LastModified?.getTime() ?? 0;
+			return lastModified > 0 && lastModified < cutoff;
+		});
+
+		if (stale.length > 0) {
+			const delResult = await s3Client.send(
+				new DeleteObjectsCommand({
+					Bucket: S3_BUCKET,
+					Delete: {
+						Objects: stale.map((obj) => ({ Key: obj.Key! })),
+						Quiet: false,
+					},
+				}),
+			);
+			deleted += (delResult.Deleted ?? []).length;
+		}
+
+		continuationToken = list.IsTruncated
+			? list.NextContinuationToken
+			: undefined;
+	} while (continuationToken);
+
+	logger.info(
+		{ scanned, deleted, cutoff: new Date(cutoff).toISOString() },
+		"cleanupExpiredTempMedia selesai",
+	);
+	return { scanned, deleted };
 }
 
 /**

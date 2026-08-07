@@ -14,14 +14,31 @@ function toIsoString(value: unknown): string | null {
 	return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-export async function getSitemapArticles(): Promise<SitemapArticle[]> {
+/**
+ * Ambil artikel PUBLISHED untuk sitemap.
+ * Jika maxAgeHours diisi, hanya artikel yang terbit dalam rentang waktu tersebut
+ * (dipakai sitemap Google News).
+ */
+export async function getSitemapArticles(options: {
+	maxAgeHours?: number;
+} = {}): Promise<SitemapArticle[]> {
+	const { maxAgeHours } = options;
 	const db = await connectToDatabase();
+	const now = new Date();
+	const filter: Record<string, unknown> = {
+		status: ArticleStatus.PUBLISHED,
+		$or: [{ deletedAt: { $exists: false } }, { deletedAt: null }],
+		publishedAt: { $lte: now },
+	};
+	if (maxAgeHours != null) {
+		filter.publishedAt = {
+			$gte: new Date(now.getTime() - maxAgeHours * 60 * 60 * 1000),
+			$lte: now,
+		};
+	}
 	const articles = await db
 		.collection("articles")
-		.find({
-			status: ArticleStatus.PUBLISHED,
-			$or: [{ deletedAt: { $exists: false } }, { deletedAt: null }],
-		})
+		.find(filter)
 		.project({
 			slug: 1,
 			publicPath: 1,

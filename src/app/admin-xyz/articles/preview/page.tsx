@@ -28,6 +28,7 @@ import { Media } from "@/types/media";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { adminPanelHref } from "@/lib/admin-panel-path";
 import { readArticleDraftRaw } from "@/lib/autosave";
+import { buildTempMediaViewUrl } from "@/lib/media/tempMedia";
 
 function readPreviewDraftRaw(formatParam: string | null): string | null {
   if (formatParam === "gallery") {
@@ -44,17 +45,13 @@ function readPreviewDraftRaw(formatParam: string | null): string | null {
 async function restorePreviewGalleryItems(
   items: DraftGalleryItem[],
 ): Promise<GalleryItem[]> {
-  const { getEditorImage } = await import("@/lib/db/draftImageDb");
   const restored: GalleryItem[] = [];
 
   for (const item of items) {
-    let url = item.imageUrl ?? "";
-    if (item.isPending && item.idbKey) {
-      const file = await getEditorImage(item.idbKey).catch(() => null);
-      if (file) {
-        url = URL.createObjectURL(file);
-      }
-    }
+    // Pending media memakai tempUrl server — tidak bergantung IndexedDB
+    const url =
+      item.imageUrl ||
+      (item.tempMediaId ? buildTempMediaViewUrl(item.tempMediaId) : "");
     restored.push({
       mediaId: item.mediaId || "preview",
       url,
@@ -96,54 +93,19 @@ export default function ArticlePreviewPage() {
         }
         const parsed = JSON.parse(draftRaw) as Record<string, unknown>;
 
-        // 2. Featured image dari IndexedDB
-        if (parsed.featuredImageKey === "featured") {
-          try {
-            const { getFeaturedImage } = await import("@/lib/db/draftImageDb");
-            const file = await getFeaturedImage();
-            if (file) parsed.featuredImage = URL.createObjectURL(file);
-          } catch {
-            setError("Gagal mengambil featured image dari IndexedDB.");
-          }
-        } else if (
-          typeof parsed.pendingFeaturedIdbKey === "string" &&
-          parsed.pendingFeaturedIdbKey
+        // 2. Featured image pending — tempUrl server (draft lama dengan
+        //    idbKey IndexedDB tidak bisa dipulihkan lagi setelah migrasi ini)
+        if (
+          typeof parsed.pendingFeaturedTempId === "string" &&
+          parsed.pendingFeaturedTempId
         ) {
-          try {
-            const { getEditorImage } = await import("@/lib/db/draftImageDb");
-            const file = await getEditorImage(parsed.pendingFeaturedIdbKey).catch(
-              () => null,
-            );
-            if (file) parsed.featuredImage = URL.createObjectURL(file);
-          } catch {
-            setError("Gagal mengambil featured image dari IndexedDB.");
-          }
+          parsed.featuredImage = buildTempMediaViewUrl(
+            parsed.pendingFeaturedTempId,
+          );
         }
 
-        // 3. Editor images dari IndexedDB
-        const imageKeys = Array.isArray(parsed.editorImageKeys)
-          ? (parsed.editorImageKeys as Array<{
-              blobUrl: string;
-              idbKey: string;
-            }>)
-          : [];
-        if (imageKeys.length > 0) {
-          try {
-            const { getEditorImage } = await import("@/lib/db/draftImageDb");
-            let content =
-              typeof parsed.content === "string" ? parsed.content : "";
-            for (const { blobUrl: oldBlobUrl, idbKey } of imageKeys) {
-              const file = await getEditorImage(idbKey).catch(() => null);
-              if (file) {
-                const newBlobUrl = URL.createObjectURL(file);
-                content = content.replaceAll(oldBlobUrl, newBlobUrl);
-              }
-            }
-            parsed.content = content;
-          } catch {
-            setError("Gagal mengambil editor images dari IndexedDB.");
-          }
-        }
+        // 3. Editor images — konten HTML sudah memuat tempUrl server,
+        //    tidak perlu restore blob dari IndexedDB
         // 4. Author: fallback ke user localStorage, jika tidak ada pakai default
         let author: UserProfile = {
           _id: currentUser?._id || "preview",

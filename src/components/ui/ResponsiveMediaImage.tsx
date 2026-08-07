@@ -35,8 +35,11 @@ export function ResponsiveMediaImage({
   const shouldUseVariant = hasWebp && !useOriginal;
 
   const handleError = (event: SyntheticEvent<HTMLImageElement>) => {
+    // Varian CDN belum ada (404) → buang srcSet dan coba ulang dengan file original.
+    // Jangan panggil onError parent di sini; parent biasanya menampilkan logo placeholder.
     if (hasWebp && !useOriginal) {
       setFailedVariantSrc(resolvedSrc);
+      return;
     }
     onError?.(event);
   };
@@ -46,6 +49,7 @@ export function ResponsiveMediaImage({
   return (
     <img
       {...props}
+      key={shouldUseVariant ? "variant" : "original"}
       alt={props.alt ?? ""}
       src={resolvedSrc}
       srcSet={shouldUseVariant ? buildSrcSet(resolvedSrc) : undefined}

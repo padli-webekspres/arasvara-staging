@@ -3,7 +3,6 @@
 import { useState, type ImgHTMLAttributes, type SyntheticEvent } from "react";
 import {
   buildSrcSet,
-  resolveMediaVariantUrl,
   resolvePublicMediaUrl,
 } from "@/lib/media/public-media-url";
 
@@ -42,15 +41,13 @@ export function ResponsiveMediaImage({
     onError?.(event);
   };
 
+  // `src` selalu original agar SSR/pre-hydration tidak 404 sebelum backfill;
+  // browser memilih varian dari srcSet jika ada, onError membuang srcSet jika gagal.
   return (
     <img
       {...props}
       alt={props.alt ?? ""}
-      src={
-        shouldUseVariant
-          ? resolveMediaVariantUrl(resolvedSrc, 640)
-          : resolvedSrc
-      }
+      src={resolvedSrc}
       srcSet={shouldUseVariant ? buildSrcSet(resolvedSrc) : undefined}
       sizes={sizes}
       loading={loading ?? (priority ? "eager" : "lazy")}

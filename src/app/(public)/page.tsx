@@ -29,11 +29,10 @@ import {
 } from "@tanstack/react-query";
 import HomePageClient from "./HomePageClient";
 import HeroMonogram from "@/components/homepage/HeroMonogram";
-import HeroLcpPoster from "@/components/homepage/HeroLcpPoster";
+import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
 import { getHeroPosterUrlFromConfigs } from "@/lib/homepage-lcp";
 import {
   buildSrcSet,
-  resolveMediaVariantUrl,
   resolvePublicMediaUrl,
 } from "@/lib/media/public-media-url";
 import {
@@ -237,12 +236,8 @@ export default async function HomePage() {
     ? resolvePublicMediaUrl(heroPosterUrl) || heroPosterUrl
     : "";
   const heroPosterIsWebp = /\.webp(?:$|[?#])/i.test(resolvedHeroPoster);
-  // Mobile-first: default src/preload ke w640; browser pilih dari srcset jika perlu.
-  const heroPosterPreloadHref = resolvedHeroPoster
-    ? heroPosterIsWebp
-      ? resolveMediaVariantUrl(resolvedHeroPoster, 640)
-      : resolvedHeroPoster
-    : "";
+  // Preload original sebagai fallback; varian opsional lewat imageSrcSet.
+  const heroPosterPreloadHref = resolvedHeroPoster || "";
   const heroPosterPreloadSrcSet =
     resolvedHeroPoster && heroPosterIsWebp
       ? buildSrcSet(resolvedHeroPoster)
@@ -289,10 +284,13 @@ export default async function HomePage() {
         <HomePageClient
           lcpMonogram={<HeroMonogram />}
           lcpPoster={
-            heroPosterPreloadHref ? (
-              <HeroLcpPoster
-                src={heroPosterPreloadHref}
-                srcSet={heroPosterPreloadSrcSet}
+            resolvedHeroPoster ? (
+              <ResponsiveMediaImage
+                src={resolvedHeroPoster}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+                priority
+                sizes="100vw"
               />
             ) : null
           }

@@ -1,7 +1,7 @@
 import { BRAND_LOGO } from "@/lib/brand-logos";
 import type { Configuration } from "@/types/configuration";
 
-/** Path statis logo monogram hero (bukan target LCP) — WebP kecil. */
+/** Path statis logo monogram hero — WebP kecil; jadi LCP bila poster hero tidak ada. */
 export const HERO_MONOGRAM_SRC = BRAND_LOGO.mainLightW400;
 
 /** Key konfigurasi file untuk poster hero full-viewport (target LCP). */

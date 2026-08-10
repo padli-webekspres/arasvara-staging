@@ -30,7 +30,7 @@ import {
 import HomePageClient from "./HomePageClient";
 import HeroMonogram from "@/components/homepage/HeroMonogram";
 import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
-import { getHeroPosterUrlFromConfigs } from "@/lib/homepage-lcp";
+import { getHeroPosterUrlFromConfigs, HERO_MONOGRAM_SRC } from "@/lib/homepage-lcp";
 import {
   buildSrcSet,
   resolvePublicMediaUrl,
@@ -259,7 +259,14 @@ export default async function HomePage() {
             : {})}
           fetchPriority="high"
         />
-      ) : null}
+      ) : (
+        <link
+          rel="preload"
+          as="image"
+          href={HERO_MONOGRAM_SRC}
+          fetchPriority="high"
+        />
+      )}
       {/* JSON-LD Structured Data untuk Google Knowledge Graph */}
       <script
         type="application/ld+json"
@@ -282,7 +289,7 @@ export default async function HomePage() {
       */}
       <HydrationBoundary state={dehydrate(queryClient)}>
         <HomePageClient
-          lcpMonogram={<HeroMonogram />}
+          lcpMonogram={<HeroMonogram priority={!resolvedHeroPoster} />}
           lcpPoster={
             resolvedHeroPoster ? (
               <ResponsiveMediaImage

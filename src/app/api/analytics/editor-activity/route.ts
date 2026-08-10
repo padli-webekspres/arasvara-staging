@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db/db";
 import { getUserFromRequest } from "@/lib/auth";
-import { ROLES } from "@/lib/auth-client";
+import {
+  canAccessAggregateAnalytics,
+  forbiddenAnalyticsResponse,
+  resolveAnalyticsScopeUserIds,
+  unauthorizedAnalyticsResponse,
+} from "@/lib/analytics/analytics-auth";
 import { listEditorActivities } from "@/services/analytics/editorActivityService";
-
-const ALLOWED_ROLES = [
-  ROLES.ADMIN,
-  ROLES.EDITOR_IN_CHIEF,
-  ROLES.MANAGING_EDITOR,
-  ROLES.EDITOR,
-  ROLES.HEAD_OF,
-] as const;
 
 function parsePositiveInt(raw: string | null, fallback: number): number {
   if (raw == null || raw === "") return fallback;
@@ -31,16 +28,10 @@ export async function GET(req: NextRequest) {
     const db = await connectToDatabase();
     const sessionUser = await getUserFromRequest(req);
 
-    const roleOk =
-      sessionUser?.role &&
-      ALLOWED_ROLES.map((r) => r.toLowerCase()).includes(
-        sessionUser.role.toLowerCase(),
-      );
+    if (!sessionUser) return unauthorizedAnalyticsResponse();
+    if (!canAccessAggregateAnalytics(sessionUser)) return forbiddenAnalyticsResponse();
 
-    if (!sessionUser || !roleOk) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
+    const scope = await resolveAnalyticsScopeUserIds(db, sessionUser);
     const sp = req.nextUrl.searchParams;
 
     const skipRaw = parsePositiveInt(sp.get("skip"), 0);
@@ -51,7 +42,15 @@ export async function GET(req: NextRequest) {
     const action = actionVal && actionVal !== "ALL" ? actionVal : undefined;
     const entityVal = sp.get("entity")?.trim();
     const entity = entityVal && entityVal !== "ALL" ? entityVal : undefined;
-    const userId = sp.get("userId")?.trim() || undefined;
+
+    // Self-scoped editors can only see their own activity
+    let userId = sp.get("userId")?.trim() || undefined;
+    if (scope.mode === "ids") {
+      const selfId = scope.userIds?.[0];
+      if (!selfId) return forbiddenAnalyticsResponse();
+      // Force filter to self; ignore any other userId param
+      userId = selfId;
+    }
 
     const startDate = parseIsoDate(sp.get("startDate"));
     const endDate = parseIsoDate(sp.get("endDate"));

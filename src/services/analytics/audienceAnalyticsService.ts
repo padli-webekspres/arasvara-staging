@@ -1,4 +1,5 @@
 import { Db } from "mongodb";
+import { publicViewReferrerMatch } from "@/lib/analytics/metrics-core";
 
 export interface TrafficTrendDataPoint {
   date: string;
@@ -130,9 +131,9 @@ export async function getTrafficTrend(
           $gte: resolvedStart,
           $lte: resolvedEnd,
         },
+        ...publicViewReferrerMatch(),
       },
     },
-    // Tahap 2: Buat visitorId secara dinamis (sessionId -> ip -> unknown)
     {
       $addFields: {
         visitorId: {
@@ -246,11 +247,12 @@ export interface DistributionAnalyticsResult {
  */
 function buildViewsToArticlesPipeline(startDate: Date, endDate: Date) {
   return [
-    // Tahap 1: Filter rentang waktu
+    // Tahap 1: Filter rentang waktu + exclude admin preview traffic
     {
       $match: {
         viewedAt: { $gte: startDate, $lte: endDate },
         deletedAt: null,
+        ...publicViewReferrerMatch(),
       },
     },
     // Tahap 2: Join ke collection articles
@@ -591,6 +593,7 @@ export async function getArticleEngagement(
         $match: {
           articleId: { $in: articleIds },
           viewedAt: { $gte: thirtyDaysAgo },
+          ...publicViewReferrerMatch(),
         },
       },
       {

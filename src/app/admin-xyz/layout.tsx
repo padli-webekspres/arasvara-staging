@@ -19,7 +19,13 @@ export default async function AdminLayout({
   const user = await getUserFromToken(token);
   if (
     !user ||
-    ![ROLES.ADMIN, ROLES.EDITOR_IN_CHIEF, ROLES.EDITOR, ROLES.WRITER]
+    ![
+      ROLES.ADMIN,
+      ROLES.EDITOR_IN_CHIEF,
+      ROLES.MANAGING_EDITOR,
+      ROLES.EDITOR,
+      ROLES.WRITER,
+    ]
       .map((role) => role.toLowerCase())
       .includes(user.role?.toLowerCase())
   ) {

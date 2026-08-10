@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db/db";
 import { getUserFromRequest } from "@/lib/auth";
-import { ROLES } from "@/lib/auth-client";
+import {
+  canAccessAggregateAnalytics,
+  forbiddenAnalyticsResponse,
+  isFullAnalyticsRole,
+  unauthorizedAnalyticsResponse,
+} from "@/lib/analytics/analytics-auth";
 import { getTrafficTrend } from "@/services/analytics/audienceAnalyticsService";
 
 /**
  * Route GET /api/analytics/audience/views
- * 
+ *
  * Melayani data tren traffic situs (Total Views & Unique Visitors) dengan filter:
  * - startDate: Tanggal awal (default: 30 hari yang lalu)
  * - endDate: Tanggal akhir (default: hari ini)
@@ -14,35 +19,17 @@ import { getTrafficTrend } from "@/services/analytics/audienceAnalyticsService";
  */
 export async function GET(req: NextRequest) {
   try {
-    // 1. Verifikasi Autentikasi & Otorisasi Pengguna
     const user = await getUserFromRequest(req);
-    
-    // Peran staf CMS yang diperbolehkan mengakses dashboard analitik luas
-    const allowedRoles = [
-      ROLES.ADMIN,
-      ROLES.EDITOR_IN_CHIEF,
-      ROLES.MANAGING_EDITOR,
-      ROLES.HEAD_OF,
-      ROLES.EDITOR,
-    ];
+    if (!user) return unauthorizedAnalyticsResponse();
+    if (!canAccessAggregateAnalytics(user)) return forbiddenAnalyticsResponse();
+    // Audience dashboards are org-wide; self-scoped editors cannot access
+    if (!isFullAnalyticsRole(user.role)) return forbiddenAnalyticsResponse();
 
-    if (
-      !user ||
-      !allowedRoles.map((r) => r.toLowerCase()).includes(user.role?.toLowerCase())
-    ) {
-      return NextResponse.json(
-        { error: "Forbidden: Anda tidak memiliki hak akses ke halaman analitik ini" },
-        { status: 403 }
-      );
-    }
-
-    // 2. Ambil & Validasi Query Parameters
     const searchParams = req.nextUrl.searchParams;
     const startDateParam = searchParams.get("startDate");
     const endDateParam = searchParams.get("endDate");
     const intervalParam = searchParams.get("interval") || "daily";
 
-    // Validasi nilai interval
     if (intervalParam !== "daily" && intervalParam !== "weekly" && intervalParam !== "monthly") {
       return NextResponse.json(
         { error: "Invalid interval: Pilihan interval hanya 'daily', 'weekly', atau 'monthly'" },
@@ -50,7 +37,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Validasi format tanggal jika diberikan
     let startDate: Date | undefined = undefined;
     let endDate: Date | undefined = undefined;
 
@@ -76,7 +62,6 @@ export async function GET(req: NextRequest) {
       endDate = new Date(parsedEnd);
     }
 
-    // Hubungkan ke Database & ambil data tren tayangan
     const db = await connectToDatabase();
     const trendData = await getTrafficTrend(db, {
       startDate,
@@ -84,16 +69,13 @@ export async function GET(req: NextRequest) {
       interval: intervalParam as "daily" | "weekly" | "monthly",
     });
 
-    // Kembalikan respons sukses
     return NextResponse.json({
       success: true,
       data: trendData,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Terjadi kesalahan internal server";
     console.error("Error pada GET /api/analytics/audience/views:", error);
-    return NextResponse.json(
-      { error: error.message || "Terjadi kesalahan internal server" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

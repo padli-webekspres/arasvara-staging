@@ -11,6 +11,7 @@ export interface WorkflowSummaryData {
   scheduled: number;
   avgSlaMinutes: number;
   complianceRate: number;
+  targetSlaMinutes?: number;
 }
 
 export interface ThroughputResponPoint {

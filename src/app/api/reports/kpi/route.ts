@@ -2,103 +2,111 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db/db";
 import { getUserFromRequest } from "@/lib/auth";
 import logger from "@/lib/logger";
-import { Db } from "mongodb";
+import {
+	badRequestAnalyticsResponse,
+	canAccessAggregateAnalytics,
+	forbiddenAnalyticsResponse,
+	isFullAnalyticsRole,
+	resolveAnalyticsScopeUserIds,
+	unauthorizedAnalyticsResponse,
+} from "@/lib/analytics/analytics-auth";
+import { isValidPeriodMonth } from "@/lib/analytics/metrics-core";
 import {
 	getKPIWriterTeam,
 	getKPIEditor,
+	getKPISummary,
 } from "@/services/reports/kpiUserService";
+import { getKPIChannel } from "@/services/reports/channelKpiService";
 
-// ┌─── Type-based KPI service handlers ──────────────────────────────────────┐
-// │ Map type parameter ke service function yang sesuai                        │
-// └──────────────────────────────────────────────────────────────────────────┘
-const KPI_TYPE_HANDLERS: Record<
-	string,
-	(db: Db, options: { search?: string; period?: string }) => Promise<unknown>
-> = {
-	writer_team: async (db, options) => getKPIWriterTeam(db, options),
-	editor: async (db, options) => getKPIEditor(db, options),
-};
+const VALID_TYPES = ["writer_team", "editor", "summary", "channel"] as const;
+type KpiType = (typeof VALID_TYPES)[number];
 
 export async function GET(req: NextRequest) {
 	try {
-		// ─── Access Control ──────────────────────────────────────────────────────
 		const user = await getUserFromRequest(req);
-		if (!user) {
-			return NextResponse.json(
-				{ error: "Unauthorized: Authentication required." },
-				{ status: 401 },
-			);
-		}
+		if (!user) return unauthorizedAnalyticsResponse();
+		if (!canAccessAggregateAnalytics(user)) return forbiddenAnalyticsResponse();
 
-		// ─── Parse Query Parameters ─────────────────────────────────────────────
 		const url = new URL(req.url);
-		const type = url.searchParams.get("type");
+		const type = url.searchParams.get("type") as KpiType | null;
 		const search = url.searchParams.get("search") || undefined;
-		const period =
-			url.searchParams.get("period") || new Date().toISOString().slice(0, 7);
+		const period = url.searchParams.get("period") || undefined;
+		const attribution = url.searchParams.get("attribution") || undefined;
 
-		// ─── Validasi: type parameter (wajib) ─────────────────────────────────────
-		const validTypes = ["writer_team", "editor"];
-		if (!type || typeof type !== "string" || !validTypes.includes(type)) {
-			return NextResponse.json(
-				{
-					error: `Parameter 'type' wajib diisi. Nilai yang valid: ${validTypes.join(", ")}.`,
-				},
-				{ status: 400 },
+		if (!type || !VALID_TYPES.includes(type)) {
+			return badRequestAnalyticsResponse(
+				`Parameter 'type' wajib diisi. Nilai yang valid: ${VALID_TYPES.join(", ")}.`,
 			);
 		}
 
-		// validasi period wajib diisi
 		if (!period) {
-			return NextResponse.json(
-				{
-					error: "Parameter 'period' wajib diisi.",
-				},
-				{ status: 400 },
+			return badRequestAnalyticsResponse("Parameter 'period' wajib diisi.");
+		}
+
+		if (!isValidPeriodMonth(period)) {
+			return badRequestAnalyticsResponse(
+				"Parameter 'period' harus dalam format YYYY-MM (contoh: 2026-03).",
 			);
 		}
 
-		// ─── Validasi: period format (YYYY-MM) ────────────────────────────────────
-		const periodRegex = /^\d{4}-\d{2}$/;
-		if (!periodRegex.test(period)) {
-			return NextResponse.json(
-				{
-					error:
-						"Parameter 'period' harus dalam format YYYY-MM (contoh: 2026-03).",
-				},
-				{ status: 400 },
-			);
+		// Org-wide types require full analytics roles; writer_team + editor are self-scoped for Editor
+		if (
+			(type === "summary" || type === "channel") &&
+			!isFullAnalyticsRole(user.role)
+		) {
+			return forbiddenAnalyticsResponse();
 		}
 
-		// ─── Connect Database ────────────────────────────────────────────────────
 		const db = await connectToDatabase();
 
-		// ─── Call Service Berdasarkan Type ────────────────────────────────────────
-		const handler = KPI_TYPE_HANDLERS[type];
-		if (!handler) {
-			return NextResponse.json(
-				{ error: `Tipe KPI '${type}' tidak dikenali.` },
-				{ status: 400 },
-			);
+		if (type === "summary") {
+			const data = await getKPISummary(db, { period });
+			logger.info({ msg: "KPI summary fetched", period });
+			return NextResponse.json({ success: true, data });
 		}
-		const options = { search, period };
-		const result = await handler(db, options);
+
+		if (type === "channel") {
+			const data = await getKPIChannel(db, { period, attribution });
+			logger.info({
+				msg: "KPI channel fetched",
+				period,
+				rows: data.rows.length,
+			});
+			return NextResponse.json({ success: true, data });
+		}
+
+		const scope = await resolveAnalyticsScopeUserIds(db, user);
+		const scopedUserIds = scope.mode === "all" ? null : scope.userIds;
+		const options = { search, period, scopedUserIds };
+
+		const result =
+			type === "writer_team"
+				? await getKPIWriterTeam(db, options)
+				: await getKPIEditor(db, options);
+
 		logger.info({
 			msg: "KPI fetched successfully",
 			type,
 			period,
-			resultCount: Array.isArray(result) ? result.length : "unknown",
+			resultCount: result.length,
 		});
+
+		// Keep returning array for writer_team / editor (compat with existing UI)
 		return NextResponse.json(result);
 	} catch (error: unknown) {
+		const message = (error as Error)?.message || "Internal server error";
+		if (
+			message.includes("Invalid period") ||
+			message.includes("Parameter") ||
+			message.includes("attribution")
+		) {
+			return badRequestAnalyticsResponse(message);
+		}
 		logger.error({
 			msg: "Error in GET /api/reports/kpi",
-			error: (error as Error)?.message,
+			error: message,
 			stack: (error as Error)?.stack,
 		});
-		return NextResponse.json(
-			{ error: (error as Error)?.message || "Internal server error" },
-			{ status: 500 },
-		);
+		return NextResponse.json({ error: message }, { status: 500 });
 	}
 }

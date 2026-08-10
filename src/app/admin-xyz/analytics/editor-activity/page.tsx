@@ -54,6 +54,7 @@ import { endOfDay, format, isValid, parse, startOfDay } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { ADMIN_PAGINATION_WRAP } from "@/lib/admin-ui";
 import { EDITORIAL_ENTITIES } from "@/types/auditLog";
+import { formatDateTimeReadableJakarta } from "@/lib/datetime-jakarta";
 
 const LIMIT = 20;
 
@@ -219,6 +220,24 @@ export default function EditorActivityPage() {
     for (let p = start; p <= end; p++) pages.push(p);
     return pages;
   }, [page, totalPages]);
+
+  /** Freshness: max timestamp dari baris yang sedang dimuat (halaman/filter aktif). */
+  const lastActivityFormatted = useMemo(() => {
+    let maxMs = 0;
+    for (const row of data) {
+      if (!row.timestamp) continue;
+      const ms =
+        typeof row.timestamp === "string"
+          ? Date.parse(row.timestamp)
+          : row.timestamp instanceof Date
+            ? row.timestamp.getTime()
+            : NaN;
+      if (Number.isFinite(ms) && ms > maxMs) maxMs = ms;
+    }
+    if (maxMs <= 0) return null;
+    const formatted = formatDateTimeReadableJakarta(new Date(maxMs));
+    return formatted || null;
+  }, [data]);
 
   const dateRangeLabel = () => {
     if (!dateRange?.from) return "Rentang tanggal";
@@ -493,6 +512,16 @@ export default function EditorActivityPage() {
           </p>
         </div>
       </div>
+
+      {!loading && lastActivityFormatted ? (
+        <p className="text-xs text-muted-foreground rounded-lg border border-border bg-muted/30 px-3 py-2 break-words">
+          Data aktivitas terakhir:{" "}
+          <span className="font-medium text-foreground/90">
+            {lastActivityFormatted}
+          </span>
+          . Sumber utama: <span className="font-medium">audit_log</span>.
+        </p>
+      ) : null}
 
       {/* Mobile: baris 1 aksi + tanggal + reset (ikon); baris 2 pencarian */}
       <div className="flex flex-col gap-4 md:hidden">

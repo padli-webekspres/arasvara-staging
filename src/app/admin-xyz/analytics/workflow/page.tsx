@@ -651,7 +651,7 @@ export default function EditorialWorkflowPage() {
             </h2>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <CheckCircle className="w-3.5 h-3.5 text-hijauSawah shrink-0" />
-              <span>{summary?.complianceRate || 100}% di bawah target 30m</span>
+              <span>{summary?.complianceRate || 100}% di bawah target {summary?.targetSlaMinutes ?? 120}m</span>
             </p>
           </div>
           <div className="p-3 bg-hijauSawah/10 text-hijauSawah rounded-full">

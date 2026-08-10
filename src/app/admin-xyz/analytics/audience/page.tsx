@@ -657,8 +657,9 @@ export default function AudienceAnalyticsPage() {
             Audience Analytics & Traffic
           </h1>
           <p className="text-sm text-muted-foreground">
-            Analisis mendalam mengenai tren kunjungan situs, tayangan artikel,
-            dan pengunjung unik.
+            Analisis tren kunjungan situs dan tayangan artikel. Pengunjung unik
+            bersifat perkiraan (proxy session/IP). Traffic publik mengecualikan
+            admin preview.
           </p>
         </div>
 
@@ -737,7 +738,7 @@ export default function AudienceAnalyticsPage() {
               {summaryMetrics.totalVisitors.toLocaleString("id-ID")}
             </h2>
             <p className="text-xs text-muted-foreground">
-              Unique visitors terdeteksi
+              Unik ≈ session/IP (perkiraan), bukan identitas pengguna pasti
             </p>
           </div>
           <div className="p-3.5 bg-indigo-500/10 text-indigo-500 rounded-full">
@@ -772,8 +773,8 @@ export default function AudienceAnalyticsPage() {
               Tren Tayangan & Pengunjung Unik
             </h3>
             <p className="text-xs text-muted-foreground">
-              Grafik garis pembanding antara total klik tayang (views) dengan
-              jumlah pengunjung unik.
+              Grafik views vs unik perkiraan (session/IP); admin preview
+              dikecualikan.
             </p>
           </div>
 

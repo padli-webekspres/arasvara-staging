@@ -1,4 +1,8 @@
 import { Db } from "mongodb";
+import {
+  DEFAULT_SLA_MINUTES,
+  currentPeriodMonthWib,
+} from "@/lib/analytics/metrics-core";
 
 // ─── Interfaces ────────────────────────────────────────────────────────────
 
@@ -8,6 +12,8 @@ export interface WorkflowSummary {
   scheduled: number;
   avgSlaMinutes: number;
   complianceRate: number;
+  /** Effective SLA threshold used for compliance (minutes) */
+  targetSlaMinutes: number;
 }
 
 export interface ThroughputResponPoint {
@@ -59,6 +65,18 @@ export async function getWorkflowSummary(
   const pendingReview = await db.collection("articles").countDocuments({ status: "PENDING_REVIEW" });
   const scheduled = await db.collection("articles").countDocuments({ status: "SCHEDULED" });
 
+  // Single SLA threshold: monthly_targets → fallback 120 minutes (not hardcoded 30)
+  const period = currentPeriodMonthWib(resolvedEnd);
+  const slaTargetDoc = await db.collection("monthly_targets").findOne({
+    key: "PROCESSING_TIME_SLA_MINUTES",
+    period,
+    scopeType: "GLOBAL",
+  });
+  const targetSlaMinutes =
+    typeof slaTargetDoc?.value === "number" && slaTargetDoc.value > 0
+      ? slaTargetDoc.value
+      : DEFAULT_SLA_MINUTES;
+
   // 2. Average SLA & Compliance Rate for articles published in the range
   const slaPipeline = [
     {
@@ -89,7 +107,7 @@ export async function getWorkflowSummary(
         total: { $sum: 1 },
         compliant: {
           $sum: {
-            $cond: [{ $lte: ["$slaMinutes", 30] }, 1, 0],
+            $cond: [{ $lte: ["$slaMinutes", targetSlaMinutes] }, 1, 0],
           },
         },
       },
@@ -113,6 +131,7 @@ export async function getWorkflowSummary(
     scheduled,
     avgSlaMinutes,
     complianceRate,
+    targetSlaMinutes,
   };
 }
 

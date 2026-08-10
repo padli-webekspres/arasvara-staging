@@ -482,9 +482,14 @@ export default function MonthlyTargetPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  /** Apakah API punya dokumen tersimpan per periode (bukan skeleton kosong). */
+  const [savedTargetsByPeriod, setSavedTargetsByPeriod] = useState<
+    Record<string, boolean>
+  >({});
 
   // String periode aktif dalam format "YYYY-MM"
   const period = `${year}-${month}`;
+  const periodHasSavedTargets = savedTargetsByPeriod[period] ?? true;
 
   // ── Deteksi Status Kotor (Dirty) Per Target ─────────────────────────────────
   /**
@@ -565,6 +570,11 @@ export default function MonthlyTargetPage() {
 
         const body = res.data;
         const apiData: any[] = body?.data || [];
+
+        setSavedTargetsByPeriod((prev) => ({
+          ...prev,
+          [targetPeriod]: apiData.length > 0,
+        }));
 
         // Gabungkan data API dengan skeleton kosong menggunakan list kategori dinamis
         const mergedServerData = mergeApiDataWithSkeleton(
@@ -785,6 +795,10 @@ export default function MonthlyTargetPage() {
       });
 
       const { result } = body;
+      setSavedTargetsByPeriod((prev) => ({
+        ...prev,
+        [period]: localTargets.some((t) => t.value.trim() !== ""),
+      }));
       toast.success(
         `Target berhasil disimpan! ${result.upserted} diperbarui, ${result.deleted} dihapus.`,
       );
@@ -877,6 +891,13 @@ export default function MonthlyTargetPage() {
             Konfigurasi target kuantitas naskah, batas toleransi mutu editorial,
             dan traffic komersial per periode.
           </p>
+          <p className="text-xs text-muted-foreground mt-1.5 max-w-2xl">
+            <span className="font-medium text-foreground/80">GLOBAL</span> =
+            target tingkat situs (tab Produksi, Kualitas, Bisnis).{" "}
+            <span className="font-medium text-foreground/80">CHANNEL</span> =
+            target per kanal root (tab Performa Kanal). Target GLOBAL site tidak
+            dipakai sebagai target individu di KPI.
+          </p>
         </div>
 
         <Button
@@ -957,6 +978,21 @@ export default function MonthlyTargetPage() {
           <span>
             Gagal memuat dari server: <strong>{fetchError}</strong> — Data
             kosong ditampilkan. Anda tetap bisa mengisi dan menyimpan.
+          </span>
+        </div>
+      )}
+
+      {/* ── Info: target periode belum diset ───────────────────────────── */}
+      {!isLoading && !fetchError && !periodHasSavedTargets && (
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border border-border text-sm text-muted-foreground">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-foreground/70" />
+          <span className="break-words">
+            Target untuk periode ini belum diset. Halaman KPI akan menampilkan
+            status{" "}
+            <span className="font-medium text-foreground/90">
+              Target belum diset
+            </span>{" "}
+            — bukan kegagalan 0%.
           </span>
         </div>
       )}
@@ -1090,8 +1126,7 @@ export default function MonthlyTargetPage() {
                         </p>
                       </div>
 
-                      {/* Side-by-Side Input Kanal */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 pt-1">
                         {/* Target Pageviews */}
                         <div className="space-y-1.5">
                           <label className="text-[11px] font-semibold text-foreground/80 flex items-center gap-1">

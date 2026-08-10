@@ -2,157 +2,380 @@ import { Db, ObjectId } from "mongodb";
 import {
 	KPIWriterTeamResponse,
 	KPIEditorResponse,
+	KPISummaryResponse,
+	IndividualTargetState,
 } from "@/types/reports/kpiUser";
 import { UserProfile } from "@/types/user";
 import logger from "@/lib/logger";
-import { MonthlyTargetKey } from "@/types/monthlyTarget";
-import { ROLES } from "@/lib/auth-client";
+import {
+	DEFAULT_SLA_MINUTES,
+	PeriodBounds,
+	buildSiteTargetDisplay,
+	buildUnsetIndividualTarget,
+	currentPeriodMonthWib,
+	getMonthBoundsWib,
+	getPreviousMonthBoundsWib,
+	momGrowthRate,
+	publicViewReferrerMatch,
+	roundNumber,
+	safePercent,
+	toObjectIdOrNull,
+} from "@/lib/analytics/metrics-core";
+
+/** Audit actions counted as editor processing activity. */
+export const EDITOR_PROCESS_ACTIONS = [
+	"PUBLISH",
+	"SCHEDULE",
+	"REJECT",
+	"UPDATE",
+] as const;
+
+type ScopeOptions = {
+	period?: string;
+	search?: string;
+	scopedUserIds?: string[] | null;
+};
+
+type ActivitySource = "audit_log" | "editor_activities";
+
+type RevisionBucket = { submitted: number; rejected: number };
+type ProcessBucket = {
+	processed: number;
+	revision: number;
+	articleIds: ObjectId[];
+};
+
+const INDIVIDUAL_TARGET_LABEL = "Target individual belum diset";
+
+function resolvePeriod(period?: string): string {
+	const trimmed = period?.trim();
+	return trimmed && trimmed.length > 0 ? trimmed : currentPeriodMonthWib();
+}
+
+function toUserProfile(user: Record<string, unknown>): UserProfile {
+	return {
+		_id: String(user._id),
+		name: String(user.name ?? ""),
+		email: String(user.email ?? ""),
+		avatar: user.avatar as UserProfile["avatar"],
+		role: user.role as UserProfile["role"],
+	};
+}
+
+function buildIndividualTarget(
+	siteContextValue: number | null,
+	siteContextLabel = "site",
+): IndividualTargetState {
+	const unset = buildUnsetIndividualTarget({
+		label: siteContextLabel,
+		value: siteContextValue,
+	});
+	return {
+		status: "unset",
+		label: INDIVIDUAL_TARGET_LABEL,
+		siteContextValue: unset.contextValue,
+		siteContextLabel: unset.contextLabel,
+	};
+}
+
+function parseScopedObjectIds(scopedUserIds?: string[] | null): ObjectId[] | null {
+	if (scopedUserIds == null) return null;
+	return scopedUserIds
+		.map((id) => toObjectIdOrNull(id))
+		.filter((id): id is ObjectId => id != null);
+}
+
+function periodTimestampMatch(bounds: PeriodBounds): Record<string, unknown> {
+	const range = { $gte: bounds.start, $lt: bounds.end };
+	return {
+		$or: [
+			{ publishedAt: range },
+			{ submittedAt: range },
+			{ createdAt: range },
+			{ updatedAt: range },
+		],
+	};
+}
 
 /**
- * Mengambil data KPI untuk Tim Penulis (Reporter, Writer, Contributor).
- *
- * Fungsi ini mengagregasi metrik performa untuk semua penulis (reporter, writer, contributor)
- * tanpa memisahkan per role, tetapi mecocokkan target bulanan setiap user dengan role-nya masing-masing.
- *
- * Metrik yang dihitung per penulis:
- * - `articlePublishedThisMonth`: Jumlah artikel berstatus PUBLISHED yang diterbitkan di periode ini.
- * - `monthlyTargetArticles`: Target bulanan yang sesuai dengan role user, diambil dari collection monthly_targets.
- *   Jika target role-spesifik tidak ada, fallback ke target global (role: null).
- * - `targetAchievementRate`: Persentase pencapaian target (articlePublished / monthlyTarget * 100), capped di 100%.
- * - `pageViewsThisMonth`: Total views dari ArticleView di periode ini (bukan lifetime viewCount dari Article).
- * - `monthlyRevisionRate`: Rasio draf yang dikembalikan / draf yang diajukan, dari collection EditorActivity.
- *   Jika tidak ada draf diajukan, nilai 0.
- *
- * @param db - Instance MongoDB Db
- * @param period - Format "YYYY-MM" (contoh: "2026-03"). Default: bulan saat ini jika kosong.
- * @param search - Filter nama penulis, case-insensitive (opsional).
- * @returns Array KPIWriterTeamResponse, diurutkan dari artikel terbanyak ke terendah.
+ * Distinct authorIds for articles of any status that were active in the period.
+ * Optional scopedUserIds limits to self (Editor self-only).
  */
-export async function getKPIWriterTeam(
+export async function discoverAuthorIdsInPeriod(
 	db: Db,
-	{ period, search }: { period?: string; search?: string },
-): Promise<KPIWriterTeamResponse[]> {
-	// ── Resolve periode yang digunakan ───────────────────────────────────────
-	// Jika period tidak disediakan, gunakan bulan dan tahun saat ini
-	const activePeriod = period || new Date().toISOString().slice(0, 7); // "YYYY-MM"
-
-	const [yearStr, monthStr] = activePeriod.split("-");
-	const year = parseInt(yearStr, 10);
-	const month = parseInt(monthStr, 10);
-
-	// Buat rentang tanggal awal dan akhir periode untuk filter DB
-	const periodStart = new Date(year, month - 1, 1); // Awal bulan
-	const periodEnd = new Date(year, month, 1); // Awal bulan berikutnya (exclusive)
-
-	// ── Langkah 1: Ambil semua user dengan role penulis (reporter, writer, contributor) ──
-	// Tidak ada pemisahan per role; semua penulis diambil, target cocokkan per user.role nanti.
-	const writerRoles = ["reporter", "writer", "contributor"];
-	const userQuery: Record<string, unknown> = {
-		role: { $in: writerRoles },
-		deletedAt: { $in: [null, ""] }, // Hanya user yang aktif (belum dihapus)
+	bounds: PeriodBounds,
+	scopedUserIds?: string[] | null,
+): Promise<ObjectId[]> {
+	const match: Record<string, unknown> = {
+		deletedAt: { $in: [null, ""] },
+		authorId: { $ne: null },
+		...periodTimestampMatch(bounds),
 	};
 
-	if (search && search.trim().length >= 2) {
-		// Filter nama secara case-insensitive, minimum 2 karakter
-		userQuery.name = { $regex: search, $options: "i" };
+	const scopedIds = parseScopedObjectIds(scopedUserIds);
+	if (scopedIds) {
+		match.authorId = { $in: scopedIds };
 	}
 
-	// Ambil semua field yang diperlukan untuk UserProfile lengkap
-	const users = await db
-		.collection("users")
-		.find(userQuery, {
-			projection: {
-				_id: 1,
-				name: 1,
-				email: 1,
-				avatar: 1,
-				role: 1,
-				teamId: 1,
-				team: 1,
-			},
-		})
-		.toArray();
-
-	logger.info(
-		{ userCount: users.length, search },
-		"Fetched users for KPI Writer Team calculation",
-	);
-
-	if (users.length === 0) {
-		return [];
-	}
-
-	// Kumpulkan semua userId untuk digunakan sebagai filter artikel
-	const userIds = users.map((u) => new ObjectId(u._id));
-
-	// ── Langkah 2: Ambil target artikel bulanan dari target global ───────────────────────
-	// Mengingat data target bulanan di database disimpan dengan scopeType: "GLOBAL"
-	// dan tidak memisahkan berdasarkan role penulis, kita ambil target global langsung.
-	const globalTargetDoc = await db.collection("monthly_targets").findOne({
-		key: "ARTICLES_PUBLISHED",
-		period: activePeriod,
-		scopeType: "GLOBAL",
-	});
-	const globalPublishTarget = globalTargetDoc?.value ?? 0;
-
-	// Petakan target global ini ke semua role penulis (reporter, writer, contributor)
-	const targetsByRole = new Map<string, number>();
-	for (const writerRole of writerRoles) {
-		targetsByRole.set(writerRole, globalPublishTarget);
-	}
-
-	// ── Langkah 3A: Agregasi Artikel untuk menghitung articlePublishedThisMonth ─────────
-	// Hanya hitung artikel PUBLISHED di periode yang ditetapkan
-	const articleAggregation = await db
+	const rows = await db
 		.collection("articles")
-		.aggregate([
-			{
-				$match: {
-					authorId: { $in: userIds },
-					deletedAt: { $in: [null, ""] }, // Hanya artikel yang aktif (belum dihapus)
-					status: "PUBLISHED",
-					publishedAt: {
-						$gte: periodStart,
-						$lt: periodEnd,
-					},
-				},
-			},
-			{
-				$group: {
-					_id: "$authorId",
-					articlePublishedThisMonth: { $sum: 1 },
-				},
-			},
+		.aggregate<{ _id: ObjectId }>([
+			{ $match: match },
+			{ $group: { _id: "$authorId" } },
 		])
 		.toArray();
 
-	const articleMetricsMap = new Map(
-		articleAggregation
-			.filter((doc) => doc._id != null)
-			.map((doc) => [doc._id.toString(), doc]),
-	);
+	return rows
+		.map((r) => toObjectIdOrNull(r._id))
+		.filter((id): id is ObjectId => id != null);
+}
 
-	// ── Langkah 3B: Agregasi ArticleView untuk menghitung pageViewsThisMonth ──────────
-	// Views spesifik bulan, bukan lifetime viewCount dari Article
-	const articleViewAggregation = await db
-		.collection("article_views")
-		.aggregate([
+/**
+ * Distinct actor._id from audit_log editor process actions in the period.
+ */
+export async function discoverEditorIdsInPeriod(
+	db: Db,
+	bounds: PeriodBounds,
+	scopedUserIds?: string[] | null,
+): Promise<ObjectId[]> {
+	const match: Record<string, unknown> = {
+		entity: "articles",
+		createdAt: { $gte: bounds.start, $lt: bounds.end },
+		action: { $in: [...EDITOR_PROCESS_ACTIONS] },
+	};
+
+	const scopedIds = parseScopedObjectIds(scopedUserIds);
+	if (scopedIds) {
+		match.$or = [
+			{ "actor._id": { $in: scopedIds } },
+			{ "actor._id": { $in: scopedIds.map((id) => String(id)) } },
+		];
+	} else {
+		match["actor._id"] = { $exists: true, $ne: null };
+	}
+
+	const rows = await db
+		.collection("audit_log")
+		.aggregate<{ _id: unknown }>([
+			{ $match: match },
+			{ $group: { _id: "$actor._id" } },
+		])
+		.toArray();
+
+	return rows
+		.map((r) => toObjectIdOrNull(r._id))
+		.filter((id): id is ObjectId => id != null);
+}
+
+type FallbackProfileSource = "author" | "editor";
+
+/**
+ * Load user profiles by ids; fill orphans from article.author or audit_log.actor denorm.
+ */
+export async function loadUserProfilesByIds(
+	db: Db,
+	ids: ObjectId[],
+	options: { search?: string; fallbackSource?: FallbackProfileSource } = {},
+): Promise<Record<string, unknown>[]> {
+	if (ids.length === 0) return [];
+
+	const users = await db
+		.collection("users")
+		.find(
+			{ _id: { $in: ids } },
 			{
-				// 1. Filter views di bulan ini
+				projection: {
+					_id: 1,
+					name: 1,
+					email: 1,
+					avatar: 1,
+					role: 1,
+				},
+			},
+		)
+		.toArray();
+
+	const byId = new Map(users.map((u) => [String(u._id), u as Record<string, unknown>]));
+	const missing = ids.filter((id) => !byId.has(String(id)));
+
+	if (missing.length > 0) {
+		const fallbackSource = options.fallbackSource ?? "author";
+		if (fallbackSource === "author") {
+			const samples = await db
+				.collection("articles")
+				.aggregate<{
+					_id: ObjectId;
+					author?: { name?: string; email?: string; avatar?: unknown };
+				}>([
+					{ $match: { authorId: { $in: missing } } },
+					{ $sort: { updatedAt: -1 } },
+					{
+						$group: {
+							_id: "$authorId",
+							author: { $first: "$author" },
+						},
+					},
+				])
+				.toArray();
+
+			for (const sample of samples) {
+				const id = String(sample._id);
+				if (byId.has(id)) continue;
+				byId.set(id, {
+					_id: sample._id,
+					name: sample.author?.name || "User tidak diketahui",
+					email: sample.author?.email || "",
+					avatar: sample.author?.avatar,
+					role: undefined,
+				});
+			}
+		} else {
+			const samples = await db
+				.collection("audit_log")
+				.aggregate<{
+					_id: unknown;
+					actor?: {
+						name?: string;
+						email?: string;
+						avatarUrl?: string;
+						avatar?: unknown;
+					};
+				}>([
+					{
+						$match: {
+							$or: [
+								{ "actor._id": { $in: missing } },
+								{ "actor._id": { $in: missing.map((id) => String(id)) } },
+							],
+						},
+					},
+					{ $sort: { createdAt: -1 } },
+					{
+						$group: {
+							_id: "$actor._id",
+							actor: { $first: "$actor" },
+						},
+					},
+				])
+				.toArray();
+
+			for (const sample of samples) {
+				const id = String(sample._id);
+				if (byId.has(id)) continue;
+				const oid = toObjectIdOrNull(sample._id) ?? sample._id;
+				byId.set(id, {
+					_id: oid,
+					name: sample.actor?.name || "User tidak diketahui",
+					email: sample.actor?.email || "",
+					avatar: sample.actor?.avatar ?? sample.actor?.avatarUrl,
+					role: undefined,
+				});
+			}
+		}
+
+		// Still missing after denorm — keep a minimal stub so metrics can attach
+		for (const id of missing) {
+			const key = String(id);
+			if (byId.has(key)) continue;
+			byId.set(key, {
+				_id: id,
+				name: "User tidak diketahui",
+				email: "",
+				role: undefined,
+			});
+		}
+	}
+
+	let profiles = ids
+		.map((id) => byId.get(String(id)))
+		.filter((u): u is Record<string, unknown> => u != null);
+
+	const search = options.search?.trim();
+	if (search && search.length >= 2) {
+		const re = new RegExp(
+			search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+			"i",
+		);
+		profiles = profiles.filter((u) => re.test(String(u.name ?? "")));
+	}
+
+	return profiles;
+}
+
+async function fetchGlobalTargetValue(
+	db: Db,
+	period: string,
+	key: string,
+): Promise<number | null> {
+	const doc = await db.collection("monthly_targets").findOne({
+		key,
+		period,
+		scopeType: "GLOBAL",
+	});
+	const value = doc?.value;
+	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+		return null;
+	}
+	return value;
+}
+
+async function countPublishedByAuthor(
+	db: Db,
+	authorIds: ObjectId[],
+	bounds: PeriodBounds,
+): Promise<Map<string, number>> {
+	if (authorIds.length === 0) return new Map();
+
+	const rows = await db
+		.collection("articles")
+		.aggregate<{ _id: ObjectId; count: number }>([
+			{
 				$match: {
-					viewedAt: { $gte: periodStart, $lt: periodEnd },
+					authorId: { $in: authorIds },
+					status: "PUBLISHED",
+					publishedAt: { $gte: bounds.start, $lt: bounds.end },
 					deletedAt: { $in: [null, ""] },
 				},
 			},
+			{ $group: { _id: "$authorId", count: { $sum: 1 } } },
+		])
+		.toArray();
+
+	const map = new Map<string, number>();
+	for (const row of rows) {
+		if (row._id == null) continue;
+		map.set(String(row._id), row.count || 0);
+	}
+	return map;
+}
+
+/**
+ * Consumption pageviews in period for articles authored by the given users.
+ * Excludes internal admin referrers.
+ */
+async function pageviewsByAuthor(
+	db: Db,
+	authorIds: ObjectId[],
+	bounds: PeriodBounds,
+): Promise<Map<string, number>> {
+	if (authorIds.length === 0) return new Map();
+
+	const rows = await db
+		.collection("article_views")
+		.aggregate<{ _id: ObjectId; pageViews: number }>([
 			{
-				// 2. HITUNG DULU per artikel (Ini yang menyelamatkan performa!)
-				$group: {
-					_id: "$articleId",
-					totalViewsPerArticle: { $sum: 1 },
+				$match: {
+					viewedAt: { $gte: bounds.start, $lt: bounds.end },
+					...publicViewReferrerMatch(),
 				},
 			},
 			{
-				// 3. Baru lookup ke articles untuk mencari tahu siapa penulisnya
+				$group: {
+					_id: "$articleId",
+					views: { $sum: 1 },
+				},
+			},
+			{
 				$lookup: {
 					from: "articles",
 					localField: "_id",
@@ -162,49 +385,136 @@ export async function getKPIWriterTeam(
 			},
 			{ $unwind: "$article" },
 			{
-				// 4. Group ulang berdasarkan authorId penulisnya
+				$match: {
+					"article.authorId": { $in: authorIds },
+					"article.deletedAt": { $in: [null, ""] },
+				},
+			},
+			{
 				$group: {
 					_id: "$article.authorId",
-					pageViewsThisMonth: { $sum: "$totalViewsPerArticle" }, // Jumlahkan views yang sudah dihitung tadi
+					pageViews: { $sum: "$views" },
 				},
 			},
 		])
 		.toArray();
 
-	const articleViewMetricsMap = new Map(
-		articleViewAggregation
-			.filter((doc) => doc._id != null)
-			.map((doc) => [doc._id.toString(), doc.pageViewsThisMonth]),
-	);
+	const map = new Map<string, number>();
+	for (const row of rows) {
+		if (row._id == null) continue;
+		map.set(String(row._id), row.pageViews || 0);
+	}
+	return map;
+}
 
-	// ── Langkah 3C: Agregasi EditorActivity untuk menghitung monthlyRevisionRate ──────
-	// Hitung: draf diajukan (status → PENDING_REVIEW) dan draf dikembalikan
-	// (status PENDING_REVIEW → REJECTED) per authorId
-	const editorActivityAggregation = await db
-		.collection("editor_activities")
-		.aggregate([
+async function countSitePageviews(
+	db: Db,
+	bounds: PeriodBounds,
+): Promise<number> {
+	return db.collection("article_views").countDocuments({
+		viewedAt: { $gte: bounds.start, $lt: bounds.end },
+		...publicViewReferrerMatch(),
+	});
+}
+
+async function revisionByAuthor(
+	db: Db,
+	authorIds: ObjectId[],
+	bounds: PeriodBounds,
+): Promise<{ source: ActivitySource; map: Map<string, RevisionBucket> }> {
+	if (authorIds.length === 0) {
+		return { source: "audit_log", map: new Map() };
+	}
+
+	const audit = await db
+		.collection("audit_log")
+		.aggregate<{
+			_id: unknown;
+			rejects: number;
+			publishes: number;
+			pendingSubmits: number;
+		}>([
 			{
-				// Filter: hanya aktivitas di periode yang ditetapkan
 				$match: {
-					timestamp: {
-						$gte: periodStart,
-						$lt: periodEnd,
+					entity: "articles",
+					createdAt: { $gte: bounds.start, $lt: bounds.end },
+					action: { $in: ["REJECT", "PUBLISH", "CREATE", "UPDATE"] },
+				},
+			},
+			{
+				$group: {
+					_id: "$entityId",
+					rejects: {
+						$sum: { $cond: [{ $eq: ["$action", "REJECT"] }, 1, 0] },
 					},
+					publishes: {
+						$sum: { $cond: [{ $eq: ["$action", "PUBLISH"] }, 1, 0] },
+					},
+					pendingSubmits: {
+						$sum: {
+							$cond: [{ $eq: ["$meta.statusTo", "PENDING_REVIEW"] }, 1, 0],
+						},
+					},
+				},
+			},
+		])
+		.toArray();
+
+	if (audit.length > 0) {
+		const entityIds = audit
+			.map((row) => toObjectIdOrNull(row._id))
+			.filter((id): id is ObjectId => id != null);
+
+		const articles = await db
+			.collection("articles")
+			.find(
+				{ _id: { $in: entityIds }, authorId: { $in: authorIds } },
+				{ projection: { _id: 1, authorId: 1 } },
+			)
+			.toArray();
+
+		const authorByArticle = new Map(
+			articles.map((a) => [String(a._id), String(a.authorId)]),
+		);
+		const byAuthor = new Map<string, RevisionBucket>();
+
+		for (const row of audit) {
+			const authorId = authorByArticle.get(String(row._id));
+			if (!authorId) continue;
+			const bucket = byAuthor.get(authorId) || { submitted: 0, rejected: 0 };
+			const rejects = row.rejects || 0;
+			const publishes = row.publishes || 0;
+			const pending = row.pendingSubmits || 0;
+			bucket.rejected += rejects;
+			// Prefer meta PENDING_REVIEW counts when present; else reject+publish proxy
+			bucket.submitted += pending > 0 ? pending : rejects + publishes;
+			byAuthor.set(authorId, bucket);
+		}
+
+		if (byAuthor.size > 0) {
+			return { source: "audit_log", map: byAuthor };
+		}
+	}
+
+	const legacy = await db
+		.collection("editor_activities")
+		.aggregate<{ _id: ObjectId; submitted: number; rejected: number }>([
+			{
+				$match: {
+					authorId: { $in: authorIds },
+					timestamp: { $gte: bounds.start, $lt: bounds.end },
 					deletedAt: { $in: [null, ""] },
 				},
 			},
 			{
 				$group: {
 					_id: "$authorId",
-
-					// Draf yang diajukan: status berubah menjadi PENDING_REVIEW
-					submittedCount: {
+					submitted: {
 						$sum: {
 							$cond: [{ $eq: ["$statusTo", "PENDING_REVIEW"] }, 1, 0],
 						},
 					},
-					// Draf yang dikembalikan: status dari PENDING_REVIEW ke REJECTED
-					rejectedCount: {
+					rejected: {
 						$sum: {
 							$cond: [
 								{
@@ -223,201 +533,76 @@ export async function getKPIWriterTeam(
 		])
 		.toArray();
 
-	logger.info(
-		{ editorActivityAggregation },
-		"editorActivityAggregation results for KPI calculation",
-	);
-
-	const editorActivityMetricsMap = new Map(
-		editorActivityAggregation
-			.filter((doc) => doc._id != null)
-			.map((doc) => [
-				doc._id.toString(),
-				{
-					submittedCount: doc.submittedCount,
-					rejectedCount: doc.rejectedCount,
-				},
-			]),
-	);
-
-	// ── Langkah 4: Mapping data dengan perhitungan KPI per user ─────────────────────
-	// Gabungkan data dari artikel, article_views, dan editor_activity dengan targets per role
-	const results: KPIWriterTeamResponse[] = users
-		.map((user) => {
-			const articleMetrics = articleMetricsMap.get(user._id.toString()) || {
-				articlePublishedThisMonth: 0,
-			};
-			const pageViewsThisMonth =
-				articleViewMetricsMap.get(user._id.toString()) || 0;
-			const editorActivityMetrics = editorActivityMetricsMap.get(
-				user._id.toString(),
-			) || { submittedCount: 0, rejectedCount: 0 };
-
-			// Ambil target per role dari Map
-			const monthlyTargetArticles = targetsByRole.get(user.role) || 0;
-
-			// Hitung monthlyRevisionRate (skala 0 - 100)
-			const monthlyRevisionRate =
-				editorActivityMetrics.submittedCount > 0
-					? (editorActivityMetrics.rejectedCount /
-						editorActivityMetrics.submittedCount) * 100
-					: 0;
-
-			// Hitung target achievement rate (skala 0 - 100)
-			const targetAchievementRate =
-				monthlyTargetArticles > 0
-					? (articleMetrics.articlePublishedThisMonth / monthlyTargetArticles) * 100
-					: 0;
-
-			// Konstruksi UserProfile lengkap dari user object
-			const userProfile: UserProfile = {
-				_id: user._id.toString(),
-				name: user.name,
-				email: user.email,
-				avatar: user.avatar,
-				role: user.role,
-				teamId: user.teamId,
-				team: user.team,
-			};
-
-			return {
-				userId: user._id.toString(),
-				user: userProfile,
-				period: activePeriod,
-				articlePublishedThisMonth: articleMetrics.articlePublishedThisMonth,
-				monthlyTargetArticles,
-				targetAchievementRate: Math.round(targetAchievementRate * 100) / 100,
-				pageViewsThisMonth,
-				monthlyRevisionRate: Math.round(monthlyRevisionRate * 100) / 100,
-				submittedCount: editorActivityMetrics.submittedCount,
-				rejectedCount: editorActivityMetrics.rejectedCount,
-			};
-		})
-		.sort((a, b) => a.user.name.localeCompare(b.user.name, "id-ID"));
-
-	return results;
+	const map = new Map<string, RevisionBucket>();
+	for (const row of legacy) {
+		if (row._id == null) continue;
+		map.set(String(row._id), {
+			submitted: row.submitted || 0,
+			rejected: row.rejected || 0,
+		});
+	}
+	return { source: "editor_activities", map };
 }
 
-/**
- * Mengambil data KPI untuk Tim Editor.
- *
- * Fungsi ini mengagregasi metrik performa untuk semua editor dalam periode yang ditetapkan.
- *
- * Metrik yang dihitung per editor:
- * - `articlesProcessedThisMonth`: Jumlah artikel yang disetujui/dipublikasikan/dijadwalkan editor (dari EditorActivity).
- * - `monthlyTargetProcess`: Target artikel yang harus diproses bulan ini, ambil dari monthly_targets.
- * - `targetAchievementRate`: Persentase pencapaian target (articlesProcessed / monthlyTargetProcess * 100).
- * - `articlesRevisionCountThisMonth`: Berapa kali editor mengembalikan draf ke penulis.
- * - `totalDraftsReviewedThisMonth`: Total draf yang disentuh editor (processed + revision).
- * - `editorStrictnessRate`: Rasio ketetatan (revisionCount / totalDrafts * 100).
- * - `avgProcessingTimeMinutes`: Rata-rata menit untuk memproses satu artikel (submittedAt → publishedAt).
- * - `targetSlaMinutes`: Target maksimal menit pemrosesan dari monthly_targets.
- * - `slaComplianceRate`: Persentase artikel yang selesai dalam batas SLA.
- *
- * @param db - Instance MongoDB Db
- * @param options.period - Format "YYYY-MM" (contoh: "2026-03"). Default: bulan saat ini jika kosong.
- * @param options.search - Filter nama editor, case-insensitive (opsional).
- * @returns Array KPIEditorResponse, diurutkan dari nama A-Z (Indonesian localization).
- */
-export async function getKPIEditor(
-	db: Db,
-	{ period, search }: { period?: string; search?: string },
-): Promise<KPIEditorResponse[]> {
-	// ── Resolve periode yang digunakan ───────────────────────────────────────
-	// Jika period tidak disediakan, gunakan bulan dan tahun saat ini
-	const activePeriod = period || new Date().toISOString().slice(0, 7); // Format: "YYYY-MM"
-
-	const [yearStr, monthStr] = activePeriod.split("-");
-	const year = parseInt(yearStr, 10);
-	const month = parseInt(monthStr, 10);
-
-	// Buat rentang tanggal untuk filter database
-	const periodStart = new Date(year, month - 1, 1); // Awal bulan
-	const periodEnd = new Date(year, month, 1); // Awal bulan berikutnya (exclusive)
-
-	// ── Langkah 1: Ambil semua editor aktif ───────────────────────────────────
-	const editorQuery: Record<string, unknown> = {
-		role: "editor",
-		deletedAt: { $in: [null, ""] }, // Hanya editor yang aktif
+function actorIdMatch(editorIds: ObjectId[]): Record<string, unknown> {
+	const strings = editorIds.map((id) => String(id));
+	return {
+		$or: [
+			{ "actor._id": { $in: editorIds } },
+			{ "actor._id": { $in: strings } },
+		],
 	};
+}
 
-	if (search && search.trim().length >= 2) {
-		// Filter nama case-insensitive, minimum 2 karakter
-		editorQuery.name = { $regex: search, $options: "i" };
+async function processByEditor(
+	db: Db,
+	editorIds: ObjectId[],
+	bounds: PeriodBounds,
+): Promise<{ source: ActivitySource; map: Map<string, ProcessBucket> }> {
+	if (editorIds.length === 0) {
+		return { source: "audit_log", map: new Map() };
 	}
 
-	const editors = await db
-		.collection("users")
-		.find(editorQuery, {
-			projection: {
-				_id: 1,
-				name: 1,
-				email: 1,
-				avatar: 1,
-				role: 1,
-				teamId: 1,
-				team: 1,
-			},
-		})
-		.toArray();
-
-	if (editors.length === 0) {
-		logger.info({ search }, "No editors found for KPI calculation");
-		return [];
-	}
-
-	// Kumpulkan semua editor ID untuk query nantinya
-	const editorIds = editors.map((e) => new ObjectId(e._id));
-
-	// ── Langkah 2: Ambil target bulanan dari target global (scopeType: "GLOBAL") ───────
-	// Query 1: Target artikel yang harus diproses oleh editor secara global
-	const processTargetDoc = await db.collection("monthly_targets").findOne({
-		key: "ARTICLES_TO_PROCESS",
-		period: activePeriod,
-		scopeType: "GLOBAL",
-	});
-	const monthlyTargetProcess = processTargetDoc?.value ?? 0;
-
-	// Query 2: Target SLA pemrosesan editor secara global (dalam menit)
-	const slaTargetDoc = await db.collection("monthly_targets").findOne({
-		key: "PROCESSING_TIME_SLA_MINUTES",
-		period: activePeriod,
-		scopeType: "GLOBAL",
-	});
-	const targetSlaMinutes = slaTargetDoc?.value ?? 120; // Default 120 menit (2 jam) jika tidak diset
-
-	// ── Langkah 3: Agregasi EditorActivity untuk Produktivitas & Kualitas ─────
-	// Hitung: artikel yang diproses (publish/schedule) dan yang dikembalikan (revisi)
-	const editorActivityAggregation = await db
-		.collection("editor_activities")
-		.aggregate([
+	const audit = await db
+		.collection("audit_log")
+		.aggregate<{
+			_id: unknown;
+			processed: number;
+			revision: number;
+			articleIds: unknown[];
+		}>([
 			{
-				// Filter: hanya editor ini, periode ini, tidak dihapus
 				$match: {
-					userId: { $in: editorIds },
-					timestamp: {
-						$gte: periodStart,
-						$lt: periodEnd,
-					},
-					deletedAt: { $in: [null, ""] },
+					entity: "articles",
+					createdAt: { $gte: bounds.start, $lt: bounds.end },
+					action: { $in: [...EDITOR_PROCESS_ACTIONS] },
+					...actorIdMatch(editorIds),
 				},
 			},
 			{
 				$group: {
-					_id: "$userId",
-
-					// Diproses: terbit / jadwal (termasuk transisi lama ke APPROVED)
-					articlesProcessedThisMonth: {
+					_id: "$actor._id",
+					processed: {
+						$sum: {
+							$cond: [
+								{ $in: ["$action", ["PUBLISH", "SCHEDULE"]] },
+								1,
+								0,
+							],
+						},
+					},
+					revision: {
 						$sum: {
 							$cond: [
 								{
-									$in: [
-										"$statusTo",
-										[
-											"PUBLISHED",
-											"SCHEDULED",
-											"APPROVED",
-										],
+									$or: [
+										{ $eq: ["$action", "REJECT"] },
+										{
+											$and: [
+												{ $eq: ["$meta.statusFrom", "PENDING_REVIEW"] },
+												{ $in: ["$meta.statusTo", ["DRAFT", "REJECTED"]] },
+											],
+										},
 									],
 								},
 								1,
@@ -425,21 +610,89 @@ export async function getKPIEditor(
 							],
 						},
 					},
+					articleIds: {
+						$addToSet: {
+							$cond: [
+								{ $in: ["$action", ["PUBLISH", "SCHEDULE"]] },
+								"$entityId",
+								"$$REMOVE",
+							],
+						},
+					},
+				},
+			},
+		])
+		.toArray();
 
-					// Hitung: berapa kali draf dikembalikan (PENDING_REVIEW → DRAFT/REJECTED)
-					articlesRevisionCountThisMonth: {
+	if (audit.length > 0) {
+		const map = new Map<string, ProcessBucket>();
+		for (const row of audit) {
+			if (row._id == null) continue;
+			const articleIds = (row.articleIds || [])
+				.map((id) => toObjectIdOrNull(id))
+				.filter((id): id is ObjectId => id != null);
+			map.set(String(row._id), {
+				processed: row.processed || 0,
+				revision: row.revision || 0,
+				articleIds,
+			});
+		}
+		if (map.size > 0) {
+			return { source: "audit_log", map };
+		}
+	}
+
+	const legacy = await db
+		.collection("editor_activities")
+		.aggregate<{
+			_id: ObjectId;
+			processed: number;
+			revision: number;
+			articleIds: ObjectId[];
+		}>([
+			{
+				$match: {
+					userId: { $in: editorIds },
+					timestamp: { $gte: bounds.start, $lt: bounds.end },
+					deletedAt: { $in: [null, ""] },
+				},
+			},
+			{
+				$group: {
+					_id: "$userId",
+					processed: {
+						$sum: {
+							$cond: [
+								{
+									$in: ["$statusTo", ["PUBLISHED", "SCHEDULED", "APPROVED"]],
+								},
+								1,
+								0,
+							],
+						},
+					},
+					revision: {
 						$sum: {
 							$cond: [
 								{
 									$and: [
 										{ $eq: ["$statusFrom", "PENDING_REVIEW"] },
-										{
-											$in: ["$statusTo", ["DRAFT", "REJECTED"]],
-										},
+										{ $in: ["$statusTo", ["DRAFT", "REJECTED"]] },
 									],
 								},
 								1,
 								0,
+							],
+						},
+					},
+					articleIds: {
+						$addToSet: {
+							$cond: [
+								{
+									$in: ["$statusTo", ["PUBLISHED", "SCHEDULED", "APPROVED"]],
+								},
+								"$articleId",
+								"$$REMOVE",
 							],
 						},
 					},
@@ -448,143 +701,53 @@ export async function getKPIEditor(
 		])
 		.toArray();
 
-	const editorActivityMetricsMap = new Map(
-		editorActivityAggregation
-			.filter((doc) => doc._id != null)
-			.map((doc) => [
-				doc._id.toString(),
-				{
-					articlesProcessedThisMonth: doc.articlesProcessedThisMonth,
-					articlesRevisionCountThisMonth: doc.articlesRevisionCountThisMonth,
-				},
-			]),
-	);
+	const map = new Map<string, ProcessBucket>();
+	for (const row of legacy) {
+		if (row._id == null) continue;
+		map.set(String(row._id), {
+			processed: row.processed || 0,
+			revision: row.revision || 0,
+			articleIds: (row.articleIds || []).filter(Boolean),
+		});
+	}
+	return { source: "editor_activities", map };
+}
 
-	logger.info(
-		{
-			editorActivityMetricsMap: Array.from(editorActivityMetricsMap.entries()),
-		},
-		"Editor activity metrics aggregated for KPI calculation",
-	);
-
-	// ── Langkah 4: Hitung SLA - Ambil artikelyang diproses untuk waktu pemrosesan ──
-	// Aggregasi kompleks: dari EditorActivity → lookup Article → hitung SLA per editor
-	const slaAggregation = await db
-		.collection("editor_activities")
-		.aggregate([
+async function siteSlaMetrics(
+	db: Db,
+	bounds: PeriodBounds,
+	targetSlaMinutes: number,
+): Promise<{ avgMinutes: number; complianceRate: number }> {
+	const rows = await db
+		.collection("articles")
+		.aggregate<{
+			avgMinutes: number | null;
+			total: number;
+			compliant: number;
+		}>([
 			{
-				// Filter: hanya yang publish/schedule di periode ini
 				$match: {
-					userId: { $in: editorIds },
-					statusTo: { $in: ["PUBLISHED", "SCHEDULED", "APPROVED"] },
-					timestamp: {
-						$gte: periodStart,
-						$lt: periodEnd,
-					},
+					status: "PUBLISHED",
+					publishedAt: { $gte: bounds.start, $lt: bounds.end },
+					submittedAt: { $ne: null },
 					deletedAt: { $in: [null, ""] },
 				},
 			},
 			{
-				// Lookup artikel untuk dapat submittedAt dan publishedAt
-				$lookup: {
-					from: "articles",
-					localField: "articleId",
-					foreignField: "_id",
-					as: "article",
+				$project: {
+					slaMinutes: {
+						$divide: [{ $subtract: ["$publishedAt", "$submittedAt"] }, 60000],
+					},
 				},
 			},
-			{ $unwind: { path: "$article", preserveNullAndEmptyArrays: true } },
 			{
 				$group: {
-					_id: "$userId",
-
-					// Hitung total artikel yang berhasil diproses
-					totalProcessedArticles: { $sum: 1 },
-
-					// Hitung artikel yang selesai dalam batas SLA
-					slaComplianceCount: {
+					_id: null,
+					avgMinutes: { $avg: "$slaMinutes" },
+					total: { $sum: 1 },
+					compliant: {
 						$sum: {
-							$cond: [
-								{
-									$and: [
-										{
-											$ne: ["$article.submittedAt", null],
-										},
-										{
-											$ne: ["$article.publishedAt", null],
-										},
-										{
-											// Hitung selisih waktu dalam menit
-											$lte: [
-												{
-													$divide: [
-														{
-															$subtract: [
-																"$article.publishedAt",
-																"$article.submittedAt",
-															],
-														},
-														60000, // Konversi milliseconds ke menit
-													],
-												},
-												targetSlaMinutes,
-											],
-										},
-									],
-								},
-								1,
-								0,
-							],
-						},
-					},
-
-					// Hitung total waktu pemrosesan (untuk rata-rata)
-					totalProcessingTimeMinutes: {
-						$sum: {
-							$cond: [
-								{
-									$and: [
-										{
-											$ne: ["$article.submittedAt", null],
-										},
-										{
-											$ne: ["$article.publishedAt", null],
-										},
-									],
-								},
-								{
-									$divide: [
-										{
-											$subtract: [
-												"$article.publishedAt",
-												"$article.submittedAt",
-											],
-										},
-										60000,
-									],
-								},
-								0,
-							],
-						},
-					},
-
-					// Hitung artikel dengan data lengkap (untuk pembagi rata-rata)
-					articlesWithCompleteData: {
-						$sum: {
-							$cond: [
-								{
-									$and: [
-										{
-											$ne: ["$article.submittedAt", null],
-										},
-										{
-											$ne: ["$article.publishedAt", null],
-										},
-									],
-								},
-								1,
-								0,
-							],
+							$cond: [{ $lte: ["$slaMinutes", targetSlaMinutes] }, 1, 0],
 						},
 					},
 				},
@@ -592,113 +755,409 @@ export async function getKPIEditor(
 		])
 		.toArray();
 
+	const row = rows[0];
+	if (!row || !row.total) {
+		return { avgMinutes: 0, complianceRate: 0 };
+	}
+	return {
+		avgMinutes: roundNumber(row.avgMinutes || 0, 1),
+		complianceRate: safePercent(row.compliant, row.total),
+	};
+}
+
+/**
+ * Hide-zero rule for writer KPI rows (behavior-based).
+ */
+export function writerRowHasActivity(row: {
+	articlePublishedThisMonth: number;
+	pageViewsThisMonth: number;
+	submittedCount: number;
+	rejectedCount: number;
+}): boolean {
+	return (
+		row.articlePublishedThisMonth > 0 ||
+		row.pageViewsThisMonth > 0 ||
+		row.submittedCount > 0 ||
+		row.rejectedCount > 0
+	);
+}
+
+/**
+ * Hide-zero rule for editor KPI rows (behavior-based).
+ */
+export function editorRowHasActivity(row: {
+	articlesProcessedThisMonth: number;
+	articlesRevisionCountThisMonth: number;
+	totalDraftsReviewedThisMonth: number;
+}): boolean {
+	return (
+		row.articlesProcessedThisMonth > 0 ||
+		row.articlesRevisionCountThisMonth > 0 ||
+		row.totalDraftsReviewedThisMonth > 0
+	);
+}
+
+export function compareWritersByPublishedDesc(
+	a: { articlePublishedThisMonth: number; user: { name: string } },
+	b: { articlePublishedThisMonth: number; user: { name: string } },
+): number {
+	if (b.articlePublishedThisMonth !== a.articlePublishedThisMonth) {
+		return b.articlePublishedThisMonth - a.articlePublishedThisMonth;
+	}
+	return a.user.name.localeCompare(b.user.name, "id-ID");
+}
+
+export function compareEditorsByProcessedDesc(
+	a: { articlesProcessedThisMonth: number; user: { name: string } },
+	b: { articlesProcessedThisMonth: number; user: { name: string } },
+): number {
+	if (b.articlesProcessedThisMonth !== a.articlesProcessedThisMonth) {
+		return b.articlesProcessedThisMonth - a.articlesProcessedThisMonth;
+	}
+	return a.user.name.localeCompare(b.user.name, "id-ID");
+}
+
+/**
+ * KPI Penulis — behavior-based: anyone with authorId on articles active in period.
+ * Individual monthly targets stay unset — site GLOBAL target is context only.
+ */
+export async function getKPIWriterTeam(
+	db: Db,
+	{ period, search, scopedUserIds }: ScopeOptions,
+): Promise<KPIWriterTeamResponse[]> {
+	const activePeriod = resolvePeriod(period);
+	const bounds = getMonthBoundsWib(activePeriod);
+	const { previous } = getPreviousMonthBoundsWib(activePeriod);
+
+	const discoveredIds = await discoverAuthorIdsInPeriod(
+		db,
+		bounds,
+		scopedUserIds,
+	);
+	if (discoveredIds.length === 0) return [];
+
+	const users = await loadUserProfilesByIds(db, discoveredIds, {
+		search,
+		fallbackSource: "author",
+	});
+	if (users.length === 0) return [];
+
+	const authorIds = users
+		.map((u) => toObjectIdOrNull(u._id))
+		.filter((id): id is ObjectId => id != null);
+
+	const sitePublishTargetValue = await fetchGlobalTargetValue(
+		db,
+		activePeriod,
+		"ARTICLES_PUBLISHED",
+	);
+	const siteTarget = buildSiteTargetDisplay(0, sitePublishTargetValue);
+	const individualTarget = buildIndividualTarget(sitePublishTargetValue);
+
+	const [publishedMap, publishedPrevMap, pageviewsMap, revision] =
+		await Promise.all([
+			countPublishedByAuthor(db, authorIds, bounds),
+			countPublishedByAuthor(db, authorIds, previous),
+			pageviewsByAuthor(db, authorIds, bounds),
+			revisionByAuthor(db, authorIds, bounds),
+		]);
+
 	logger.info(
-		{ slaAggregation },
-		"SLA aggregation results for KPI calculation",
+		{
+			period: activePeriod,
+			writers: users.length,
+			activitySource: revision.source,
+		},
+		"KPI writers aggregated (behavior-based)",
 	);
 
-	const slaMetricsMap = new Map(
-		slaAggregation
-			.filter((doc) => doc._id != null)
-			.map((doc) => [
-				doc._id.toString(),
-				{
-					totalProcessedArticles: doc.totalProcessedArticles,
-					slaComplianceCount: doc.slaComplianceCount,
-					totalProcessingTimeMinutes: doc.totalProcessingTimeMinutes,
-					articlesWithCompleteData: doc.articlesWithCompleteData,
-				},
-			]),
-	);
+	const results: KPIWriterTeamResponse[] = users
+		.map((user) => {
+			const userId = String(user._id);
+			const published = publishedMap.get(userId) || 0;
+			const publishedPrev = publishedPrevMap.get(userId) || 0;
+			const pageViewsThisMonth = pageviewsMap.get(userId) || 0;
+			const rev = revision.map.get(userId) || { submitted: 0, rejected: 0 };
+			const viewsPerArticle =
+				published > 0 ? roundNumber(pageViewsThisMonth / published, 1) : 0;
 
-	logger.info(
-		{ slaMetricsMap: Array.from(slaMetricsMap.entries()) },
-		"SLA metrics aggregated for editors",
-	);
-
-	// ── Langkah 5: Mapping & Perhitungan KPI per editor ──────────────────────
-	const results: KPIEditorResponse[] = editors
-		.map((editor) => {
-			// Ambil metrik dari agregasi
-			const activityMetrics = editorActivityMetricsMap.get(
-				editor._id.toString(),
-			) || {
-				articlesProcessedThisMonth: 0,
-				articlesRevisionCountThisMonth: 0,
-			};
-
-			const slaMetrics = slaMetricsMap.get(editor._id.toString()) || {
-				totalProcessedArticles: 0,
-				slaComplianceCount: 0,
-				totalProcessingTimeMinutes: 0,
-				articlesWithCompleteData: 0,
-			};
-
-			// ─── Perhitungan Metrik Produktivitas ───────────────────────────────
-			const targetAchievementRate =
-				monthlyTargetProcess > 0
-					? (activityMetrics.articlesProcessedThisMonth /
-							monthlyTargetProcess) *
-						100
-					: 0;
-
-			// ─── Perhitungan Metrik Kualitas ────────────────────────────────────
-			const totalDraftsReviewedThisMonth =
-				activityMetrics.articlesProcessedThisMonth +
-				activityMetrics.articlesRevisionCountThisMonth;
-
-			const editorStrictnessRate =
-				totalDraftsReviewedThisMonth > 0
-					? (activityMetrics.articlesRevisionCountThisMonth /
-							totalDraftsReviewedThisMonth) *
-						100
-					: 0;
-
-			// ─── Perhitungan Metrik SLA ────────────────────────────────────────
-			// Rata-rata waktu pemrosesan per artikel (dalam menit)
-			const avgProcessingTimeMinutes =
-				slaMetrics.articlesWithCompleteData > 0
-					? slaMetrics.totalProcessingTimeMinutes /
-						slaMetrics.articlesWithCompleteData
-					: 0;
-
-			// Persentase artikel yang selesai dalam batas SLA (minutes)
-			const slaComplianceRate =
-				slaMetrics.totalProcessedArticles > 0
-					? (slaMetrics.slaComplianceCount /
-							slaMetrics.totalProcessedArticles) *
-						100
-					: 0;
-
-			// ─── Konstruksi UserProfile ────────────────────────────────────────
-			const userProfile: UserProfile = {
-				_id: editor._id.toString(),
-				name: editor.name,
-				email: editor.email,
-				avatar: editor.avatar,
-				role: editor.role,
-				teamId: editor.teamId,
-				team: editor.team,
-			};
-
-			// ─── Return KPI Response ────────────────────────────────────────────
 			return {
-				userId: editor._id.toString(),
-				user: userProfile,
+				userId,
+				user: toUserProfile(user),
 				period: activePeriod,
-				articlesProcessedThisMonth: activityMetrics.articlesProcessedThisMonth,
-				monthlyTargetProcess,
-				targetAchievementRate: Math.round(targetAchievementRate * 100) / 100,
-				totalDraftsReviewedThisMonth,
-				articlesRevisionCountThisMonth:
-					activityMetrics.articlesRevisionCountThisMonth,
-				editorStrictnessRate: Math.round(editorStrictnessRate * 100) / 100,
-				avgProcessingTimeMinutes: Math.round(avgProcessingTimeMinutes),
-				targetSlaMinutes,
-				slaComplianceRate: Math.round(slaComplianceRate * 100) / 100,
+				articlePublishedThisMonth: published,
+				monthlyTargetArticles: 0,
+				targetAchievementRate: 0,
+				individualTarget,
+				pageViewsThisMonth,
+				viewsPerArticle,
+				contributionShare: 0, // filled after hide-zero filter
+				monthlyRevisionRate: safePercent(rev.rejected, rev.submitted),
+				submittedCount: rev.submitted,
+				rejectedCount: rev.rejected,
+				momPublished: momGrowthRate(published, publishedPrev),
+				dataFreshness: { activitySource: revision.source },
+				siteTargetStatus: siteTarget.status,
 			};
 		})
-		.sort((a, b) => a.user.name.localeCompare(b.user.name, "id-ID"));
+		.filter(writerRowHasActivity);
+
+	const totalPublished = results.reduce(
+		(sum, row) => sum + row.articlePublishedThisMonth,
+		0,
+	);
+	for (const row of results) {
+		row.contributionShare = safePercent(
+			row.articlePublishedThisMonth,
+			totalPublished,
+		);
+	}
+
+	results.sort(compareWritersByPublishedDesc);
 
 	return results;
+}
+
+/**
+ * KPI Editor — behavior-based: anyone who processed articles in audit_log.
+ * Process/revision prefer audit_log; SLA from processed article timestamps.
+ */
+export async function getKPIEditor(
+	db: Db,
+	{ period, search, scopedUserIds }: ScopeOptions,
+): Promise<KPIEditorResponse[]> {
+	const activePeriod = resolvePeriod(period);
+	const bounds = getMonthBoundsWib(activePeriod);
+
+	const discoveredIds = await discoverEditorIdsInPeriod(
+		db,
+		bounds,
+		scopedUserIds,
+	);
+	if (discoveredIds.length === 0) return [];
+
+	const editors = await loadUserProfilesByIds(db, discoveredIds, {
+		search,
+		fallbackSource: "editor",
+	});
+	if (editors.length === 0) return [];
+
+	const editorIds = editors
+		.map((u) => toObjectIdOrNull(u._id))
+		.filter((id): id is ObjectId => id != null);
+
+	const [processTargetValue, slaTargetValue] = await Promise.all([
+		fetchGlobalTargetValue(db, activePeriod, "ARTICLES_TO_PROCESS"),
+		fetchGlobalTargetValue(db, activePeriod, "PROCESSING_TIME_SLA_MINUTES"),
+	]);
+	const targetSlaMinutes = slaTargetValue ?? DEFAULT_SLA_MINUTES;
+	const individualTarget = buildIndividualTarget(processTargetValue);
+
+	const process = await processByEditor(db, editorIds, bounds);
+
+	const allArticleIds = [
+		...new Set(
+			[...process.map.values()].flatMap((b) =>
+				b.articleIds.map((id) => String(id)),
+			),
+		),
+	]
+		.map((id) => toObjectIdOrNull(id))
+		.filter((id): id is ObjectId => id != null);
+
+	const articlesWithTiming = allArticleIds.length
+		? await db
+				.collection("articles")
+				.find(
+					{
+						_id: { $in: allArticleIds },
+						submittedAt: { $ne: null },
+						publishedAt: { $ne: null },
+					},
+					{ projection: { _id: 1, submittedAt: 1, publishedAt: 1 } },
+				)
+				.toArray()
+		: [];
+
+	const timingByArticle = new Map(
+		articlesWithTiming.map((a) => [
+			String(a._id),
+			{
+				minutes:
+					(new Date(a.publishedAt).getTime() -
+						new Date(a.submittedAt).getTime()) /
+					60000,
+			},
+		]),
+	);
+
+	logger.info(
+		{
+			period: activePeriod,
+			editors: editors.length,
+			activitySource: process.source,
+		},
+		"KPI editors aggregated (behavior-based)",
+	);
+
+	const results: KPIEditorResponse[] = editors
+		.map((editor) => {
+			const userId = String(editor._id);
+			const bucket = process.map.get(userId) || {
+				processed: 0,
+				revision: 0,
+				articleIds: [],
+			};
+			const totalDraftsReviewedThisMonth = bucket.processed + bucket.revision;
+
+			let totalMinutes = 0;
+			let timedCount = 0;
+			let compliant = 0;
+			for (const articleId of bucket.articleIds) {
+				const timing = timingByArticle.get(String(articleId));
+				if (!timing || !Number.isFinite(timing.minutes)) continue;
+				totalMinutes += timing.minutes;
+				timedCount += 1;
+				if (timing.minutes <= targetSlaMinutes) compliant += 1;
+			}
+
+			return {
+				userId,
+				user: toUserProfile(editor),
+				period: activePeriod,
+				articlesProcessedThisMonth: bucket.processed,
+				monthlyTargetProcess: 0,
+				targetAchievementRate: 0,
+				individualTarget,
+				totalDraftsReviewedThisMonth,
+				articlesRevisionCountThisMonth: bucket.revision,
+				editorStrictnessRate: safePercent(
+					bucket.revision,
+					totalDraftsReviewedThisMonth,
+				),
+				avgProcessingTimeMinutes:
+					timedCount > 0 ? Math.round(totalMinutes / timedCount) : 0,
+				targetSlaMinutes,
+				slaComplianceRate: safePercent(compliant, timedCount),
+				dataFreshness: { activitySource: process.source },
+			};
+		})
+		.filter(editorRowHasActivity);
+
+	results.sort(compareEditorsByProcessedDesc);
+
+	return results;
+}
+
+/**
+ * Macro strip + alerts for the KPI page (org-level, monthly).
+ */
+export async function getKPISummary(
+	db: Db,
+	{ period }: { period?: string } = {},
+): Promise<KPISummaryResponse> {
+	const activePeriod = resolvePeriod(period);
+	const bounds = getMonthBoundsWib(activePeriod);
+
+	const [sitePublishTargetValue, slaTargetValue] = await Promise.all([
+		fetchGlobalTargetValue(db, activePeriod, "ARTICLES_PUBLISHED"),
+		fetchGlobalTargetValue(db, activePeriod, "PROCESSING_TIME_SLA_MINUTES"),
+	]);
+	const targetSlaMinutes = slaTargetValue ?? DEFAULT_SLA_MINUTES;
+
+	const [published, pageviews, pendingReview, authorPublished, slaResolved] =
+		await Promise.all([
+			db.collection("articles").countDocuments({
+				status: "PUBLISHED",
+				publishedAt: { $gte: bounds.start, $lt: bounds.end },
+				deletedAt: { $in: [null, ""] },
+			}),
+			countSitePageviews(db, bounds),
+			db.collection("articles").countDocuments({
+				status: "PENDING_REVIEW",
+				deletedAt: { $in: [null, ""] },
+			}),
+			db
+				.collection("articles")
+				.aggregate<{ _id: ObjectId; count: number }>([
+					{
+						$match: {
+							status: "PUBLISHED",
+							publishedAt: { $gte: bounds.start, $lt: bounds.end },
+							deletedAt: { $in: [null, ""] },
+						},
+					},
+					{ $group: { _id: "$authorId", count: { $sum: 1 } } },
+					{ $sort: { count: -1 } },
+					{ $limit: 1 },
+				])
+				.toArray(),
+			siteSlaMetrics(db, bounds, targetSlaMinutes),
+		]);
+
+	const top1Count = authorPublished[0]?.count || 0;
+	const concentrationTop1 = safePercent(top1Count, published);
+	const sitePublishTarget = buildSiteTargetDisplay(
+		published,
+		sitePublishTargetValue,
+	);
+	const viewsPerArticle =
+		published > 0 ? roundNumber(pageviews / published, 1) : 0;
+
+	const alerts: KPISummaryResponse["alerts"] = [];
+
+	if (sitePublishTarget.status === "unset") {
+		alerts.push({
+			type: "target_unset",
+			severity: "info",
+			message: "Target terbit site (GLOBAL) belum diset untuk periode ini.",
+		});
+	} else if (
+		sitePublishTarget.achievementRate != null &&
+		sitePublishTarget.achievementRate < 50
+	) {
+		alerts.push({
+			type: "site_target_behind",
+			severity: "warning",
+			message: `Pencapaian target terbit site ${sitePublishTarget.achievementRate}% — di bawah 50%.`,
+		});
+	}
+
+	if (concentrationTop1 >= 50 && published > 0) {
+		alerts.push({
+			type: "concentration",
+			severity: "critical",
+			message: `Konsentrasi tinggi: 1 penulis menyumbang ${concentrationTop1}% output.`,
+		});
+	}
+
+	if (pendingReview >= 10) {
+		alerts.push({
+			type: "pending_review",
+			severity: pendingReview >= 25 ? "critical" : "warning",
+			message: `${pendingReview} naskah masih menunggu review.`,
+		});
+	}
+
+	if (slaResolved.complianceRate > 0 && slaResolved.complianceRate < 70) {
+		alerts.push({
+			type: "sla_compliance",
+			severity: "warning",
+			message: `SLA compliance ${slaResolved.complianceRate}% (target ≤ ${targetSlaMinutes} menit).`,
+		});
+	}
+
+	return {
+		period: activePeriod,
+		published,
+		pageviews,
+		viewsPerArticle,
+		avgSlaMinutes: slaResolved.avgMinutes,
+		slaComplianceRate: slaResolved.complianceRate,
+		targetSlaMinutes,
+		sitePublishTarget,
+		concentrationTop1,
+		pendingReview,
+		alerts,
+	};
 }

@@ -57,11 +57,19 @@ export const SIDEBAR_ROLE_EDITORIAL_LEADS = [
   AUTH_ROLES.HEAD_OF,
 ] as const;
 
-/** Analitik, KPI, tim */
+/** Analitik org-wide: KPI, Audience, Target, Workflow */
 export const SIDEBAR_ROLE_ANALYTICS = [
   AUTH_ROLES.ADMIN,
   AUTH_ROLES.EDITOR_IN_CHIEF,
   AUTH_ROLES.MANAGING_EDITOR,
+] as const;
+
+/** Self-scoped analytics: Editor may see Writing + own activity */
+export const SIDEBAR_ROLE_SELF_ANALYTICS = [
+  AUTH_ROLES.ADMIN,
+  AUTH_ROLES.EDITOR_IN_CHIEF,
+  AUTH_ROLES.MANAGING_EDITOR,
+  AUTH_ROLES.EDITOR,
 ] as const;
 
 /** Tim iklan (+ pemred/admin mengawasi) */
@@ -110,7 +118,7 @@ const DASHBOARD_PERMISSIONS: Permission[] = [
   "create_article",
   "manage_ads",
   "view_analytics",
-  "view_team_analytics",
+  "view_own_analytics",
   "manage_users",
   "manage_editorial",
 ];
@@ -235,7 +243,7 @@ export const ADMIN_NAV_TREE: NavEntry[] = [
     name: "Alur Kerja (Workflow)",
     href: adminPanelHref("analytics/workflow"),
     icon: LineChart,
-    permissions: ["view_analytics", "view_team_analytics"],
+    permissions: ["view_analytics"],
     roles: SIDEBAR_ROLE_ANALYTICS,
   },
   {
@@ -243,16 +251,16 @@ export const ADMIN_NAV_TREE: NavEntry[] = [
     name: "Kinerja Penulis",
     href: adminPanelHref("analytics/writing"),
     icon: PenTool,
-    permissions: ["view_analytics", "view_team_analytics"],
-    roles: SIDEBAR_ROLE_ANALYTICS,
+    permissions: ["view_analytics"],
+    roles: SIDEBAR_ROLE_SELF_ANALYTICS,
   },
   {
     type: "items",
     name: "Aktivitas Editor",
     href: adminPanelHref("analytics/editor-activity"),
     icon: UsersRound,
-    permissions: ["view_analytics", "view_team_analytics"],
-    roles: SIDEBAR_ROLE_ANALYTICS,
+    permissions: ["view_analytics"],
+    roles: SIDEBAR_ROLE_SELF_ANALYTICS,
   },
   {
     type: "items",
@@ -266,7 +274,7 @@ export const ADMIN_NAV_TREE: NavEntry[] = [
     name: "KPI & Kontribusi",
     href: adminPanelHref("reports/kpi"),
     icon: PieChart,
-    roles: SIDEBAR_ROLE_ANALYTICS,
+    roles: SIDEBAR_ROLE_SELF_ANALYTICS,
   },
 
   { type: "group", id: "iklan", name: "Monetisasi & Iklan" },

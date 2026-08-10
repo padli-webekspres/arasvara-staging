@@ -106,7 +106,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "view_audit_logs",
   ],
 
-  // EDITOR — edit & review artikel, submit ke head
+  // EDITOR — edit & review artikel; analytics self-scoped only
   [ROLES.EDITOR]: [
     "create_article",
     "edit_any_article",

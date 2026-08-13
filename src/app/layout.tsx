@@ -142,14 +142,14 @@ export default function RootLayout({
       <body
         className={`${rubik.variable} antialiased min-h-screen bg-background hide-scrollbar`}
       >
-        {/* Google Analytics — lazy agar tidak bersaing dengan LCP mobile */}
+        {/* Google Analytics — strategy afterInteractive agar gtag siap saat client mount */}
         {gaMeasurementId && (
           <>
             <Script
               src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
-              strategy="lazyOnload"
+              strategy="afterInteractive"
             />
-            <Script id="google-analytics" strategy="lazyOnload">
+            <Script id="google-analytics" strategy="afterInteractive">
               {`
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}

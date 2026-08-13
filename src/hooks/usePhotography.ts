@@ -1,14 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/axios";
 import { AxiosError } from "axios";
-import type { Article, GalleryArticle } from "@/types/article";
-
-interface ArticlesApiResponse {
-  articles: Article[];
-  nextCursor: string | null;
-  total?: number;
-  totalPages?: number;
-}
+import type { ArticleListPage, GalleryArticle } from "@/types/article";
 
 export interface UsePhotographyArticlesOptions {
   /** Jumlah artikel per halaman (default 12) */
@@ -26,7 +19,7 @@ async function fetchGalleryArticles(
   const limit = options.limit ?? 12;
   const page = options.page ?? 1;
   try {
-    const { data } = await api.get<ArticlesApiResponse>("/articles", {
+    const { data } = await api.get<ArticleListPage>("/articles", {
       params: {
         limit,
         page,

@@ -9,15 +9,14 @@ import {
   FEATURED_IMAGE_LOOKUP_STAGES,
   mapDocToArticle,
 } from "@/lib/helper-article";
+import {
+  buildArticleCursorQuery,
+  decodeArticleCursor,
+  encodeArticleCursor,
+} from "@/lib/article-pagination";
 
-/** Cursor hanya jika halaman penuh — artinya masih mungkin ada halaman berikutnya. */
-function nextPublishedAtCursor(
-  articles: Article[],
-  limit: number,
-): string | null {
-  if (articles.length < limit) return null;
-  const last = [...articles].reverse().find((a) => a.publishedAt);
-  return last?.publishedAt?.toISOString() ?? null;
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export async function getHeadlines(db: Db, limit = 5): Promise<Article[]> {
@@ -198,8 +197,8 @@ export async function getFeaturedArticles(
 
 export async function getAllArticles(
   db: Db,
-  params: GetAllArticlesParams & { page?: number } = {},
-): Promise<GetAllArticlesResult & { total?: number }> {
+  params: GetAllArticlesParams = {},
+): Promise<GetAllArticlesResult> {
   const {
     limit = 10,
     page = 1,
@@ -212,7 +211,9 @@ export async function getAllArticles(
     search,
     cursor,
     format,
+    excludeIds = [],
   } = params;
+
   const query: Document = { deletedAt: { $in: [null, ""] } };
   if (authorId) {
     query.authorId = ObjectId.isValid(authorId)
@@ -230,60 +231,70 @@ export async function getAllArticles(
     query.format = format;
   }
   if (search) {
+    const safeSearch = escapeRegExp(search.trim());
     query.$or = [
-      { title: { $regex: search, $options: "i" } },
-      { excerpt: { $regex: search, $options: "i" } },
-      { tags: { $in: [new RegExp(search, "i")] } },
+      { title: { $regex: safeSearch, $options: "i" } },
+      { excerpt: { $regex: safeSearch, $options: "i" } },
+      { tags: { $in: [new RegExp(safeSearch, "i")] } },
     ];
   }
-  if (cursor) {
-    query.publishedAt = { $lt: new Date(cursor) };
+
+  const validExcludedIds = excludeIds
+    .filter((id) => ObjectId.isValid(id))
+    .map((id) => new ObjectId(id));
+  if (validExcludedIds.length > 0) {
+    query._id = { $nin: validExcludedIds };
   }
-
-  // For total count (for page/limit pagination)
-  const total = await db.collection("articles").countDocuments(query);
-
-  const pipeline: Document[] = [
-    { $match: query },
-    { $sort: { publishedAt: -1, createdAt: -1 } },
-  ];
 
   if (categorySlug) {
-    pipeline.push(
-      {
-        $lookup: {
-          from: "categories",
-          localField: "categoryId",
-          foreignField: "_id",
-          as: "categoryObj",
-        },
-      },
-      {
-        $addFields: {
-          category: { $arrayElemAt: ["$categoryObj", 0] },
-        },
-      },
-      { $match: { "category.slug": categorySlug } },
-    );
-  } else {
-    pipeline.push(
-      {
-        $lookup: {
-          from: "categories",
-          localField: "categoryId",
-          foreignField: "_id",
-          as: "categoryObj",
-        },
-      },
-      {
-        $addFields: {
-          category: { $arrayElemAt: ["$categoryObj", 0] },
-        },
-      },
-    );
+    const category = await db
+      .collection("categories")
+      .findOne({ slug: categorySlug }, { projection: { _id: 1 } });
+    if (!category) {
+      return {
+        articles: [],
+        nextCursor: null,
+        hasMore: false,
+        total: 0,
+      };
+    }
+    query.categoryId = category._id;
   }
 
-  // Populate author and featuredImage (media) for each article
+  // Total selalu berdasarkan filter utama, tidak berubah antar halaman cursor.
+  const total = await db.collection("articles").countDocuments(query);
+
+  const paginatedQuery: Document = cursor
+    ? { $and: [query, buildArticleCursorQuery(decodeArticleCursor(cursor))] }
+    : query;
+
+  const pipeline: Document[] = [
+    { $match: paginatedQuery },
+    { $sort: { publishedAt: -1, _id: -1 } },
+  ];
+
+  if (!cursor && page > 1) {
+    pipeline.push({ $skip: (page - 1) * limit });
+  }
+
+  // Ambil satu dokumen ekstra agar hasMore tidak perlu ditebak.
+  pipeline.push(
+    { $limit: limit + 1 },
+    {
+      $lookup: {
+        from: "categories",
+        localField: "categoryId",
+        foreignField: "_id",
+        as: "categoryObj",
+      },
+    },
+    {
+      $addFields: {
+        category: { $arrayElemAt: ["$categoryObj", 0] },
+      },
+    },
+  );
+
   pipeline.push(
     {
       $lookup: {
@@ -303,29 +314,35 @@ export async function getAllArticles(
     { $project: { categoryObj: 0, authorObj: 0 } },
   );
 
-  // Pagination: cursor-based or page/limit
-  if (cursor) {
-    pipeline.push({ $limit: limit });
-  } else {
-    pipeline.push({ $skip: (page - 1) * limit }, { $limit: limit });
-  }
-
   let docs: Document[] = [];
   try {
     docs = await db.collection("articles").aggregate(pipeline).toArray();
     if (!docs || docs.length === 0) {
-      // No articles found, return empty array
-      return { articles: [], nextCursor: null, total };
+      return { articles: [], nextCursor: null, hasMore: false, total };
     }
   } catch (error) {
     logger.error({ params, error }, "getAllArticles: Error fetching articles");
     throw error;
   }
 
+  const hasMore = docs.length > limit;
+  const pageDocs = hasMore ? docs.slice(0, limit) : docs;
   const articles: Article[] = await Promise.all(
-    docs.map((doc) => mapDocToArticle(doc)),
+    pageDocs.map((doc) => mapDocToArticle(doc)),
   );
-  const nextCursor = nextPublishedAtCursor(articles, limit);
 
-  return { articles, nextCursor, total };
+  const lastDoc = pageDocs.at(-1);
+  const nextCursor =
+    hasMore &&
+    lastDoc?._id instanceof ObjectId &&
+    lastDoc.publishedAt instanceof Date
+      ? encodeArticleCursor(lastDoc.publishedAt, lastDoc._id)
+      : null;
+
+  return {
+    articles,
+    nextCursor,
+    hasMore: hasMore && nextCursor !== null,
+    total,
+  };
 }

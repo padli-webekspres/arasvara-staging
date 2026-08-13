@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
@@ -64,7 +64,7 @@ async function restorePreviewGalleryItems(
   return restored.sort((a, b) => a.order - b.order);
 }
 
-export default function ArticlePreviewPage() {
+function ArticlePreviewContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const formatParam = searchParams.get("format");
@@ -178,8 +178,8 @@ export default function ArticlePreviewPage() {
               } else if (categoryData.name && categoryData.slug) {
                 category = categoryData;
               }
-            } catch {
-              setError("Gagal mengambil kategori dari API.");
+            } catch (err) {
+              console.error("Gagal mengambil kategori dari API:", err);
             }
           }
         }
@@ -453,3 +453,18 @@ export default function ArticlePreviewPage() {
     </div>
   );
 }
+
+export default function ArticlePreviewPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+        </div>
+      }
+    >
+      <ArticlePreviewContent />
+    </Suspense>
+  );
+}
+

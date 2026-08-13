@@ -13,7 +13,7 @@ import { getServerApiSecret } from "@/lib/api-secret";
 import { getServerApiBaseUrl } from "@/lib/server/server-api";
 import { Configuration } from "@/types/configuration";
 import { SectionArticleItem } from "@/types/articleSection";
-import { Article } from "@/types/article";
+import { Article, ArticleListPage } from "@/types/article";
 
 /**
  * Fetcher generik yang menggunakan `fetch()` native dengan revalidasi Next.js.
@@ -76,11 +76,10 @@ export async function fetchHeadlineArticlesServer(): Promise<
  * Mengambil halaman pertama dari artikel terbaru (untuk infinite query).
  * Dipakai untuk prefetch query key: ["latest", 9]
  */
-export async function fetchLatestArticlesServer(): Promise<{
-  articles: Article[];
-  nextCursor: string | null;
-}> {
-  return serverFetch<{ articles: Article[]; nextCursor: string | null }>(
+export async function fetchLatestArticlesServer(): Promise<
+  ArticleListPage<Article>
+> {
+  return serverFetch<ArticleListPage<Article>>(
     "/articles?limit=9&status=PUBLISHED",
     120 // cache 2 menit (konten berita lebih sering berubah)
   );

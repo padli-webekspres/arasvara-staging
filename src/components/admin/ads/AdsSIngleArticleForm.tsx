@@ -25,6 +25,7 @@ import {
 import { ChevronUp, ImageOff, Plus, Save } from "lucide-react";
 import Image from "next/image";
 import CropImageModal from "@/components/media/CropImageModal";
+import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
 import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { getAdminStandardCardGridClass } from "@/lib/admin-card-grid";
 import SearchableSelect from "@/components/ui/SearchableSelect";
@@ -386,7 +387,7 @@ export default function AdsSingleArticleForm({
   // ─────────────────────────────────────────────────────────────────────────
 
   const openCrop = useCallback(
-    (file: File) => {
+    async (file: File) => {
       if (!file.type.startsWith("image/")) {
         toast.error("Hanya file gambar yang diizinkan");
         return;
@@ -395,9 +396,16 @@ export default function AdsSingleArticleForm({
         ? (adItems.find((i) => i._id === editingId)?.placement ?? formPlacement)
         : formPlacement;
       setCropPlacement(placement);
-      if (rawImageSrc) URL.revokeObjectURL(rawImageSrc);
-      setRawImageSrc(URL.createObjectURL(file));
-      setCropOpen(true);
+      try {
+        const objectUrl = await prepareImageForCrop(file);
+        if (rawImageSrc) URL.revokeObjectURL(rawImageSrc);
+        setRawImageSrc(objectUrl);
+        setCropOpen(true);
+      } catch {
+        toast.error(
+          "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
+        );
+      }
     },
     [rawImageSrc, editingId, adItems, formPlacement],
   );

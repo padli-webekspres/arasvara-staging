@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "../navigation/Sidebar";
 import { Eye, Menu } from "lucide-react";
 import Link from "next/link";
@@ -16,6 +16,18 @@ export default function AdminLayoutClient({
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Kunci scroll body saat sidebar mobile terbuka (Safari iOS rubber-band).
+  useEffect(() => {
+    if (!isMobileSidebarOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileSidebarOpen]);
 
   return (
     <div className="min-h-screen bg-background">

@@ -267,19 +267,44 @@ function getPublishDayOfWeek(publishedAt: Date | null | undefined): string {
 
 // ─── page_view ────────────────────────────────────────────────────────────────
 
-/** Kirim page_view manual — dipakai GaRouteTracker untuk SPA navigation. */
+/**
+ * Kirim page_view manual — dipakai GaRouteTracker untuk SPA navigation & initial load.
+ *
+ * Jika `window.gtag` belum siap saat dipanggil (misal karena penundaan script browser),
+ * fungsi ini akan melakukan retry secara otomatis hingga 5 detik sampai `window.gtag`
+ * terdefinisi sebelum mengirimkan event `page_view`.
+ */
 export function trackPageView(opts: {
   pagePath: string;
   pageLocation?: string;
   pageTitle?: string;
 }): void {
-  if (!isGaEnabled()) return;
+  if (typeof window === "undefined" || !GA_MEASUREMENT_ID) return;
 
-  window.gtag!("event", "page_view", {
-    page_path: opts.pagePath,
-    page_location: opts.pageLocation ?? "",
-    page_title: opts.pageTitle ?? "",
-  });
+  const send = (): boolean => {
+    if (typeof window.gtag === "function") {
+      window.gtag("event", "page_view", {
+        page_path: opts.pagePath,
+        page_location: opts.pageLocation ?? window.location.href,
+        page_title: opts.pageTitle ?? document.title,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  // Coba kirim segera jika gtag sudah siap
+  if (send()) return;
+
+  // Jika gtag belum siap, lakukan retry berkala hingga maks 5 detik
+  let elapsed = 0;
+  const intervalMs = 150;
+  const timer = window.setInterval(() => {
+    elapsed += intervalMs;
+    if (send() || elapsed >= 5000) {
+      window.clearInterval(timer);
+    }
+  }, intervalMs);
 }
 
 // ─── view_article ─────────────────────────────────────────────────────────────

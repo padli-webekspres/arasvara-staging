@@ -3,7 +3,7 @@
  * by id or slug.
  * - Jika restrictToAuthorIfNotApprover=true dan user bukan approver, hanya boleh ambil milik sendiri (authorId)
  */
-import { Db, ObjectId } from "mongodb";
+import { Db, Document, ObjectId } from "mongodb";
 import { Article, ArticleStatus } from "@/types/article";
 import type { UserProfile } from "@/types/user";
 import logger from "@/lib/logger";
@@ -21,6 +21,11 @@ import {
   isValidArticlePublicPath,
   buildLegacyArticlePath,
 } from "@/lib/article-public-path";
+import {
+  buildArticleCursorQuery,
+  decodeArticleCursor,
+  encodeArticleCursor,
+} from "@/lib/article-pagination";
 
 /**
  * Cari semua slug dari marker `data-read-also` dalam HTML konten artikel,
@@ -539,9 +544,14 @@ export async function getArticlesByCategoryIdOrSlug(
     status = "PUBLISHED",
     cursor,
   }: { limit?: number; status?: string; cursor?: string } = {},
-): Promise<{ category: any; articles: Article[]; nextCursor: string | null }> {
+): Promise<{
+  category: Document | null;
+  articles: Article[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}> {
   // Find category by id or slug
-  const catMatch: any = {};
+  const catMatch: Document = {};
   if (/^[a-f\d]{24}$/i.test(idOrSlug)) {
     catMatch._id = new ObjectId(idOrSlug);
   } else {
@@ -549,21 +559,30 @@ export async function getArticlesByCategoryIdOrSlug(
   }
   const category = await db.collection("categories").findOne(catMatch);
   if (!category) {
-    return { category: null, articles: [], nextCursor: null };
+    return {
+      category: null,
+      articles: [],
+      nextCursor: null,
+      hasMore: false,
+    };
   }
 
-  const articleMatch: any = {
+  const articleMatch: Document = {
     categoryId: category._id,
     deletedAt: { $in: [null, ""] },
     ...(status ? { status } : {}),
   };
   if (cursor) {
-    articleMatch.publishedAt = { $lt: new Date(cursor) };
+    Object.assign(
+      articleMatch,
+      buildArticleCursorQuery(decodeArticleCursor(cursor)),
+    );
   }
 
-  const pipeline: any[] = [
+  const pipeline: Document[] = [
     { $match: articleMatch },
-    { $sort: { publishedAt: -1, createdAt: -1 } },
+    { $sort: { publishedAt: -1, _id: -1 } },
+    { $limit: limit + 1 },
     {
       $lookup: {
         from: "categories",
@@ -593,22 +612,29 @@ export async function getArticlesByCategoryIdOrSlug(
     // Backward-compat: populate featuredImage media for old ObjectId-ref articles
     ...FEATURED_IMAGE_LOOKUP_STAGES,
     { $project: { categoryObj: 0, authorObj: 0 } },
-    { $limit: limit },
   ];
 
   const docs = await db.collection("articles").aggregate(pipeline).toArray();
+  const hasMore = docs.length > limit;
+  const pageDocs = hasMore ? docs.slice(0, limit) : docs;
   // mapDocToArticle handles format branching, featuredImage normalisation, and galleryItems mapping
   const articles: Article[] = await Promise.all(
-    docs.map((doc) => mapDocToArticle(doc)),
+    pageDocs.map((doc) => mapDocToArticle(doc)),
   );
+  const lastDoc = pageDocs.at(-1);
   const nextCursor =
-    articles.length >= limit
-      ? (() => {
-          const last = [...articles].reverse().find((a) => a.publishedAt);
-          return last?.publishedAt?.toISOString() ?? null;
-        })()
+    hasMore &&
+    lastDoc?._id instanceof ObjectId &&
+    lastDoc.publishedAt instanceof Date
+      ? encodeArticleCursor(lastDoc.publishedAt, lastDoc._id)
       : null;
-  return { category, articles, nextCursor };
+
+  return {
+    category,
+    articles,
+    nextCursor,
+    hasMore: hasMore && nextCursor !== null,
+  };
 }
 /**
  * Fetch the latest articles from each given category slug, distributed so the

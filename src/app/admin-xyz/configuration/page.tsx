@@ -33,6 +33,7 @@ import {
   removeVideoFromIndexedDB,
 } from "@/lib/configuration/indexeddb-config";
 import { extractVideoThumbnail } from "@/lib/configuration/video-thumbnail";
+import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
 import {
   CreateConfigurationPayload,
   Configuration,
@@ -41,6 +42,28 @@ import axios from "axios";
 import api from "@/lib/axios";
 import Link from "next/link";
 import { adminPanelHref } from "@/lib/admin-panel-path";
+
+/**
+ * Normalisasi file gambar (HEIC/foto besar) lewat prepareImageForCrop,
+ * lalu kembalikan File siap upload/preview. Caller tidak perlu revoke URL.
+ */
+async function normalizeConfigImageFile(file: File): Promise<File> {
+  const objectUrl = await prepareImageForCrop(file);
+  try {
+    const response = await fetch(objectUrl);
+    const blob = await response.blob();
+    const mime = blob.type || "image/jpeg";
+    const ext = mime.includes("png")
+      ? "png"
+      : mime.includes("webp")
+        ? "webp"
+        : "jpg";
+    const baseName = file.name.replace(/\.[^.]+$/, "") || "image";
+    return new File([blob], `${baseName}.${ext}`, { type: mime });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 // ── Form validation schema ────────────────────────────────────────────────
 const formSchema = z.object({
@@ -108,16 +131,23 @@ const ConfigurationPage = () => {
   // --- DropZone Handlers (must be after state declarations) ---
   const handleHeroVideoPosterBgAccepted = useCallback(async (file: File) => {
     try {
-      setHeroVideoPosterBgFile(file);
+      const normalized = await normalizeConfigImageFile(file);
+      setHeroVideoPosterBgFile(normalized);
       setIsHeroVideoPosterBgDirty(true);
       const reader = new FileReader();
       reader.onload = (ev) => {
         setHeroVideoPosterBgPreview(ev.target?.result as string);
       };
-      reader.readAsDataURL(file);
-      await saveVideoToIndexedDB("hero_video_poster_bg", file, file.type);
+      reader.readAsDataURL(normalized);
+      await saveVideoToIndexedDB(
+        "hero_video_poster_bg",
+        normalized,
+        normalized.type,
+      );
     } catch (err) {
-      toast.error("Gagal menyimpan gambar. Pastikan file gambar valid.");
+      toast.error(
+        "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
+      );
     }
   }, []);
 
@@ -129,18 +159,23 @@ const ConfigurationPage = () => {
   }, []);
   const handleFotografiAccepted = useCallback(async (file: File) => {
     try {
-      // Set file (compression will be done on backend)
-      setFotografiBgFile(file);
+      const normalized = await normalizeConfigImageFile(file);
+      setFotografiBgFile(normalized);
       setIsFotografiBgDirty(true);
       const reader = new FileReader();
       reader.onload = (ev) => {
         setFotografiBgPreview(ev.target?.result as string);
       };
-      reader.readAsDataURL(file);
-      // Save original file to IndexedDB (backend will compress before S3 upload)
-      await saveVideoToIndexedDB("fotografi_section_bg", file, file.type);
+      reader.readAsDataURL(normalized);
+      await saveVideoToIndexedDB(
+        "fotografi_section_bg",
+        normalized,
+        normalized.type,
+      );
     } catch (err) {
-      toast.error("Gagal menyimpan gambar. Pastikan file gambar valid.");
+      toast.error(
+        "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
+      );
     }
   }, []);
 
@@ -153,16 +188,23 @@ const ConfigurationPage = () => {
 
   const handleYoutubeAccepted = useCallback(async (file: File) => {
     try {
-      setYoutubeBgFile(file);
+      const normalized = await normalizeConfigImageFile(file);
+      setYoutubeBgFile(normalized);
       setIsYoutubeBgDirty(true);
       const reader = new FileReader();
       reader.onload = (ev) => {
         setYoutubeBgPreview(ev.target?.result as string);
       };
-      reader.readAsDataURL(file);
-      await saveVideoToIndexedDB("youtube_section_bg", file, file.type);
+      reader.readAsDataURL(normalized);
+      await saveVideoToIndexedDB(
+        "youtube_section_bg",
+        normalized,
+        normalized.type,
+      );
     } catch (err) {
-      toast.error("Gagal menyimpan gambar. Pastikan file gambar valid.");
+      toast.error(
+        "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
+      );
     }
   }, []);
 
@@ -175,16 +217,23 @@ const ConfigurationPage = () => {
 
   const handleSocmedAccepted = useCallback(async (file: File) => {
     try {
-      setSocmedBgFile(file);
+      const normalized = await normalizeConfigImageFile(file);
+      setSocmedBgFile(normalized);
       setIsSocmedBgDirty(true);
       const reader = new FileReader();
       reader.onload = (ev) => {
         setSocmedBgPreview(ev.target?.result as string);
       };
-      reader.readAsDataURL(file);
-      await saveVideoToIndexedDB("socmed_section_bg", file, file.type);
+      reader.readAsDataURL(normalized);
+      await saveVideoToIndexedDB(
+        "socmed_section_bg",
+        normalized,
+        normalized.type,
+      );
     } catch (err) {
-      toast.error("Gagal menyimpan gambar. Pastikan file gambar valid.");
+      toast.error(
+        "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
+      );
     }
   }, []);
 

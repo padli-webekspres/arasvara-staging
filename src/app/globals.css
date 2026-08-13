@@ -213,7 +213,6 @@
     /* Untuk Firefox (standar web baru) */
     scrollbar-width: thin; /* Opsi: auto, thin, none */
     scrollbar-color: #52525b transparent; /* warna-thumb warna-track */
-    z-index: 9999;
   }
 
   /* Untuk Chrome, Safari, dan Opera */

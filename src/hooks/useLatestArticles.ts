@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { fetcher } from "@/lib/fetcher";
-import { Article } from "@/types/article";
+import { Article, ArticleListPage } from "@/types/article";
 
 interface UseLatestArticlesOptions {
   limit?: number;
@@ -12,19 +12,24 @@ export function useLatestArticles({
   enabled = true,
 }: UseLatestArticlesOptions = {}) {
   return useInfiniteQuery<
-    { articles: Article[]; nextCursor: string | null },
+    ArticleListPage<Article>,
     Error
   >({
     queryKey: ["latest", limit],
     queryFn: (context) => {
       const cursor =
         typeof context.pageParam === "string" ? context.pageParam : "";
-      // Menambahkan status=PUBLISHED agar artikel yang berstatus TAKEN_DOWN atau draf tidak ikut terambil di publik
-      return fetcher<{ articles: Article[]; nextCursor: string | null }>(
-        `/articles?limit=${limit}&status=PUBLISHED${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+      const searchParams = new URLSearchParams({
+        limit: String(limit),
+        status: "PUBLISHED",
+      });
+      if (cursor) searchParams.set("cursor", cursor);
+      return fetcher<ArticleListPage<Article>>(
+        `/articles?${searchParams.toString()}`,
       );
     },
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
     initialPageParam: "",
     enabled,
   });

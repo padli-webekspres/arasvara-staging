@@ -25,6 +25,7 @@ import {
   CONTENT_CROP_WIDTH,
   CONTENT_WEBP_QUALITY,
 } from "@/lib/media/cropPresets";
+import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
 import api from "@/lib/axios";
 import type { Media, TempMediaUploadResult } from "@/types/media";
 import Image from "next/image";
@@ -93,18 +94,21 @@ export default function MediaUploadForm({
   }, [cropSrc]);
 
   const onDrop = useCallback(
-    (accepted: File[]) => {
+    async (accepted: File[]) => {
       if (!accepted.length || preparingCrop) return;
       const file = accepted[0];
 
       setPreparingCrop(true);
       try {
-        const objectUrl = URL.createObjectURL(file);
+        // Decode + normalisasi (JPEG/HEIC downscale) agar crop preview Safari stabil.
+        const objectUrl = await prepareImageForCrop(file);
         if (cropSrc) URL.revokeObjectURL(cropSrc);
         setCropSrc(objectUrl);
         setCropOpen(true);
       } catch {
-        toast.error("Gambar tidak dapat dimuat. Coba lagi.");
+        toast.error(
+          "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
+        );
       } finally {
         setPreparingCrop(false);
       }

@@ -1,14 +1,12 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { isSortable } from "@dnd-kit/react/sortable";
-import { Article, ArticleStatus, ArticleListResponse } from "@/types/article";
-import { Category } from "@/types/category";
-import { Media } from "@/types/media";
-import { UserProfile } from "@/types/user";
+import { ArticleListResponse } from "@/types/article";
 import SelectAndSort from "@/components/admin/articles/SelectAndSort";
 import api from "@/lib/axios";
 import { SectionArticleItem } from "@/types/articleSection";
+import { useSectionArticleSearch } from "@/hooks/useSectionArticleSearch";
 
 interface EditorChoicePageProps {}
 
@@ -19,18 +17,18 @@ const CarouselSectionPage = ({}: EditorChoicePageProps) => {
   );
   const [loadingCarouselSection, setLoadingCarouselSection] = useState(true);
 
-  // State untuk search dan infinite scroll
-  // List artikel yang bisa dipilih (tidak termasuk yang sudah di editorChoices)
-  // List artikel yang bisa dipilih (tidak termasuk yang sudah di carouselSection)
-  const [availableArticles, setAvailableArticles] = useState<
-    ArticleListResponse[]
-  >([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const {
+    availableArticles,
+    searchQuery,
+    setSearchQuery,
+    loading,
+    hasMore,
+    handleLoadMore,
+    excludeFromAvailable,
+    prependToAvailable,
+  } = useSectionArticleSearch(carouselSection, {
+    enabled: !loadingCarouselSection,
+  });
 
   // Fetch existing carousel section saat mount
   useEffect(() => {
@@ -52,90 +50,6 @@ const CarouselSectionPage = ({}: EditorChoicePageProps) => {
     fetchExistingCarouselSection();
   }, []);
 
-  // Fungsi untuk fetch artikel dari API
-  // Fetch artikel dari API, lalu filter agar tidak tampil jika sudah ada di editorChoices
-  const fetchArticles = useCallback(
-    async (searchTerm: string, paginationCursor?: string | null) => {
-      try {
-        setLoading(true);
-
-        // Build query params
-        const params: Record<string, any> = {
-          limit: 7,
-          status: "PUBLISHED",
-        };
-
-        if (searchTerm.trim()) {
-          params.search = searchTerm.trim();
-        }
-
-        if (paginationCursor) {
-          params.cursor = paginationCursor;
-        }
-
-        // Fetch dari API
-        const response = await api.get("/articles", { params });
-        const { articles, nextCursor } = response.data;
-
-        // Filter: hilangkan artikel yang sudah ada di carouselSection
-        const filteredArticles = articles.filter(
-          (a: ArticleListResponse) =>
-            !carouselSection.some((e) => e.article?._id === a._id),
-        );
-
-        if (paginationCursor) {
-          setAvailableArticles((prev) => [...prev, ...filteredArticles]);
-        } else {
-          setAvailableArticles(filteredArticles);
-        }
-
-        setCursor(nextCursor || null);
-        setHasMore(!!nextCursor);
-
-        if (filteredArticles.length === 0 && !paginationCursor) {
-          toast.info("Tidak ada artikel yang ditemukan");
-        }
-      } catch (error) {
-        console.error("Error fetching articles:", error);
-        toast.error("Gagal memuat artikel");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [carouselSection],
-  );
-
-  // Debounce search query (500ms)
-  useEffect(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    debounceTimerRef.current = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      // Reset cursor ketika search berubah
-      setCursor(null);
-      setHasMore(true);
-    }, 500);
-
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, [searchQuery]);
-
-  // Fetch artikel ketika debouncedSearch berubah
-  useEffect(() => {
-    fetchArticles(debouncedSearch, null);
-  }, [debouncedSearch, fetchArticles]);
-
-  // Handler untuk infinite scroll
-  const handleLoadMore = useCallback(() => {
-    if (!loading && hasMore && cursor) {
-      fetchArticles(debouncedSearch, cursor);
-    }
-  }, [loading, hasMore, cursor, debouncedSearch, fetchArticles]);
   // Handler: tambah artikel ke carouselSection, lalu hilangkan dari availableArticles
   const handleAddArticle = (article: ArticleListResponse) => {
     const isAlreadyAdded = carouselSection.some(
@@ -156,8 +70,7 @@ const CarouselSectionPage = ({}: EditorChoicePageProps) => {
       },
     ]);
 
-    // Hilangkan dari availableArticles
-    setAvailableArticles((prev) => prev.filter((a) => a._id !== article._id));
+    excludeFromAvailable(article._id!);
 
     toast.success("Artikel ditambahkan ke Carousel Section");
   };
@@ -166,21 +79,8 @@ const CarouselSectionPage = ({}: EditorChoicePageProps) => {
   const handleRemoveArticle = (idToRemove: string) => {
     setCarouselSection((prev) => {
       const removed = prev.find((item) => item._id === idToRemove);
-      if (removed && removed.article) {
-        setAvailableArticles((prevArticles) => {
-          // Gabungkan artikel yang dihapus ke awal, lalu filter agar unik berdasarkan _id
-          const combined = [
-            removed.article as ArticleListResponse,
-            ...prevArticles,
-          ];
-          const seen = new Set<string | undefined>();
-          return combined.filter((a) => {
-            if (!a._id) return false;
-            if (seen.has(a._id)) return false;
-            seen.add(a._id);
-            return true;
-          });
-        });
+      if (removed?.article) {
+        prependToAvailable(removed.article as ArticleListResponse);
       }
       return prev.filter((item) => item._id !== idToRemove);
     });

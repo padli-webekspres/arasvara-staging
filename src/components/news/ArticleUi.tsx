@@ -252,7 +252,7 @@ const ArticleUi = ({
         )}
 
         <div
-          className={`${isForPublic ? (isSidebarOpen ? "md:w-3/4 w-full" : "w-full") : "max-w-3/4 mx-auto"} flex-1`}
+          className={`${isForPublic ? (isSidebarOpen ? "md:w-3/4 w-full" : "w-full") : "max-w-[75%] mx-auto"} flex-1`}
           style={{
             transition: "width 500ms cubic-bezier(0.4, 0, 0.2, 1)",
             minWidth: 0,

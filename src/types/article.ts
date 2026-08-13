@@ -143,6 +143,7 @@ export interface ArticleRevision {
 
 export interface GetAllArticlesParams {
 	limit?: number;
+	page?: number;
 	authorId?: string;
 	userId?: string;
 	categorySlug?: string;
@@ -151,6 +152,7 @@ export interface GetAllArticlesParams {
 	headline?: boolean;
 	search?: string;
 	cursor?: string;
+	excludeIds?: string[];
 	/** Filter format artikel (STANDARD | GALLERY) */
 	format?: "STANDARD" | "GALLERY";
 }
@@ -158,6 +160,16 @@ export interface GetAllArticlesParams {
 export interface GetAllArticlesResult {
 	articles: Article[];
 	nextCursor: string | null;
+	hasMore: boolean;
+	total: number;
+}
+
+export interface ArticleListPage<TArticle = Article> {
+	articles: TArticle[];
+	nextCursor: string | null;
+	hasMore: boolean;
+	total: number;
+	totalPages: number;
 }
 
 export type RelatedResponse = {

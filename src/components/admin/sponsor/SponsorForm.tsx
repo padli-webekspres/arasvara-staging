@@ -14,6 +14,7 @@ import CropImageModal from "@/components/media/CropImageModal";
 import SponsorFormCard from "./SponsorFormCard";
 import Image from "next/image";
 import { SponsorItem } from "@/types/sponsor";
+import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
 import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { getAdminStandardCardGridClass } from "@/lib/admin-card-grid";
 
@@ -110,20 +111,31 @@ export default function SponsorForm({
   }, []);
 
   // ── Dropzone for image upload ─────────────────────────────────
-  const onDrop = useCallback((files: File[]) => {
-    if (!files.length) return;
-    const file = files[0];
+  const onDrop = useCallback(
+    async (files: File[]) => {
+      if (!files.length) return;
+      const file = files[0];
 
-    // Validate file is image
-    if (!file.type.startsWith("image/")) {
-      toast.error("Hanya file gambar yang diizinkan");
-      return;
-    }
+      // Validate file is image
+      if (!file.type.startsWith("image/")) {
+        toast.error("Hanya file gambar yang diizinkan");
+        return;
+      }
 
-    // We skip cropping for sponsors, or we can use a wide crop (e.g., 16:9 or free). Let's use free aspect ratio (0) or skip crop altogether to allow any size logo.
-    setRawImageSrc(URL.createObjectURL(file));
-    setCropOpen(true);
-  }, []);
+      try {
+        // Decode + normalisasi agar crop preview Safari (HEIC/foto besar) stabil.
+        const objectUrl = await prepareImageForCrop(file);
+        if (rawImageSrc) URL.revokeObjectURL(rawImageSrc);
+        setRawImageSrc(objectUrl);
+        setCropOpen(true);
+      } catch {
+        toast.error(
+          "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
+        );
+      }
+    },
+    [rawImageSrc],
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

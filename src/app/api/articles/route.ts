@@ -8,13 +8,40 @@ import { hasPermission } from "@/lib/auth-client";
 import { ObjectId } from "mongodb";
 import { mapArticleWriteError } from "@/lib/map-article-write-error";
 
+const MAX_PAGE_SIZE = 50;
+const MAX_EXCLUDED_IDS = 100;
+
+function parsePositiveInteger(
+  value: string | null,
+  fallback: number,
+  max?: number,
+): number {
+  if (value == null) return fallback;
+  if (!/^\d+$/.test(value)) {
+    throw Object.assign(new Error("Parameter pagination tidak valid"), {
+      status: 400,
+    });
+  }
+
+  const parsed = Number(value);
+  if (parsed < 1 || (max != null && parsed > max)) {
+    throw Object.assign(new Error("Parameter pagination di luar batas"), {
+      status: 400,
+    });
+  }
+  return parsed;
+}
 
 export async function GET(req: NextRequest) {
   try {
     const db = await connectToDatabase();
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") || "10");
-    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parsePositiveInteger(
+      searchParams.get("limit"),
+      10,
+      MAX_PAGE_SIZE,
+    );
+    const page = parsePositiveInteger(searchParams.get("page"), 1);
     const category = searchParams.get("category") || undefined;
     const status = searchParams.get("status") || undefined;
     const featured = searchParams.get("featured") === "true";
@@ -23,12 +50,34 @@ export async function GET(req: NextRequest) {
     const cursor = searchParams.get("cursor") || undefined;
     const userId = searchParams.get("userId") || undefined;
     const formatRaw = searchParams.get("format") || undefined;
+    const excludeIds = (searchParams.get("excludeIds") || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+
+    if (cursor && searchParams.has("page")) {
+      throw Object.assign(
+        new Error("Gunakan cursor atau page, bukan keduanya"),
+        { status: 400 },
+      );
+    }
+    if (excludeIds.length > MAX_EXCLUDED_IDS) {
+      throw Object.assign(
+        new Error(`Maksimal ${MAX_EXCLUDED_IDS} artikel dapat dikecualikan`),
+        { status: 400 },
+      );
+    }
+    if (excludeIds.some((id) => !ObjectId.isValid(id))) {
+      throw Object.assign(new Error("ID artikel pengecualian tidak valid"), {
+        status: 400,
+      });
+    }
     const format =
       formatRaw === "GALLERY" || formatRaw === "STANDARD"
         ? formatRaw
         : undefined;
 
-    const { articles, nextCursor, total } = await getAllArticles(db, {
+    const { articles, nextCursor, hasMore, total } = await getAllArticles(db, {
       limit,
       page,
       categorySlug: category,
@@ -39,15 +88,29 @@ export async function GET(req: NextRequest) {
       cursor,
       userId,
       format,
+      excludeIds,
     });
 
-    const totalPages = total && limit ? Math.ceil(total / limit) : 1;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
 
-    return NextResponse.json({ articles, nextCursor, total, totalPages });
+    return NextResponse.json({
+      articles,
+      nextCursor,
+      hasMore,
+      total,
+      totalPages,
+    });
   } catch (error) {
+    const status =
+      typeof error === "object" &&
+      error !== null &&
+      "status" in error &&
+      typeof error.status === "number"
+        ? error.status
+        : 500;
     return NextResponse.json(
       { error: (error as Error).message || "Internal server error" },
-      { status: 500 },
+      { status },
     );
   }
 }
@@ -133,13 +196,13 @@ export async function POST(req: NextRequest) {
       }
 
       // Parse contentMedia: expect array of objects
-      let contentMedia: any[] | undefined = undefined;
+      let contentMedia: unknown[] | undefined = undefined;
       if (Array.isArray(body.contentMedia)) {
         contentMedia = body.contentMedia;
       }
 
       // Parse galleryItems: expect array of objects for GALLERY format
-      let galleryItems: any[] | undefined = undefined;
+      let galleryItems: unknown[] | undefined = undefined;
       if (format === "GALLERY") {
         if (!Array.isArray(body.galleryItems) || body.galleryItems.length === 0) {
           throw Object.assign(

@@ -2,12 +2,11 @@
 
 import { useParams } from "next/navigation";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import LoadingOverlay from "@/components/loading/LoadingOverlay";
 import { CATEGORIES } from "@/lib/constants";
 import ArticleFeaturedHero from "@/components/news/ArticleFeaturedHero";
 import NewsCard from "@/components/news/NewsCard";
 import { fetcher } from "@/lib/fetcher";
-import { Article } from "@/types/article";
+import { Article, ArticleListPage } from "@/types/article";
 import React from "react";
 import LoadMoreButton from "@/components/ui/LoadMoreButton";
 
@@ -34,18 +33,25 @@ export default function CategoryClient({ initialCategory }: CategoryClientProps)
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery<
-    { articles: Article[]; nextCursor: string | null },
+    ArticleListPage<Article>,
     Error
   >({
     queryKey: ["category-articles", categorySlug],
     queryFn: (context) => {
       const pageParam =
         typeof context.pageParam === "string" ? context.pageParam : "";
-      return fetcher<{ articles: Article[]; nextCursor: string | null }>(
-        `/articles?category=${categorySlug}&limit=10&status=PUBLISHED${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""}`,
+      const searchParams = new URLSearchParams({
+        category: categorySlug,
+        limit: "10",
+        status: "PUBLISHED",
+      });
+      if (pageParam) searchParams.set("cursor", pageParam);
+      return fetcher<ArticleListPage<Article>>(
+        `/articles?${searchParams.toString()}`,
       );
     },
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
     enabled: !!categorySlug,
     initialPageParam: "",
   });

@@ -26,6 +26,14 @@ import {
   CONTENT_WEBP_QUALITY,
 } from "@/lib/media/cropPresets";
 import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
+import {
+  IMAGE_DROPZONE_ACCEPT,
+  IMAGE_DROPZONE_COPY,
+} from "@/lib/image/isProbablyImageFile";
+import {
+  IMAGE_PROCESS_TEMP_TIMEOUT_MS,
+  IMAGE_UPLOAD_TIMEOUT_MS,
+} from "@/lib/image/uploadTimeout";
 import api from "@/lib/axios";
 import type { Media, TempMediaUploadResult } from "@/types/media";
 import Image from "next/image";
@@ -118,7 +126,8 @@ export default function MediaUploadForm({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "image/*": [] },
+    accept: IMAGE_DROPZONE_ACCEPT,
+    useFsAccessApi: false,
     maxFiles: 1,
     disabled: tempMediaId !== null || preparingCrop || processingTemp,
   });
@@ -137,11 +146,12 @@ export default function MediaUploadForm({
         const file = new File([blob], "image.webp", { type: "image/webp" });
         const fd = new FormData();
         fd.append("file", file);
-        fd.append("watermark", String(form.getValues("watermark") ?? false));
+        fd.append("watermark", "false");
 
         const res = await api.post<TempMediaUploadResult>(
           "/media/process-temp",
           fd,
+          { timeout: IMAGE_PROCESS_TEMP_TIMEOUT_MS },
         );
 
         if (!res.data?.tempMediaId) {
@@ -160,7 +170,7 @@ export default function MediaUploadForm({
         setProcessingTemp(false);
       }
     },
-    [cropSrc, form],
+    [cropSrc],
   );
 
   const handleCropCancel = useCallback(() => {
@@ -187,7 +197,9 @@ export default function MediaUploadForm({
           caption: values.caption,
           credit: values.takenBy,
           watermark: values.watermark ?? false,
+          applyWatermark: values.watermark ?? false,
         },
+        { timeout: IMAGE_UPLOAD_TIMEOUT_MS },
       );
 
       if (!res.data?.media) throw new Error("Gagal mempromosikan media");
@@ -267,8 +279,11 @@ export default function MediaUploadForm({
                           <Upload className="h-8 w-8 text-muted-foreground" />
                           <p className="text-sm text-muted-foreground text-center">
                             {isDragActive
-                              ? "Drop the image here..."
-                              : "Drag & drop or click to select — crop required"}
+                              ? "Lepaskan gambar di sini…"
+                              : IMAGE_DROPZONE_COPY.primary}
+                          </p>
+                          <p className="text-xs text-muted-foreground text-center">
+                            {IMAGE_DROPZONE_COPY.secondary} — crop wajib
                           </p>
                         </>
                       )}

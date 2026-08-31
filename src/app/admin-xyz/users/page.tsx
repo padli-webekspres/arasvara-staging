@@ -57,6 +57,7 @@ import ChangePasswordDialog from "@/components/profile/ChangePasswordDialog";
 const LIMIT = 10;
 
 import EditUserDialog from "@/components/users/EditUserDialog";
+import { formatCoverageAreas } from "@/lib/user-profile-fields";
 
 const UsersPage = () => {
   const [createOpen, setCreateOpen] = useState(false);
@@ -192,6 +193,25 @@ const UsersPage = () => {
           className={`inline-flex items-center px-2 py-0.5 rounded text-xs text-white font-medium ${getRoleColor(row.role)}`}
         >
           {getRoleLabel(row.role)}
+        </span>
+      ),
+    },
+    {
+      key: "jobTitle",
+      header: "Jabatan",
+      render: (row) => (
+        <span className="line-clamp-2 text-sm">
+          {row.jobTitle?.trim() || "-"}
+        </span>
+      ),
+    },
+    {
+      key: "coverageAreas",
+      header: <span className="hidden md:inline">Bidang liputan</span>,
+      className: "p-4 hidden md:table-cell",
+      render: (row) => (
+        <span className="line-clamp-2 text-sm">
+          {formatCoverageAreas(row.coverageAreas) || "-"}
         </span>
       ),
     },

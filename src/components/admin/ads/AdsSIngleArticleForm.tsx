@@ -11,7 +11,8 @@ import { useDropzone } from "react-dropzone";
 import { DragDropProvider } from "@dnd-kit/react";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "sonner";
-import { get as idbGet, set as idbSet, del as idbDel } from "idb-keyval";
+import { get as idbGet, del as idbDel } from "idb-keyval";
+import { setDraftImage } from "@/lib/image/draftImageStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +27,12 @@ import { ChevronUp, ImageOff, Plus, Save } from "lucide-react";
 import Image from "next/image";
 import CropImageModal from "@/components/media/CropImageModal";
 import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
+import {
+  IMAGE_DROPZONE_ACCEPT,
+  IMAGE_DROPZONE_COPY,
+  isProbablyImageFile,
+} from "@/lib/image/isProbablyImageFile";
+import { cropOutputFromAspect } from "@/lib/image/cropOutputFromAspect";
 import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { getAdminStandardCardGridClass } from "@/lib/admin-card-grid";
 import SearchableSelect from "@/components/ui/SearchableSelect";
@@ -274,7 +281,7 @@ export default function AdsSingleArticleForm({
         localStorage.setItem(LS_META_KEY, JSON.stringify(metas));
         for (const it of adItems) {
           if (it.banner.blob) {
-            await idbSet(idbBannerKey(it._id), it.banner.blob);
+            await setDraftImage(idbBannerKey(it._id), it.banner.blob);
           }
         }
       } catch (e) {
@@ -388,7 +395,7 @@ export default function AdsSingleArticleForm({
 
   const openCrop = useCallback(
     async (file: File) => {
-      if (!file.type.startsWith("image/")) {
+      if (!isProbablyImageFile(file)) {
         toast.error("Hanya file gambar yang diizinkan");
         return;
       }
@@ -412,7 +419,8 @@ export default function AdsSingleArticleForm({
 
   const dz = useDropzone({
     onDrop: (files) => files[0] && openCrop(files[0]),
-    accept: { "image/*": [] },
+    accept: IMAGE_DROPZONE_ACCEPT,
+    useFsAccessApi: false,
     maxFiles: 1,
     multiple: false,
   });
@@ -880,7 +888,10 @@ export default function AdsSingleArticleForm({
                 }`}
               >
                 <input {...dz.getInputProps()} />
-                <p className="font-medium">Drag & drop atau klik untuk pilih</p>
+                <p className="font-medium">{IMAGE_DROPZONE_COPY.primary}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {IMAGE_DROPZONE_COPY.secondary}
+                </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Crop rasio {sidebarCropSpec.label}
                 </p>
@@ -918,6 +929,8 @@ export default function AdsSingleArticleForm({
           open={cropOpen}
           imageSrc={rawImageSrc}
           aspect={modalCropSpec.aspect}
+          outputWidth={cropOutputFromAspect(modalCropSpec.aspect).width}
+          outputHeight={cropOutputFromAspect(modalCropSpec.aspect).height}
           title={`Crop banner (${modalCropSpec.label})`}
           onCrop={handleCropDone}
           onCancel={handleCropCancel}

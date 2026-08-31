@@ -167,7 +167,8 @@ const HorizontalFeaturedSection = ({
 
       <Image
         src="https://images.unsplash.com/photo-1515378791036-0648a3ef77b2"
-        fill
+        width={1920}
+        height={1080}
         unoptimized
         className="absolute inset-0 w-full h-full object-cover object-center z-0 blur-sm opacity-50"
         alt="Arasvara Background"

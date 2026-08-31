@@ -103,6 +103,8 @@ export default async function PenulisPage(props: PageProps) {
           authorAvatar={user.avatar}
           authorName={user.name}
           authorBio={buildAuthorBioDisplay(user.bio, user.name)}
+          jobTitle={user.jobTitle}
+          coverageAreas={user.coverageAreas}
           initialArticleCount={articlesResult.meta.total}
         />
       </HydrationBoundary>

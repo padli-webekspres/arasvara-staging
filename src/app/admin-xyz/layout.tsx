@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getAccessTokenFromCookieStore, getUserFromToken } from "@/lib/auth";
 import { ROLES } from "@/lib/auth-client";
 import AdminLayoutClient from "@/components/layout/AdminLayoutClient";
+import { ArticleContentPaginationProvider } from "@/components/admin/ArticleContentPaginationFlag";
+import { isArticleContentPaginationEnabled } from "@/lib/article-content-pagination";
 import { ThemeProvider } from "next-themes";
 
 // Next.js 16: Use server component for layout, do auth check on server
@@ -43,6 +45,10 @@ export default async function AdminLayout({
     //   disableTransitionOnChange
     // >
     // </ThemeProvider>
-    <AdminLayoutClient user={user}>{children}</AdminLayoutClient>
+    <ArticleContentPaginationProvider
+      enabled={isArticleContentPaginationEnabled()}
+    >
+      <AdminLayoutClient user={user}>{children}</AdminLayoutClient>
+    </ArticleContentPaginationProvider>
   );
 }

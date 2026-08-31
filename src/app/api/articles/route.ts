@@ -248,6 +248,7 @@ export async function POST(req: NextRequest) {
           ? { contributorIds: contributorIdsFromBody }
           : {}),
         relatedArticles: body.relatedArticles,
+        boostIndexing: body.boostIndexing === true,
       };
     }
 

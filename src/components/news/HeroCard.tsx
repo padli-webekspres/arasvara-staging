@@ -16,6 +16,8 @@ interface HeroCardProps {
   size?: "large" | "small" | "full";
   gaClickLocation?: string;
   gaPosition?: number;
+  /** Default 2 (kategori/penulis). Homepage di bawah judul seksi h2 pakai 3. */
+  headingLevel?: 2 | 3;
 }
 
 const HeroCard = ({
@@ -24,9 +26,11 @@ const HeroCard = ({
   size = "large",
   gaClickLocation,
   gaPosition,
+  headingLevel = 2,
 }: HeroCardProps) => {
   const isDark = variant === "dark";
   const splitTextRef = useHeroCardSplitText(article.slug);
+  const TitleTag = headingLevel === 3 ? "h3" : "h2";
 
   const imageUrl = article.featuredImage?.url?.trim() ?? "";
   const [imageFailed, setImageFailed] = React.useState(false);
@@ -107,7 +111,7 @@ const HeroCard = ({
                   : "max-h-[8.5rem] lg:max-h-[10.5rem]"
               }`}
             >
-              <h2
+              <TitleTag
                 className={`titleHeroCard w-full font-bold leading-snug relative ${
                   isDark ? "text-white" : "text-foreground"
                 } ${
@@ -117,7 +121,7 @@ const HeroCard = ({
                 }`}
               >
                 {article.title}
-              </h2>
+              </TitleTag>
             </div>
 
             {article.excerpt && (

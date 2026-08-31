@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { get as idbGet, del as idbDel } from "idb-keyval";
+import { del as idbDel } from "idb-keyval";
 import axios from "axios";
 import api from "@/lib/axios";
+import { resolveDraftImage } from "@/lib/image/draftImageStorage";
 import { S3_IMMUTABLE_CACHE_CONTROL } from "@/lib/s3/object-cache";
 import AdsHomepageForm, {
   type AdsDraft,
@@ -69,7 +70,10 @@ function serverDocToAdsDraft(doc: HomepageAdItem): AdsDraft {
 
 async function buildBulkItemsForPosition(
   group: AdsDraft[],
-  uploadBanner: (itemId: string) => Promise<HomepageAdItem["banner"]>,
+  uploadBanner: (
+    itemId: string,
+    memoryBlob?: Blob,
+  ) => Promise<HomepageAdItem["banner"]>,
   uploadedFileKeys: string[],
 ): Promise<BulkUpsertAdsItem[]> {
   const sorted = [...group].sort((a, b) => a.order - b.order);
@@ -78,7 +82,7 @@ async function buildBulkItemsForPosition(
       let banner: HomepageAdItem["banner"];
 
       if (item.banner.blob) {
-        const uploaded = await uploadBanner(item._id);
+        const uploaded = await uploadBanner(item._id, item.banner.blob);
         uploadedFileKeys.push(uploaded.filename);
         banner = uploaded;
       } else if (item.banner.serverData) {
@@ -129,8 +133,9 @@ export default function HomepageAdsPage() {
 
   const uploadBanner = async (
     itemId: string,
+    memoryBlob?: Blob,
   ): Promise<HomepageAdItem["banner"]> => {
-    const blob = await idbGet<Blob>(idbBannerKey(itemId));
+    const blob = await resolveDraftImage(idbBannerKey(itemId), memoryBlob);
     if (!blob)
       throw new Error(`Blob tidak ditemukan di IDB untuk item ${itemId}`);
 

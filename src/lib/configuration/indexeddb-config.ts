@@ -8,6 +8,10 @@
  */
 
 import { openDraftImageDb } from "@/lib/db/draftImageDb";
+import {
+  requestDraftStoragePersist,
+  warnDraftStorageFailed,
+} from "@/lib/image/draftImageStorage";
 
 const STORE_NAME = process.env.STORE_CONFIG_MEDIA || "configuration-media";
 
@@ -24,15 +28,20 @@ interface StoredConfigMedia {
 
 /**
  * Simpan file video/media ke IndexedDB (store configuration-media).
- * Jika IndexedDB tidak tersedia, fungsi ini diam-diam di-skip tanpa melempar error.
+ * Gagal (private mode / quota) di-toast sekali; blob di memori tetap dipakai.
  */
 export async function saveVideoToIndexedDB(
   key: string,
   file: Blob,
   mimeType: string,
 ): Promise<void> {
-  if (typeof window === "undefined" || !window.indexedDB) return;
+  if (typeof window === "undefined") return;
+  if (!window.indexedDB) {
+    warnDraftStorageFailed();
+    return;
+  }
   try {
+    await requestDraftStoragePersist();
     const db = await openDraftImageDb();
     const transaction = db.transaction([STORE_NAME], "readwrite");
     const store = transaction.objectStore(STORE_NAME);
@@ -48,10 +57,13 @@ export async function saveVideoToIndexedDB(
 
     return new Promise((resolve) => {
       request.onsuccess = () => resolve();
-      request.onerror = () => resolve(); // Silently skip
+      request.onerror = () => {
+        warnDraftStorageFailed();
+        resolve();
+      };
     });
   } catch {
-    // Silently skip jika tidak bisa menyimpan
+    warnDraftStorageFailed();
   }
 }
 

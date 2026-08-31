@@ -29,6 +29,11 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { adminPanelHref } from "@/lib/admin-panel-path";
 import { readArticleDraftRaw } from "@/lib/autosave";
 import { buildTempMediaViewUrl } from "@/lib/media/tempMedia";
+import { useArticleContentPaginationEnabled } from "@/components/admin/ArticleContentPaginationFlag";
+import {
+  nextArticlePageQuery,
+  resolveArticleContentView,
+} from "@/lib/article-content-pagination";
 
 function readPreviewDraftRaw(formatParam: string | null): string | null {
   if (formatParam === "gallery") {
@@ -68,9 +73,11 @@ function ArticlePreviewContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const formatParam = searchParams.get("format");
-  const pageParam = searchParams.get("page");
-  const isShowAll = pageParam === "all";
-  const pageNum = isShowAll ? 1 : Math.max(1, parseInt(pageParam || "1") || 1);
+  const paginationEnabled = useArticleContentPaginationEnabled();
+  const { isShowAll, pageNum } = resolveArticleContentView(
+    searchParams.get("page"),
+    paginationEnabled,
+  );
 
   const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
@@ -381,14 +388,11 @@ function ArticlePreviewContent() {
   }, [article, pages, pageNum, totalPages, currentUser, isShowAll]);
 
   const handlePageChange = (page: number | "all") => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (page === "all") {
-      params.set("page", "all");
-    } else {
-      if (page <= 1) params.delete("page");
-      else params.set("page", String(page));
-    }
-    const qs = params.toString();
+    const qs = nextArticlePageQuery(
+      searchParams,
+      page,
+      paginationEnabled,
+    );
     router.push(adminPanelHref(`articles/preview${qs ? `?${qs}` : ""}`), {
       scroll: true,
     });

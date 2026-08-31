@@ -14,6 +14,7 @@ import {
   prepareArticleDetailPayload,
 } from "@/lib/server/article-detail-page";
 import ArticleJsonLd from "@/components/news/ArticleJsonLd";
+import { isArticleContentPaginationEnabled } from "@/lib/article-content-pagination";
 import type { Metadata } from "next";
 
 function buildNewsCategoryStructuredPath(segments: string[]): string | null {
@@ -115,6 +116,7 @@ export default async function LegacyNewsDetailPage({
         article={payload.article}
         related={payload.related}
         canonicalShareUrl={payload.canonicalShareUrl}
+        paginationEnabled={isArticleContentPaginationEnabled()}
       />
     </>
   );

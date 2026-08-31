@@ -1,5 +1,14 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { getClientApiSecret } from "@/lib/api-secret";
+import { adminPanelBasePath } from "@/lib/admin-panel-path";
+
+/** Path CMS (bukan `/admin` hardcoded — panel bisa `/admin-xyz`). */
+export function shouldRedirectToCmsLogin(
+  pathname: string,
+  cmsBase: string = adminPanelBasePath,
+): boolean {
+  return pathname === cmsBase || pathname.startsWith(`${cmsBase}/`);
+}
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "/api",
@@ -67,7 +76,10 @@ api.interceptors.response.use(
       return api(config);
     }
 
-    if (typeof window !== "undefined" && window.location.pathname.startsWith("/admin")) {
+    if (
+      typeof window !== "undefined" &&
+      shouldRedirectToCmsLogin(window.location.pathname)
+    ) {
       const redirect = encodeURIComponent(
         window.location.pathname + window.location.search,
       );

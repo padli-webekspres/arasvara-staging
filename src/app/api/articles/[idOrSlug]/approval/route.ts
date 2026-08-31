@@ -5,6 +5,7 @@ import { getUserFromRequest } from "@/lib/auth";
 import { ApprovalPayload, ArticleStatus } from "@/types/article";
 import { connectToDatabase } from "@/lib/db/db";
 import { approveArticleStatus } from "@/services/article/writeArticleService";
+import { validateArticleForApproval } from "@/lib/article-validation";
 
 export async function PATCH(
 	req: NextRequest,
@@ -32,6 +33,31 @@ export async function PATCH(
 				{ status: 400 },
 			);
 		}
+		
+		// Validasi format-specific requirements untuk PUBLISHED/SCHEDULED
+		if (status === "PUBLISHED" || status === "SCHEDULED") {
+			const article = await getApprovalQueueArticleByIdOrSlug(db, idOrSlug, {
+				authorId: user._id,
+				isApprover: isApproverRole(user.role),
+				restrictToAuthorIfNotApprover: true,
+		});
+
+		if (!article) {
+			return NextResponse.json(
+				{ error: "Artikel tidak ditemukan" },
+				{ status: 404 },
+			);
+		}
+
+		const validation = validateArticleForApproval(article);
+		if (!validation.valid) {
+			return NextResponse.json(
+				{ error: validation.errors.join(", ") },
+				{ status: 400 }
+			);
+		}
+	}
+		
 		const article = await approveArticleStatus(
 			db,
 			idOrSlug,

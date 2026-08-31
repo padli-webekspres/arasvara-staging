@@ -1,0 +1,247 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage[dvipsnames]{xcolor}
+
+\hypersetup{
+    colorlinks=false,
+    pdfborder={0 0 0}
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
+\begin{document}
+
+\section*{POIN PERBAIKAN IN-SCOPE}
+
+\subsection*{A. PERFORMA \& INFRASTRUKTUR}
+
+\textbf{1. JavaScript terlalu banyak (53 scripts)}
+
+Terkait: Sistem Web Aplikasi Hal 4 Poin 2 (Cache gambar, CSS, JS, file statis)
+
+\textbf{2. Network payload 2,63 MB (target: 1--1,5 MB)}
+
+Terkait:
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Sistem Web Aplikasi Hal 4 Poin 2 (Integrasi CDN, image optimizer, caching)
+    \item Sistem Web Aplikasi Hal 5 Modul 5 (Upload gambar auto resize \& compress max 1 MB)
+    \item Kebutuhan User Hal 2 (Mobile Friendly, Upload foto Auto size 1200×800 Max 1 MB)
+\end{itemize}
+
+\textbf{3. Render-blocking (3 resources)}
+
+Terkait: Sistem Web Aplikasi Hal 4 Poin 2 (Cache untuk Google Lighthouse > 95)
+
+\textbf{4. Server response 546 ms (target: <300 ms)}
+
+Terkait:
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Sistem Web Aplikasi Hal 4 Poin 2 (Next.js SSR/SSG, CDN)
+    \item Sistem Web Aplikasi Hal 5 Modul 5 (Pre-signed URL Object Storage)
+\end{itemize}
+
+\textbf{5. Cache belum optimal}
+
+Terkait: Sistem Web Aplikasi Hal 4 Poin 2 (Integrasi CDN, image optimizer, caching)
+
+\subsection*{B. TECHNICAL SEO}
+
+\textbf{6. Canonical mismatch (PRIORITAS TINGGI)}
+
+Terkait:
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Sistem Web Aplikasi Hal 6 Modul 8 (Meta tag \& sitemap otomatis)
+    \item Kebutuhan User Hal 3 (Situs website mudah terindeks Google)
+\end{itemize}
+
+\textbf{7. 8 gambar tanpa ALT}
+
+Terkait: Sistem Web Aplikasi Hal 6 Modul 8 (Meta tag \& sitemap otomatis untuk SEO)
+
+\textbf{8. 10 gambar tanpa width/height}
+
+Terkait:
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Sistem Web Aplikasi Hal 5 Modul 5 (Upload gambar auto resize 1200×800 px)
+    \item Kebutuhan User Hal 2 (Upload foto Auto size 1200×800 Megapixel)
+\end{itemize}
+
+\textbf{9. Error 503 di media.arasvara.id / configuration.arasvara.id}
+
+Terkait:
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Sistem Web Aplikasi Hal 4 Poin 2 (Integrasi Object Storage dan subdomain)
+    \item Sistem Web Aplikasi Hal 5 Modul 5 (Integrasi Object Storage Cloud)
+\end{itemize}
+
+\textbf{10. Heading structure: H3 missing}
+
+Terkait: Sistem Web Aplikasi Hal 4 Poin 1 (Wireframe halaman utama, artikel, dashboard, CMS)
+
+\textbf{11. NewsArticle schema belum lengkap/optimal}
+
+Terkait: Sistem Web Aplikasi Hal 6 Modul 8 (Artikel terindeks optimal di mesin pencari)
+
+\subsection*{C. CMS \& SECURITY}
+
+\textbf{12. Kurangi akun Super Admin}
+
+Terkait:
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Sistem Web Aplikasi Hal 5 Modul 4 (Pembatasan hak akses per level role)
+    \item Kebutuhan User Hal 3 (CMS kategori Admin IT, Editor, Reporter + pembatasan level)
+\end{itemize}
+
+\textbf{13. Aria-label button ikon di header}
+
+Terkait: Sistem Web Aplikasi Hal 4 Poin 1 (Tata letak dan elemen branding)
+
+\textbf{14. Responsivitas tabel di mobile}
+
+Terkait:
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Sistem Web Aplikasi Hal 6 Modul 6 (Tampilan cepat, ringan, responsif)
+    \item Kebutuhan User Hal 2 (Mobile Friendly)
+\end{itemize}
+
+\textbf{15. Character counter di meta description field}
+
+Terkait:
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Sistem Web Aplikasi Hal 5 Modul 2 (CRUD berita, preview, auto-save)
+    \item Sistem Web Aplikasi Hal 6 Modul 8 (SEO \& Analitik)
+    \item Kebutuhan User Hal 2 (CMS Simple dan modern)
+\end{itemize}
+
+\subsection*{D. UI/UX (MINOR)}
+
+\textbf{16. Kontras warna link footer rendah}
+
+Terkait: Sistem Web Aplikasi Hal 4 Poin 1 (Penyesuaian warna, tata letak, font, branding)
+
+\textbf{17. Tombol pencarian mengambang menutupi konten mobile}
+
+Terkait:
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Sistem Web Aplikasi Hal 4 Poin 1 (Rancangan visual \& navigasi)
+    \item Sistem Web Aplikasi Hal 6 Modul 6 (Mobile friendly/responsif)
+    \item Kebutuhan User Hal 2 (Mobile Friendly)
+\end{itemize}
+
+\textbf{18. Heading kategori: pisahkan ikon panah dari teks}
+
+Terkait: Sistem Web Aplikasi Hal 4 Poin 1 (Wireframe dan prototipe interaktif di Figma)
+
+\subsection*{E. MONITORING \& INVESTIGATION (PARTIAL)}
+
+\textbf{19. Backlink domain tidak dikenal}
+
+Developer scope:
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Setup monitoring/audit tool untuk track backlink profile
+    \item Generate disavow file jika dibutuhkan
+\end{itemize}
+
+Tim Arasvara scope:
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Review backlink list dan tentukan mana yang spam/suspicious
+    \item Submit disavow list ke Google Search Console
+\end{itemize}
+
+\textbf{20. Indexing Google lambat}
+
+Developer scope:
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Verify sitemap submission \& robots.txt
+    \item Check crawl budget issues (server response, redirect chains)
+    \item Implement Google Indexing API jika diperlukan
+    \item Fix technical SEO barriers (canonical, speed, mobile-friendly)
+\end{itemize}
+
+Tim Arasvara scope:
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Strengthen internal linking antar artikel
+    \item Improve content quality \& E-E-A-T signals
+    \item Add primary source outbound links
+    \item Regular content publishing schedule
+\end{itemize}
+
+\vspace{12pt}
+\hrule
+\vspace{12pt}
+
+TOTAL IN-SCOPE: 20 poin (18 full developer + 2 partial)
+
+\vspace{12pt}
+\hrule
+\vspace{12pt}
+
+\section*{OUT OF SCOPE (Perlu Klarifikasi Client)}
+
+\textbf{21. Pagination multi-halaman artikel}
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Permintaan client untuk otomatis, tidak diubah
+\end{itemize}
+
+\textbf{22. 2FA}
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Tidak ada pembahasan kontrak
+\end{itemize}
+
+\textbf{23. Revisi UI major lebih dari 1x}
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Jika perlu re-layout author page/about us, cuma 1 kali, no major revision lagi
+\end{itemize}
+
+\vspace{12pt}
+\hrule
+\vspace{12pt}
+
+\section*{TIM ARASVARA (Content \& Editorial)}
+
+\textbf{24. Internal linking lemah (14 links)}
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Editor wajib tambahkan internal link relevan antar artikel
+    \item Contoh: artikel harga emas → link ke artikel emas hari sebelumnya, cara beli emas, investasi pemula
+\end{itemize}
+
+\textbf{25. 0 external links (MERAH)}
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Wajib link ke sumber primer: Antam, BI, BPS, kementerian, perusahaan, dokumen resmi
+    \item Jangan cuma tulis ulang media lain
+\end{itemize}
+
+\textbf{26. Homepage text 224 kata (kuning)}
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Tambah deskripsi konten/intro jika perlu
+\end{itemize}
+
+\textbf{27. E-E-A-T belum kuat}
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Buat halaman author per penulis
+    \item Format: Nama, jabatan, bio singkat, link ``Lihat semua artikel [Nama]''
+    \item Contoh: ``Nurul Kharimah adalah reporter Arasvara yang meliput lifestyle, entertainment dan isu generasi muda''
+\end{itemize}
+
+\textbf{28. Author markup di artikel}
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Hubungkan penulis artikel dengan URL halaman profil mereka
+\end{itemize}
+
+\textbf{29. Typo di judul artikel yang sudah tayang}
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item QC editorial sebelum publish
+\end{itemize}
+
+\textbf{30. NAP (Name, Address, Phone) tidak ditemukan di page biasa}
+\begin{itemize}[topsep=0pt, partopsep=0pt, itemsep=2pt]
+    \item Cantumkan di footer/contact selain About Us
+\end{itemize}
+
+\end{document}

@@ -3,6 +3,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { ulid } from "ulid";
 import logger from "@/lib/logger";
 import { withImmutableCacheControl } from "@/lib/s3/object-cache";
+import { assertDecodableImage } from "@/lib/image/detectImageFormat";
 
 export interface SponsorImageUploadResult {
   url: string;
@@ -17,13 +18,10 @@ export interface SponsorImageUploadResult {
 export async function uploadSponsorImage(
   file: File,
 ): Promise<SponsorImageUploadResult> {
-  if (!file.type.startsWith("image/")) {
-    throw new Error("File harus berupa gambar");
-  }
-
   try {
     const arrayBuffer = await file.arrayBuffer();
     let buffer: Buffer = Buffer.from(arrayBuffer as ArrayBuffer);
+    assertDecodableImage(file.type, buffer);
 
     // Compress dengan sharp
     // Sponsor image biasanya logo, jadi disesuaikan (misal max width 800px, jaga aspect ratio)

@@ -55,7 +55,7 @@ export function buildAuthorBioDisplay(
   return `${trimmedName} adalah bagian dari tim editorial Arasvara, portal berita digital Indonesia untuk generasi Milenial dan Gen Z.`;
 }
 
-function truncateMetaDescription(text: string, maxLength = 160): string {
+function truncateMetaDescription(text: string, maxLength = 175): string {
   const trimmed = text.trim();
   if (trimmed.length <= maxLength) return trimmed;
   return `${trimmed.slice(0, maxLength - 3).trimEnd()}...`;
@@ -237,6 +237,10 @@ export function buildAuthorJsonLd(
       url: canonicalUrl,
       description: bioDescription,
       ...(image ? { image } : {}),
+      ...(user.jobTitle ? { jobTitle: user.jobTitle } : {}),
+      ...(user.coverageAreas?.length
+        ? { knowsAbout: user.coverageAreas }
+        : {}),
       worksFor: {
         "@type": "Organization",
         name: "Arasvara",

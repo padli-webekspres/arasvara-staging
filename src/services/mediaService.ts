@@ -44,6 +44,7 @@ import {
 	generateImageVariants,
 	getVariantKey,
 } from "@/lib/image/generateImageVariants";
+import { processImageWithSharp } from "@/lib/image/processImageWithSharp";
 
 export interface UploadMediaResult {
 	fileName: string;
@@ -838,8 +839,11 @@ export async function promoteTempMedia(params: {
 	caption?: string;
 	credit?: string;
 	watermark?: boolean;
+	/** True hanya untuk media library — artikel sudah watermark di process-temp. */
+	applyWatermark?: boolean;
 }): Promise<Media> {
-	const { tempMediaId, folder, caption, credit, watermark } = params;
+	const { tempMediaId, folder, caption, credit, watermark, applyWatermark } =
+		params;
 	const tempKey = buildTempMediaKey(tempMediaId);
 	const finalKey = `${folder}/${tempMediaId}.webp`;
 
@@ -868,6 +872,62 @@ export async function promoteTempMedia(params: {
 		);
 	}
 	const size = head.ContentLength ?? 0;
+	let finalSize = size;
+
+	if (applyWatermark === true) {
+		// Download temp file from S3
+		const getCmd = new GetObjectCommand({ Bucket: S3_BUCKET, Key: tempKey });
+		const s3Response = await s3Client.send(getCmd);
+
+		// Convert stream to Buffer
+		const chunks: Uint8Array[] = [];
+		for await (const chunk of s3Response.Body as AsyncIterable<Uint8Array>) {
+			chunks.push(chunk);
+		}
+		const buffer = Buffer.concat(chunks);
+
+		// Apply watermark
+		const result = await processImageWithSharp(buffer, {
+			watermark: true,
+			watermarkOpacity: 0.35,
+		});
+
+		// Overwrite temp file with watermarked version
+		await s3Client.send(
+			new PutObjectCommand({
+				Bucket: S3_BUCKET,
+				Key: tempKey,
+				Body: result.buffer,
+				ContentType: "image/webp",
+				CacheControl: "public, max-age=3600",
+			}),
+		);
+
+		// Regenerate and overwrite variants
+		const variants = await generateImageVariants(result.buffer);
+		await Promise.all(
+			([640, 1280] as const).map((width) =>
+				s3Client.send(
+					new PutObjectCommand(
+						withImmutableCacheControl({
+							Bucket: S3_BUCKET,
+							Key: getVariantKey(tempKey, width),
+							Body: variants[`w${width}`].buffer,
+							ContentType: "image/webp",
+						}),
+					),
+				),
+			),
+		);
+
+		// Update size for DB
+		finalSize = result.fileSize;
+
+		logger.info(
+			{ tempKey, watermarkApplied: result.watermarkApplied },
+			"promoteTempMedia: watermark applied to temp before promote",
+		);
+	}
 
 	// 2. Salin ke folder final (cache immutable)
 	await s3Client.send(
@@ -909,7 +969,7 @@ export async function promoteTempMedia(params: {
 		url,
 		filename: finalKey,
 		mimetype: "image/webp",
-		size,
+		size: finalSize,
 		caption,
 		credit,
 		watermark: watermark ?? false,

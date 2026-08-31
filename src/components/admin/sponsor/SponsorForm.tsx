@@ -5,7 +5,8 @@ import { useDropzone } from "react-dropzone";
 import { DragDropProvider } from "@dnd-kit/react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
-import { get as idbGet, set as idbSet, del as idbDel } from "idb-keyval";
+import { get as idbGet, del as idbDel } from "idb-keyval";
+import { setDraftImage, resolveDraftImage, blobFromPreviewUrl } from "@/lib/image/draftImageStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Save, Plus, Loader2 } from "lucide-react";
@@ -15,6 +16,12 @@ import SponsorFormCard from "./SponsorFormCard";
 import Image from "next/image";
 import { SponsorItem } from "@/types/sponsor";
 import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
+import {
+  IMAGE_DROPZONE_ACCEPT,
+  IMAGE_DROPZONE_COPY,
+  isProbablyImageFile,
+} from "@/lib/image/isProbablyImageFile";
+import { IMAGE_UPLOAD_TIMEOUT_MS } from "@/lib/image/uploadTimeout";
 import { shouldUnoptimizeNewsCardImage } from "@/lib/utils";
 import { getAdminStandardCardGridClass } from "@/lib/admin-card-grid";
 
@@ -117,7 +124,7 @@ export default function SponsorForm({
       const file = files[0];
 
       // Validate file is image
-      if (!file.type.startsWith("image/")) {
+      if (!isProbablyImageFile(file)) {
         toast.error("Hanya file gambar yang diizinkan");
         return;
       }
@@ -139,7 +146,8 @@ export default function SponsorForm({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "image/*": [] },
+    accept: IMAGE_DROPZONE_ACCEPT,
+    useFsAccessApi: false,
     maxFiles: 1,
     multiple: false,
   });
@@ -220,7 +228,7 @@ export default function SponsorForm({
 
         // Save blob to IndexedDB
         if (imageBlob) {
-          await idbSet(getIdbKey(editingId), imageBlob);
+          await setDraftImage(getIdbKey(editingId), imageBlob);
         }
 
         setItems(updatedItems);
@@ -229,9 +237,12 @@ export default function SponsorForm({
         toast.success("Sponsor berhasil diperbarui");
         setEditingId(null);
       } else {
-        // Create new item
+        if (!imageBlob) {
+          toast.error("Gambar harus diunggah");
+          return;
+        }
         const newId = uuidv4();
-        const newImageUrl = URL.createObjectURL(imageBlob!);
+        const newImageUrl = URL.createObjectURL(imageBlob);
 
         const newItem: SponsorItem = {
           _id: newId,
@@ -242,8 +253,7 @@ export default function SponsorForm({
           createdBy: "local",
         };
 
-        // Save blob to IndexedDB
-        await idbSet(getIdbKey(newId), imageBlob);
+        await setDraftImage(getIdbKey(newId), imageBlob);
 
         const updatedItems = [...items, newItem];
         setItems(updatedItems);
@@ -370,21 +380,27 @@ export default function SponsorForm({
             item.image_url.startsWith("blob:") &&
             item._id
           ) {
-            const blob = await idbGet<Blob>(getIdbKey(item._id));
-            if (blob) {
-              const formData = new FormData();
-              formData.append("file", blob, "image.webp");
-              const response = await api.post<{
-                url: string;
-                filename: string;
-              }>(`/sponsor/upload-image`, formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-              });
-              if (!response.data?.url) {
-                throw new Error(`Failed to upload image for ${item.name}`);
-              }
-              return { ...item, image_url: response.data.url };
+            const blob = await resolveDraftImage(
+              getIdbKey(item._id),
+              await blobFromPreviewUrl(item.image_url),
+            );
+            if (!blob) {
+              throw new Error(
+                `Gambar draft "${item.name}" tidak ditemukan. Unggah ulang sebelum menyimpan.`,
+              );
             }
+            const formData = new FormData();
+            formData.append("file", blob, "image.webp");
+            const response = await api.post<{
+              url: string;
+              filename: string;
+            }>(`/sponsor/upload-image`, formData, {
+              timeout: IMAGE_UPLOAD_TIMEOUT_MS,
+            });
+            if (!response.data?.url) {
+              throw new Error(`Failed to upload image for ${item.name}`);
+            }
+            return { ...item, image_url: response.data.url };
           }
           return item;
         }),
@@ -520,10 +536,13 @@ export default function SponsorForm({
                 >
                   <input {...getInputProps()} />
                   <p className="text-sm font-medium">
-                    Drag & drop gambar di sini atau klik untuk memilih
+                    {IMAGE_DROPZONE_COPY.primary}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    PNG, JPG, WEBP (Bebas rasio, latar transparan
+                    {IMAGE_DROPZONE_COPY.secondary}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {IMAGE_DROPZONE_COPY.formats} (bebas rasio, latar transparan
                     direkomendasikan)
                   </p>
                 </div>
@@ -565,6 +584,8 @@ export default function SponsorForm({
           open={cropOpen}
           imageSrc={rawImageSrc}
           aspect={1 / 1} // Persegi 1:1
+          outputWidth={800}
+          outputHeight={800}
           title="Crop Gambar Sponsor"
           onCrop={handleCropDone}
           onCancel={handleCropCancel}

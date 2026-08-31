@@ -26,6 +26,8 @@ export function ResponsiveMediaImage({
   loading,
   decoding,
   onError,
+  width,
+  height,
   ...props
 }: ResponsiveMediaImageProps) {
   const resolvedSrc = resolvePublicMediaUrl(src) || src;
@@ -46,6 +48,7 @@ export function ResponsiveMediaImage({
 
   // `src` selalu original agar SSR/pre-hydration tidak 404 sebelum backfill;
   // browser memilih varian dari srcSet jika ada, onError membuang srcSet jika gagal.
+  // Default 16×9 agar crawler/Lighthouse selalu dapat atribut width/height (B.7).
   return (
     <img
       {...props}
@@ -54,6 +57,8 @@ export function ResponsiveMediaImage({
       src={resolvedSrc}
       srcSet={shouldUseVariant ? buildSrcSet(resolvedSrc) : undefined}
       sizes={sizes}
+      width={width ?? 16}
+      height={height ?? 9}
       loading={loading ?? (priority ? "eager" : "lazy")}
       decoding={decoding ?? "async"}
       fetchPriority={priority ? "high" : undefined}

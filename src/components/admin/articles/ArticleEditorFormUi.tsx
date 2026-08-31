@@ -12,8 +12,10 @@ import {
   ImageIcon,
   AlertTriangle,
   Link2,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import {
   AlertDialog,
@@ -82,7 +84,7 @@ import {
 import { useState } from "react";
 
 /** Batas karakter meta description (SEO) di UI */
-const META_DESCRIPTION_MAX = 200;
+const META_DESCRIPTION_MAX = 175;
 
 export type ArticleStatusSelectOption = {
   status: ArticleStatus;
@@ -120,6 +122,7 @@ interface ArticleEditorFormUiProps {
   setTakeDownDialogOpen: (open: boolean) => void;
   handleTakeDown: () => Promise<void>;
   isPublishing: boolean;
+  uploadProgress?: { current: number; total: number } | null;
   formData: {
     title: string;
     excerpt?: string;
@@ -134,6 +137,7 @@ interface ArticleEditorFormUiProps {
     reason?: string;
     authorId?: string;
     editorId?: string;
+    boostIndexing?: boolean;
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setFormData: any;
@@ -169,6 +173,8 @@ interface ArticleEditorFormUiProps {
   currentPublicPath?: string | null;
   /** True jika edit artikel PUBLISHED-structured dan kategori berubah → URL akan berubah. */
   urlWillChange?: boolean;
+  /** Google Indexing API quota usage */
+  quotaUsage?: { used: number; total: number } | null;
 }
 
 /** Tombol aksi header — ikon saja di mobile, label muncul dari `sm`. */
@@ -214,6 +220,7 @@ const ArticleEditorFormUi: React.FC<ArticleEditorFormUiProps> = ({
   setTakeDownDialogOpen,
   handleTakeDown,
   isPublishing,
+  uploadProgress,
   formData,
   setFormData,
   handlePickerSelect,
@@ -251,11 +258,14 @@ const ArticleEditorFormUi: React.FC<ArticleEditorFormUiProps> = ({
   setRelatedArticles,
   currentPublicPath,
   urlWillChange = false,
+  quotaUsage,
 }) => {
   const { data: currentUser } = useCurrentUser();
   const excerptRaw = formData.excerpt ?? "";
   const excerptLen = excerptRaw.length;
   const atMetaLimit = excerptLen >= META_DESCRIPTION_MAX;
+  const titleLen = formData.title?.length || 0;
+
 
   /** Potong excerpt dari API/draft jika lebih panjang dari batas */
   useEffect(() => {
@@ -490,7 +500,11 @@ const ArticleEditorFormUi: React.FC<ArticleEditorFormUiProps> = ({
                 <Eye className="h-4 w-4 shrink-0" />
               )}
               <span className="ml-2 truncate max-w-[6.5rem] sm:max-w-none">
-                {isPublishing ? "Publishing..." : secondarySubmitLabel}
+                {isPublishing ? (
+                  uploadProgress ? 
+                    `Uploading ${uploadProgress.current} of ${uploadProgress.total}...` :
+                    "Menyimpan..."
+                ) : secondarySubmitLabel}
               </span>
             </Button>
           )}
@@ -507,14 +521,22 @@ const ArticleEditorFormUi: React.FC<ArticleEditorFormUiProps> = ({
       >
         {/* Main Editor */}
         <div className="xl:col-span-2 min-w-0 space-y-4 sm:space-y-6 order-1">
-          <Input
-            placeholder="Article title..."
-            value={formData.title}
-            onChange={(e) =>
-              setFormData({ ...formData, title: e.target.value })
-            }
-            className="w-full min-w-0 text-xl sm:text-2xl font-bold border-0 border-b border-border rounded-none focus-visible:ring-0 focus-visible:border-hijauSawah"
-          />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xl font-bold">Judul Artikel *</Label>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {titleLen}
+              </span>
+            </div>
+            <Input
+              placeholder="Article title..."
+              value={formData.title}
+              onChange={(e) => {
+                setFormData({ ...formData, title: e.target.value });
+              }}
+              className="w-full min-w-0 text-xl sm:text-2xl font-bold border-0 border-b border-border rounded-none focus-visible:ring-0 focus-visible:border-hijauSawah"
+            />
+          </div>
 
           {/* Conditional Rendering: STANDARD vs GALLERY Format */}
           {isStandardFormat ? (
@@ -951,26 +973,39 @@ const ArticleEditorFormUi: React.FC<ArticleEditorFormUiProps> = ({
               </p>
             )}
           </div>
+          {/* Google Indexing Boost - only when PUBLISHED or SCHEDULED */}
+          {showStatusPicker &&
+            (formData.status === ArticleStatus.PUBLISHED ||
+              formData.status === ArticleStatus.SCHEDULED) && (
+              <div className="bg-card border border-border rounded-lg p-3 sm:p-4 space-y-3 min-w-0">
+                <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="boost-indexing" className="mb-0 cursor-pointer">
+                      Google Indexing Boost
+                    </Label>
+                  <Switch
+                    id="boost-indexing"
+                    checked={formData.boostIndexing ?? false}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, boostIndexing: checked })
+                    }
+                    disabled={isViewOnly}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground leading-snug">
+                  Beritahu google untuk indexing lebih cepat.
+                </p>
+                {quotaUsage && quotaUsage.used / quotaUsage.total > 0.9 && (
+                  <div className="flex items-start gap-1.5 text-amber-600 bg-amber-50 dark:bg-amber-950/20 rounded px-2 py-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                    <p className="text-xs leading-snug">
+                      Quota hampir habis ({quotaUsage.used}/{quotaUsage.total} used). Boost mungkin gagal jika quota penuh.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
           {/* Reason field - only shown in edit mode */}
-          {isEditing && (
-            <div className="bg-card border border-border rounded-lg p-3 sm:p-4 space-y-3 sm:space-y-4 min-w-0">
-              <Label>Alasan Revisi</Label>
-              <Textarea
-                placeholder="Jelaskan mengapa Anda membuat perubahan ini (berguna bagi editor untuk memahami revisi Anda)"
-                value={formData.reason ?? ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, reason: e.target.value })
-                }
-                rows={3}
-                className="w-full min-w-0 resize-y"
-              />
-              <p className="text-xs text-muted-foreground">
-                Berikan konteks untuk editan Anda agar anggota tim lainnya
-                memahami perubahan
-              </p>
-            </div>
-          )}
         </div>
       </div>
 

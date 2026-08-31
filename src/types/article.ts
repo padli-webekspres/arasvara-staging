@@ -90,6 +90,8 @@ export interface BaseArticle {
 	publicPath?: string | null;
 	/** legacy = /news/{slug}; structured = path hierarkis WIB */
 	urlFormat?: ArticleUrlFormat;
+	/** Google Indexing API boost flag */
+	boostIndexing?: boolean;
 }
 
 // Tipe untuk Artikel Teks Biasa
@@ -180,7 +182,7 @@ export type RelatedResponse = {
 // Payload untuk form create/edit article (frontend ke backend, multipart/form-data)
 export interface ArticleFormData {
 	title: string;
-	content: string; // HTML atau JSON string dari editor
+	content?: string; // HTML atau JSON string dari editor (optional untuk GALLERY)
 	excerpt?: string;
 	categoryId: string;
 	tags?: string[]; // array of tag name/slug, atau string[]
@@ -197,6 +199,7 @@ export interface ArticleFormData {
 	editorId?: string | null;
 	contributorIds?: string[];
 	relatedArticles?: SectionArticleItem[];
+	boostIndexing?: boolean;
 }
 
 export interface UpdateArticleFormData extends Partial<ArticleFormData> {
@@ -405,6 +408,7 @@ export interface ArticleInitialData {
 	publicPath?: string | null;
 	urlFormat?: ArticleUrlFormat;
 	publishedAt?: string;
+	boostIndexing?: boolean;
 }
 
 export interface ArticleEditorFormProps {

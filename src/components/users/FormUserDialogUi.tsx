@@ -23,6 +23,8 @@ import CropImageModal from "@/components/media/CropImageModal";
 import { ImageIcon, X, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { generateUserSlug } from "@/lib/user-validation";
+import { JOB_TITLE_MAX } from "@/lib/user-profile-fields";
+import { IMAGE_DROPZONE_COPY } from "@/lib/image/isProbablyImageFile";
 import Image from "next/image";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -36,6 +38,8 @@ export interface FormUserDialogUiProps {
     password?: string;
     role: string;
     bio?: string;
+    jobTitle?: string;
+    coverageAreas?: string;
     teamId?: string;
     isActive: boolean;
   };
@@ -156,11 +160,11 @@ const FormUserDialogUi: React.FC<FormUserDialogUiProps> = ({
                   <ImageIcon className="mb-2 h-8 w-8 text-muted-foreground" />
                   <p className="text-sm font-medium">
                     {isDragActive
-                      ? "Drop image here…"
-                      : "Drag & drop or click to upload"}
+                      ? "Lepaskan gambar di sini…"
+                      : IMAGE_DROPZONE_COPY.primary}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    PNG, JPG, WEBP — will be cropped square
+                    {IMAGE_DROPZONE_COPY.secondary} — akan dipotong persegi
                   </p>
                 </div>
               )}
@@ -304,6 +308,30 @@ const FormUserDialogUi: React.FC<FormUserDialogUiProps> = ({
               />
             </div>
 
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-jobTitle">Jabatan</Label>
+              <Input
+                id="cu-jobTitle"
+                placeholder="Senior Reporter (opsional)"
+                maxLength={JOB_TITLE_MAX}
+                value={values.jobTitle || ""}
+                onChange={(e) => onValueChange("jobTitle", e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="cu-coverageAreas">Bidang liputan</Label>
+              <Input
+                id="cu-coverageAreas"
+                placeholder="Politik, Ekonomi (pisahkan dengan koma)"
+                value={values.coverageAreas || ""}
+                onChange={(e) => onValueChange("coverageAreas", e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Opsional. Beberapa bidang dipisah koma.
+              </p>
+            </div>
+
             {/* Active Toggle */}
             {canEditIsActive && (
               <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
@@ -354,7 +382,9 @@ const FormUserDialogUi: React.FC<FormUserDialogUiProps> = ({
           open={cropOpen}
           imageSrc={rawImageSrc}
           aspect={1}
-          title="Crop Avatar"
+          outputWidth={800}
+          outputHeight={800}
+          title="Potong avatar"
           onCrop={onCropDone}
           onCancel={onCropCancel}
         />

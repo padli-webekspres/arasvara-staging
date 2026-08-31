@@ -35,6 +35,8 @@ export default function FloatingSearchButton() {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [value, setValue] = useState("");
+  const [isVisible, setIsVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
   const [iconNudge, setIconNudge] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -44,6 +46,7 @@ export default function FloatingSearchButton() {
   const closeTimerRef = useRef<number | null>(null);
   const nudgeIntervalRef = useRef<number | null>(null);
   const nudgeTimeoutRef = useRef<number | null>(null);
+  const scrollIdleTimerRef = useRef<number | null>(null);
   const isOpenRef = useRef(false);
 
   isOpenRef.current = isOpen;
@@ -79,6 +82,46 @@ export default function FloatingSearchButton() {
     clearOpenTimer();
     clearCloseTimer();
   }, [clearOpenTimer, clearCloseTimer]);
+
+  // Hide on scroll down, show on scroll up or after 3s idle
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      // Clear idle timer on any scroll
+      if (scrollIdleTimerRef.current != null) {
+        window.clearTimeout(scrollIdleTimerRef.current);
+        scrollIdleTimerRef.current = null;
+      }
+      
+      // Show if scrolling up or at top
+      if (currentScrollY < lastScrollY || currentScrollY < 100) {
+        setIsVisible(true);
+      } 
+      // Hide if scrolling down and past threshold
+      else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        setIsVisible(false);
+        
+        // Show again after 3s idle
+        scrollIdleTimerRef.current = window.setTimeout(() => {
+          console.log('[FloatingSearch] 3s idle - showing button');
+          setIsVisible(true);
+          scrollIdleTimerRef.current = null;
+        }, 3000);
+        console.log('[FloatingSearch] Scroll down - timer set, isVisible=false');
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (scrollIdleTimerRef.current != null) {
+        window.clearTimeout(scrollIdleTimerRef.current);
+      }
+    };
+  }, [lastScrollY]);
 
   const scheduleAutoClose = useCallback(() => {
     clearCloseTimer();
@@ -191,8 +234,9 @@ export default function FloatingSearchButton() {
         className={cn(
           "pointer-events-auto h-12 w-12 rounded-full shadow-lg",
           "bg-hijauSawah hover:bg-hijauSawah/90 text-white",
-          "transition-transform duration-200 active:scale-95",
+          "transition-all duration-300 active:scale-95",
           "touch-manipulation",
+          isVisible ? "translate-y-0 opacity-100" : "translate-y-32 opacity-0 pointer-events-none",
           isOpen &&
             hasQuery &&
             "ring-2 ring-hijauSawah/40 ring-offset-2 ring-offset-background",

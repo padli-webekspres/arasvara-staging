@@ -219,6 +219,7 @@ export default async function EditArticlePage({
         ? articleDoc.publishedAt.toISOString()
         : String(articleDoc.publishedAt)
       : undefined,
+    boostIndexing: (articleDoc as any).boostIndexing ?? false,
   };
 
   const categoryOptions = categories.map((c) => ({

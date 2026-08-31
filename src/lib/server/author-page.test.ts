@@ -115,6 +115,34 @@ describe("buildAuthorJsonLd", () => {
     expect(jsonLd.hasPart?.itemListElement).toHaveLength(1);
   });
 
+  it("maps jobTitle and coverageAreas onto Person", () => {
+    const jsonLd = buildAuthorJsonLd(
+      {
+        ...baseUser,
+        jobTitle: "Senior Reporter",
+        coverageAreas: ["Politik", "Ekonomi"],
+      },
+      [],
+      buildAuthorCanonicalUrl("budi-santoso"),
+    );
+
+    expect(jsonLd.mainEntity).toMatchObject({
+      jobTitle: "Senior Reporter",
+      knowsAbout: ["Politik", "Ekonomi"],
+    });
+  });
+
+  it("omits jobTitle and knowsAbout when unset", () => {
+    const jsonLd = buildAuthorJsonLd(
+      baseUser,
+      [],
+      buildAuthorCanonicalUrl("budi-santoso"),
+    );
+
+    expect(jsonLd.mainEntity).not.toHaveProperty("jobTitle");
+    expect(jsonLd.mainEntity).not.toHaveProperty("knowsAbout");
+  });
+
   it("includes neutral fallback description when bio is empty", () => {
     const jsonLd = buildAuthorJsonLd(
       baseUser,

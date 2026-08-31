@@ -4,6 +4,7 @@ import { getAllConfiguration } from "@/services/configurationService";
 import { Configuration } from "@/types/configuration";
 import { AboutUsData, RedaksiPosition, AboutUsSection } from "@/types/aboutUs";
 import AboutUsClient from "./AboutUsClient";
+import { formatPhoneDisplay } from "@/lib/contact-display";
 
 export const dynamic = "force-dynamic";
 
@@ -33,20 +34,6 @@ export const metadata: Metadata = {
       "Kenali lebih dalam Arasvara — media digital yang hadir sebagai suara generasi muda Indonesia.",
   },
 };
-
-// ── Helper: parse nomor telepon dari format simpanan (62xxx) ke display (+62 xxx) ──
-function formatPhoneDisplay(rawPhone: string): string {
-  if (!rawPhone) return "";
-  let digits = rawPhone.trim();
-  if (digits.startsWith("+62")) {
-    digits = digits.slice(3);
-  } else if (digits.startsWith("62")) {
-    digits = digits.slice(2);
-  } else if (digits.startsWith("0")) {
-    digits = digits.slice(1);
-  }
-  return `+62 ${digits}`;
-}
 
 // ── Helper: ambil value string dari array konfigurasi ────────────────────────
 function getConfigValue(configs: Configuration[], key: string): string {

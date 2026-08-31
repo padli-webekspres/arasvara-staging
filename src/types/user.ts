@@ -16,6 +16,10 @@ export interface User {
 	team?: Team;
 	avatar?: string | AvatarUser;
 	bio?: string;
+	/** Jabatan publik (bukan role CMS), mis. "Senior Reporter" */
+	jobTitle?: string;
+	/** Bidang liputan, mis. ["Politik", "Ekonomi"] */
+	coverageAreas?: string[];
 	isActive?: boolean;
 	createdAt?: string | Date;
 	updatedAt?: string | Date;

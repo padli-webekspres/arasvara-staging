@@ -5,6 +5,8 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import ReactQueryProvider from "@/app/providers/ReactQueryProvider";
 import GaRouteTracker from "@/components/analytics/GaRouteTracker";
+import DeferredGtag from "@/components/analytics/DeferredGtag";
+import { isGaMeasurementId } from "@/lib/load-gtag";
 import DeferredPushSubscriber from "@/components/notification/DeferredPushSubscriber";
 import { Suspense } from "react";
 import { fetchConfigurationsServer } from "@/lib/server/fetchServerSide";
@@ -106,13 +108,22 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+const TEXT_SELECTION_CSS =
+  "html ::selection, body ::selection, div ::selection, p ::selection, span ::selection, ::selection, *::selection { background: #445f24 !important; background-color: #445f24 !important; color: #fff !important; } html ::-moz-selection, body ::-moz-selection, ::-moz-selection, *::-moz-selection { background: #445f24 !important; background-color: #445f24 !important; color: #fff !important; }";
+
+const DAY_PICKER_BRAND_CSS =
+  ".rdp-root{--rdp-accent-color:#445f24!important;--rdp-accent-background-color:rgba(68,95,36,.18)!important;--rdp-today-color:#445f24!important}.rdp-chevron,.rdp-chevron polygon{fill:#445f24!important}.rdp-today:not(.rdp-outside),.rdp-today:not(.rdp-outside) .rdp-day_button{color:#445f24!important}.rdp-selected{font-weight:inherit;font-size:inherit}.rdp-range_start .rdp-day_button,.rdp-range_end .rdp-day_button,.rdp-selected:not(.rdp-range_middle):not(.rdp-range_start):not(.rdp-range_end) .rdp-day_button{background-color:#445f24!important;color:#fff!important;border-color:#445f24!important;font-weight:inherit}.rdp-range_middle{background-color:rgba(68,95,36,.18)!important}.rdp-range_middle .rdp-day_button{background-color:transparent!important;color:inherit!important;border-color:transparent!important}.rdp-range_middle.rdp-today:not(.rdp-outside),.rdp-range_middle.rdp-today:not(.rdp-outside) .rdp-day_button{color:#445f24!important}";
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   const gtmId = process.env.NEXT_PUBLIC_GTM_ID;
-  const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+  const gaMeasurementIdRaw = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim() ?? "";
+  const gaMeasurementId = isGaMeasurementId(gaMeasurementIdRaw)
+    ? gaMeasurementIdRaw
+    : "";
 
   return (
     <html lang="id" suppressHydrationWarning>
@@ -131,6 +142,11 @@ export default function RootLayout({
           sizes="180x180"
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `${TEXT_SELECTION_CSS}${DAY_PICKER_BRAND_CSS}`,
+          }}
+        />
         {/* Google Site Verification */}
         {process.env.GOOGLE_SITE_VERIFICATION && (
           <meta
@@ -142,21 +158,15 @@ export default function RootLayout({
       <body
         className={`${rubik.variable} antialiased min-h-screen bg-background hide-scrollbar`}
       >
-        {/* Google Analytics — strategy afterInteractive agar gtag siap saat client mount */}
+        {/* Stub gtag segera agar event mengantri; unduh gtag.js ditunda (DeferredGtag). */}
         {gaMeasurementId && (
           <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
-              strategy="afterInteractive"
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${gaMeasurementId}',{send_page_view:false});`,
+              }}
             />
-            <Script id="google-analytics" strategy="afterInteractive">
-              {`
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', '${gaMeasurementId}', { send_page_view: false });
-              `}
-            </Script>
+            <DeferredGtag measurementId={gaMeasurementId} />
           </>
         )}
         {/* Google Tag Manager — lazyOnload */}

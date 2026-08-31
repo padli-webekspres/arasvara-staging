@@ -21,12 +21,15 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  Heading4,
   Youtube as YoutubeIcon,
   Highlighter,
   SeparatorHorizontal,
   BookOpen,
 } from "lucide-react";
 import { Instagram, Facebook, Twitter } from "lucide-react";
+import { toast } from "sonner";
+import { classifyFacebookUrl } from "@/lib/social-embed-url";
 
 import { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -37,6 +40,9 @@ interface ToolbarButtonProps {
   icon: LucideIcon | React.FC<React.SVGProps<SVGSVGElement>>;
   title: string;
 }
+
+/** Tombol embed Facebook di toolbar. Ubah ke `true` untuk menampilkan lagi. */
+const ENABLE_FACEBOOK_EMBED = false;
 
 function ToolbarButton({
   onClick,
@@ -55,6 +61,19 @@ function ToolbarButton({
     >
       <Icon className="h-4 w-4" />
     </button>
+  );
+}
+
+/** Ikon tautan yang sama, dicoret diagonal. */
+function LinkUnlinkIcon({ className }: React.SVGProps<SVGSVGElement>) {
+  return (
+    <span className={`relative inline-flex ${className ?? ""}`}>
+      <LinkIcon className="h-full w-full" />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute top-1/2 left-[-12%] h-px w-[124%] -translate-y-1/2 rotate-[-28deg] bg-current"
+      />
+    </span>
   );
 }
 
@@ -94,6 +113,10 @@ const ToolbarArticle: React.FC<ToolbarArticleProps> = ({
   const [socialDialogPlatform, setSocialDialogPlatform] = useState("");
   const addLink = () => {
     setLinkDialogOpen(true);
+  };
+  const removeLink = () => {
+    if (!editor?.isActive("link")) return;
+    editor.chain().focus().extendMarkRange("link").unsetLink().run();
   };
   const addYoutube = () => {
     setYoutubeDialogOpen(true);
@@ -174,6 +197,16 @@ const ToolbarArticle: React.FC<ToolbarArticleProps> = ({
   };
   const handleSocialEmbedConfirm = (url: string) => {
     if (!editor) return;
+    if (socialDialogPlatform === "facebook") {
+      const kind = classifyFacebookUrl(url);
+      if (kind === "marketplace" || kind === "unsupported" || kind === "reel") {
+        toast.message(
+          kind === "reel"
+            ? "Reel Facebook tidak bisa diputar di situs ini. Akan ditampilkan sebagai tautan ke Facebook."
+            : "Tautan Facebook ini tidak bisa di-embed sebagai postingan. Akan ditampilkan sebagai tautan.",
+        );
+      }
+    }
     editor
       .chain()
       .focus()
@@ -242,6 +275,14 @@ const ToolbarArticle: React.FC<ToolbarArticleProps> = ({
             icon={Heading3}
             title="Heading 3"
           />
+          <ToolbarButton
+            onClick={() =>
+              editor?.chain().focus().toggleHeading({ level: 4 }).run()
+            }
+            isActive={editor?.isActive("heading", { level: 4 })}
+            icon={Heading4}
+            title="Heading 4"
+          />
           <div className="w-px h-6 bg-border mx-0.5 sm:mx-1 shrink-0" />
           <ToolbarButton
             onClick={() => editor?.chain().focus().setTextAlign("left").run()}
@@ -287,7 +328,17 @@ const ToolbarArticle: React.FC<ToolbarArticleProps> = ({
             title="Code"
           />
           <div className="w-px h-6 bg-border mx-0.5 sm:mx-1 shrink-0" />
-          <ToolbarButton onClick={addLink} icon={LinkIcon} title="Add Link" />
+          <ToolbarButton
+            onClick={addLink}
+            isActive={editor?.isActive("link")}
+            icon={LinkIcon}
+            title="Tambah tautan"
+          />
+          <ToolbarButton
+            onClick={removeLink}
+            icon={LinkUnlinkIcon}
+            title="Hapus tautan"
+          />
           <ToolbarButton
             onClick={addImage}
             icon={ImageIcon}
@@ -308,11 +359,13 @@ const ToolbarArticle: React.FC<ToolbarArticleProps> = ({
             icon={Instagram}
             title="Embed Instagram"
           />
-          <ToolbarButton
-            onClick={() => addSocialEmbed("facebook")}
-            icon={Facebook}
-            title="Embed Facebook"
-          />
+          {ENABLE_FACEBOOK_EMBED && (
+            <ToolbarButton
+              onClick={() => addSocialEmbed("facebook")}
+              icon={Facebook}
+              title="Embed Facebook"
+            />
+          )}
           <ToolbarButton
             onClick={() => addSocialEmbed("tiktok")}
             icon={TiktokFlatIcon}
@@ -380,9 +433,17 @@ const ToolbarArticle: React.FC<ToolbarArticleProps> = ({
         open={socialDialogOpen}
         onOpenChange={setSocialDialogOpen}
         title={`Embed ${socialDialogPlatform ? socialDialogPlatform.charAt(0).toUpperCase() + socialDialogPlatform.slice(1) : "Social"}`}
-        description={`Masukkan URL postingan ${socialDialogPlatform}.`}
+        description={
+          socialDialogPlatform === "facebook"
+            ? "Masukkan URL postingan atau video Page Facebook. Reel, tautan /share/v/, dan listing Marketplace tidak bisa di-embed — akan tampil sebagai tautan."
+            : `Masukkan URL postingan ${socialDialogPlatform}.`
+        }
         label="Post URL"
-        placeholder="https://..."
+        placeholder={
+          socialDialogPlatform === "facebook"
+            ? "https://www.facebook.com/.../posts/..."
+            : "https://..."
+        }
         onConfirm={handleSocialEmbedConfirm}
       />
       <ReadAlsoPickerDialog

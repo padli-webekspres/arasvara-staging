@@ -103,6 +103,8 @@ export function buildMetadataFromArticle(article: Article): Metadata {
         undefined,
       modifiedTime: resolveArticleDateModified(article) ?? undefined,
       authors: article.author ? [article.author.name] : [],
+      section: article.category?.name ?? undefined,
+      tags: article.tags?.map(t => t.name) ?? undefined,
     },
     twitter: {
       card: "summary_large_image",

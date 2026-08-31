@@ -1,4 +1,23 @@
-import { UserProfile } from "@/types/user";
+import { Db, ObjectId } from "mongodb";
+import {
+  Article,
+  ArticleFormData,
+  ArticleRevision,
+  ArticleStatus,
+  UpdateArticleFormData,
+  StandardArticle,
+  GalleryArticle,
+  ArticleMediaStored,
+  GalleryItemStored,
+} from "@/types/article";
+import type { UserProfile } from "@/types/user";
+import { Media } from "@/types/media";
+import { Category } from "@/types/category";
+import type { CreateNotificationInput } from "@/types/notification";
+import { NotificationType } from "@/types/notification";
+import { AuditLogAction, AuditLogEntity } from "@/types/auditLog";
+import logger from "@/lib/logger";
+import { hasPermission, ROLES } from "@/lib/auth-client";
 import {
   validateImageFile,
   fetchMediaById,
@@ -15,38 +34,25 @@ import {
   normalizeArticleTitle,
   resolveArticleSlug,
   titleNormalizedForStorage,
+  validateArticleForApproval,
 } from "@/lib/article-validation";
 import { saveMediaDB } from "@/services/mediaService";
-import { Db, ObjectId } from "mongodb";
+import { notifyGoogleIndexing } from "@/services/googleIndexingService";
 import {
-  Article,
-  ArticleFormData,
-  ArticleRevision,
-  ArticleStatus,
-  UpdateArticleFormData,
-  StandardArticle,
-  GalleryArticle,
-  ArticleMediaStored,
-  GalleryItemStored,
-} from "@/types/article";
-import logger from "@/lib/logger";
-import { revalidateArticlePage } from "@/lib/cache/revalidate-article-page";
+  listingContextFromArticleDocs,
+  revalidateArticlePage,
+  type ArticleListingContext,
+} from "@/lib/cache/revalidate-article-page";
 import { adminPanelHref } from "@/lib/admin-panel-path";
 import {
   buildArticleAuditMeta,
   buildArticleSlimSnapshot,
   createAuditLog,
 } from "@/services/auditLogService";
-import { hasPermission, ROLES } from "@/lib/auth-client";
 import {
   createBulkNotifications,
   createOneNotification,
 } from "@/services/notificationService";
-import type { CreateNotificationInput } from "@/types/notification";
-import { NotificationType } from "@/types/notification";
-import { Media } from "@/types/media";
-import { Category } from "@/types/category";
-import { AuditLogAction, AuditLogEntity } from "@/types/auditLog";
 import { sendPushToUsers, notifyCategoryOnArticlePublished } from "@/services/pushNotifService";
 import { canPickArticleAttribution } from "@/lib/editorialPublicationAccess";
 import {
@@ -94,6 +100,7 @@ function detectSubstantiveContentChange(
 export function safeRevalidateArticlePublicPage(
   publicPath: string | null | undefined,
   previousPublicPath?: string | null | undefined,
+  listing?: ArticleListingContext,
 ) {
   try {
     const current =
@@ -105,12 +112,13 @@ export function safeRevalidateArticlePublicPage(
       revalidateArticlePage(
         current,
         prev && prev !== current ? prev : undefined,
+        listing,
       );
       return;
     }
 
     if (prev) {
-      revalidateArticlePage(prev);
+      revalidateArticlePage(prev, undefined, listing);
     }
   } catch (err) {
     logger.warn({ err, publicPath }, "revalidateArticlePage gagal");
@@ -436,7 +444,7 @@ function resolveRelatedArticles(
       let aidStr: string | null = null;
       if (it.article_id) aidStr = String(it.article_id).trim();
       else if (it._id) aidStr = String(it._id).trim(); // Just in case it's an array of articles directly
-      
+
       if (aidStr) {
         try {
           const articleOid = new ObjectId(aidStr);
@@ -577,8 +585,11 @@ export async function createArticle(
     }
 
     // Ambil format, default ke "STANDARD" jika tidak ada
-    const format =
-      (payload as any).format === "GALLERY" ? "GALLERY" : "STANDARD";
+    const payloadWithOptionals = payload as ArticleFormData & {
+      format?: "STANDARD" | "GALLERY";
+      boostIndexing?: boolean;
+    };
+    const format = payloadWithOptionals.format === "GALLERY" ? "GALLERY" : "STANDARD";
     const {
       title,
       content,
@@ -594,7 +605,8 @@ export async function createArticle(
       editorId: payloadEditorId,
       contributorIds: rawContributorIds,
       relatedArticles: rawRelatedArticles = [],
-    } = payload as any;
+    } = payload;
+    const boostIndexing = payloadWithOptionals.boostIndexing ?? false;
 
     // ── Validasi field wajib ──
     if (!title)
@@ -744,8 +756,8 @@ export async function createArticle(
     );
 
     let doc: any = {
+      _id: draftSlugId,
       title: trimmedTitle,
-      titleNormalized: titleNormalizedForStorage(trimmedTitle),
       slug: articleSlug,
       excerpt,
       categoryId: mongoCategoryId,
@@ -776,6 +788,7 @@ export async function createArticle(
       relatedArticles: resolveRelatedArticles(rawRelatedArticles, actorOid),
       urlFormat,
       publicPath: createPublicPath,
+      boostIndexing: boostIndexing === true,
       ...denormFields,
     };
     if (format === "STANDARD") {
@@ -914,7 +927,7 @@ export async function createArticle(
           void notifyCategoryOnArticlePublished(db, {
             title,
             publicPath: doc.publicPath ? String(doc.publicPath) : null,
-            featuredImage: resolvedFeaturedImage ?? featuredImage,
+            featuredImage: resolvedFeaturedImage?.mediaId?.toString() ?? null,
             categoryId: mongoCategoryId,
             category: categoryExists
               ? {
@@ -928,6 +941,25 @@ export async function createArticle(
               "createArticle: push kategori gagal",
             );
           });
+
+          // Google Indexing API notification (fire-and-forget)
+          if (boostIndexing && doc.publicPath) {
+            const fullUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://arasvara.id"}${doc.publicPath}`;
+            const dryRun = process.env.GOOGLE_INDEXING_DRY_RUN === "true";
+
+            void notifyGoogleIndexing(
+              insertedId,
+              fullUrl,
+              "URL_UPDATED",
+              actorOid,
+              dryRun
+            ).catch((indexErr) => {
+              logger.error(
+                { err: indexErr, articleId: articleIdStr, url: fullUrl },
+                "createArticle: Google Indexing API notification failed"
+              );
+            });
+          }
         } else if (status === ArticleStatus.SCHEDULED) {
           try {
             const when =
@@ -976,6 +1008,7 @@ export async function createArticle(
       safeRevalidateArticlePublicPage(
         doc.publicPath ?? null,
         null,
+        listingContextFromArticleDocs(doc),
       );
     }
 
@@ -1203,16 +1236,13 @@ export async function updateArticle(
     }
 
     // ─── Format Validation ────────────────────────────────────────────────────
+    // Strip format dari payload update (immutable field)
+    if ('format' in payload) {
+      delete (payload as unknown as Record<string, unknown>).format;
+    }
+
     // Format tidak bisa diubah setelah artikel dibuat (immutable property)
     const existingFormat = existing.format || "STANDARD";
-    if (payload.format && payload.format !== existingFormat) {
-      throw Object.assign(
-        new Error(
-          `Article format cannot be changed. Current format: ${existingFormat}`,
-        ),
-        { status: 400 },
-      );
-    }
 
     // scheduledAt validation (backdate / waktu lampau diizinkan; cron: scheduledAt <= now)
     let validScheduledAt: Date | null = null;
@@ -1268,6 +1298,14 @@ export async function updateArticle(
     if (payload.galleryItems !== undefined && existingFormat === "GALLERY") {
       const newGalleryItemsRaw = Array.isArray(payload.galleryItems) ? payload.galleryItems : [];
       resolvedGalleryItems = await resolveGalleryItemsForCreate(db, existingFormat, newGalleryItemsRaw);
+    }
+
+    // C3: Gallery validation consistency - updateArticle harus reject empty gallery sama seperti createArticle
+    if (existingFormat === "GALLERY" && resolvedGalleryItems !== undefined && resolvedGalleryItems.length === 0) {
+      throw Object.assign(
+        new Error("Gallery article harus memiliki minimal 1 gambar"),
+        { status: 400 }
+      );
     }
 
     const mongoCategoryId =
@@ -1415,6 +1453,22 @@ export async function updateArticle(
     ) {
       // Hanya update dateModified SEO saat title/excerpt/content berubah
       updates.contentUpdatedAt = new Date();
+    }
+
+    // Validasi format-specific requirements saat publish
+    if (finalStatus === ArticleStatus.PUBLISHED || finalStatus === ArticleStatus.SCHEDULED) {
+      const validation = validateArticleForApproval({
+        format: existingFormat as "STANDARD" | "GALLERY",
+        galleryItems: resolvedGalleryItems !== undefined ? resolvedGalleryItems : existing.galleryItems,
+        featuredImage: resolvedFeaturedImage !== undefined ? resolvedFeaturedImage : existing.featuredImage,
+        status: finalStatus,
+      });
+      if (!validation.valid) {
+        throw Object.assign(
+          new Error(validation.errors.join(", ")),
+          { status: 400 }
+        );
+      }
     }
 
     // Stamp submittedAt saat pertama kali masuk antrian review
@@ -1672,6 +1726,29 @@ export async function updateArticle(
       }
     }
 
+    // Google Indexing API notification (fire-and-forget)
+    const boostIndexing = typeof (payload as UpdateArticleFormData & { boostIndexing?: boolean }).boostIndexing === "boolean"
+      ? (payload as UpdateArticleFormData & { boostIndexing?: boolean }).boostIndexing
+      : false;
+    if (boostIndexing && finalStatus === ArticleStatus.PUBLISHED && updated.publicPath) {
+      const fullUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://arasvara.id"}${updated.publicPath}`;
+      const dryRun = process.env.GOOGLE_INDEXING_DRY_RUN === "true";
+      const actorOid = typeof userId === "string" ? new ObjectId(userId) : userId;
+
+      void notifyGoogleIndexing(
+        new ObjectId(articleId),
+        fullUrl,
+        "URL_UPDATED",
+        actorOid,
+        dryRun
+      ).catch((indexErr) => {
+        logger.error(
+          { err: indexErr, articleId, url: fullUrl },
+          "updateArticle: Google Indexing API notification failed"
+        );
+      });
+    }
+
     // Log aktivitas redaksi dengan structure format revisionHistory
     // POINT 5: Buat EditorActivity dengan action UPDATE, statusFrom/statusTo dari revision
 
@@ -1760,6 +1837,7 @@ export async function updateArticle(
       safeRevalidateArticlePublicPage(
         updated.publicPath ? String(updated.publicPath) : null,
         pathFields.previousPublicPath,
+        listingContextFromArticleDocs(updated, existing),
       );
     }
 
@@ -1877,7 +1955,11 @@ export async function deleteArticle(
         : existing.slug
           ? buildLegacyArticlePath(String(existing.slug))
           : null;
-      safeRevalidateArticlePublicPage(existingPath);
+      safeRevalidateArticlePublicPage(
+        existingPath,
+        null,
+        listingContextFromArticleDocs(existing),
+      );
     }
 
     logger.info({ articleId }, "deleteArticle selesai");

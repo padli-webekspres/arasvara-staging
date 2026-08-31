@@ -15,6 +15,8 @@ import {
   Calendar as CalendarIcon,
   MoreHorizontal,
   Link as LinkIcon,
+  FileEdit,
+  User,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -90,10 +92,10 @@ import { ROLES } from "@/lib/auth-client";
 import { ADMIN_PAGINATION_WRAP } from "@/lib/admin-ui";
 import { adminPanelHref } from "@/lib/admin-panel-path";
 import { resolveCmsArticleViewHref } from "@/lib/article-public-path";
-import { DayPicker, DateRange } from "react-day-picker";
+import { type DateRange } from "react-day-picker";
 import { format, isValid, parse } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import "react-day-picker/dist/style.css";
+import { BrandDayPicker } from "@/components/ui/BrandDayPicker";
 
 const CMS_SEARCH_LIMIT = 12;
 
@@ -117,9 +119,18 @@ function parseMongoDate(value: unknown): Date {
   return new Date();
 }
 
+function formatCmsDateTime(value: Date | string | null | undefined): string {
+  if (value == null || value === "") return "-";
+  const d = value instanceof Date ? value : new Date(value);
+  if (!isValid(d) || d.getTime() <= 0) return "-";
+  return `${formatDateReadable(d)} - ${formatTimeReadable(d)}`;
+}
+
 /** Memetakan baris hasil search ke `Article` agar cocok dengan kolom & hapus. */
 function articleListRowToArticle(row: ArticleListResponse): Article {
-  const publishedAt = parseMongoDate(row.publishedAt);
+  const publishedAt = row.publishedAt
+    ? parseMongoDate(row.publishedAt)
+    : new Date(0);
   const updatedAt = parseMongoDate(row.updatedAt);
   const fmt = row.format === "GALLERY" ? "GALLERY" : "STANDARD";
   const authorId =
@@ -377,7 +388,7 @@ const ArticlesPage = () => {
   const getStatusBadge = (articleStatus: ArticleStatus | string) => {
     const statusConfig: StatusConfigType = {
       PUBLISHED: { variant: "default", icon: CheckCircle, label: "Published" },
-      DRAFT: { variant: "secondary", icon: Clock, label: "Waiting" },
+      DRAFT: { variant: "secondary", icon: FileEdit, label: "Waiting" },
       PENDING_REVIEW: {
         variant: "outline",
         icon: Clock,
@@ -423,57 +434,65 @@ const ArticlesPage = () => {
   const columns: ListTableColumn<Article>[] = [
     {
       key: "title",
-      header: "Title",
+      header: "Judul",
+      className: "min-w-[280px] sm:min-w-[320px] lg:min-w-[400px]",
       render: (row) => (
-        <div className="max-w-xs">
-          <p className="font-medium line-clamp-1">{row.title}</p>
-          <p className="text-sm text-muted-foreground line-clamp-1">
-            {row.excerpt}
-          </p>
-        </div>
+        <p className="min-w-0 font-medium break-words">{row.title}</p>
       ),
     },
     {
       key: "category",
-      header: <span className="hidden md:inline">Category</span>,
-      className: "p-4 hidden md:table-cell",
+      header: "Channel",
+      className: "whitespace-nowrap min-w-[100px]",
       render: (row) => (
         <span className="capitalize">{row.category?.name || "-"}</span>
       ),
     },
     {
+      key: "format",
+      header: "Format",
+      className: "whitespace-nowrap min-w-[80px]",
+      render: (row) => (
+        <Badge variant="outline" className="text-xs">
+          {row.format === "GALLERY" ? "Gallery" : "Standard"}
+        </Badge>
+      ),
+    },
+    {
       key: "author",
-      header: <span className="hidden lg:inline">Author</span>,
-      className: "p-4 hidden lg:table-cell",
+      header: "Author",
+      className: "whitespace-nowrap min-w-[120px]",
       render: (row) => row.author?.name || "-",
     },
     {
       key: "status",
       header: "Status",
+      className: "whitespace-nowrap min-w-[100px]",
       render: (row) => getStatusBadge(row.status),
     },
     {
       key: "viewCount",
-      header: <span className="hidden md:inline">Views</span>,
-      className: "p-4 hidden md:table-cell",
+      header: "Tayangan",
+      className: "whitespace-nowrap tabular-nums min-w-[90px]",
       render: (row) =>
-        row.viewCount ? Number(row.viewCount).toLocaleString() : 0,
+        row.viewCount ? Number(row.viewCount).toLocaleString("id-ID") : 0,
     },
     {
       key: "updatedAt",
-      header: <span className="hidden lg:inline">Updated</span>,
-      className: "p-4 hidden lg:table-cell",
-      render: (row) =>
-        row.updatedAt
-          ? formatDateReadable(row.updatedAt) +
-            " - " +
-            formatTimeReadable(row.updatedAt)
-          : "-",
+      header: "Diupdate",
+      className: "whitespace-nowrap min-w-[140px]",
+      render: (row) => formatCmsDateTime(row.updatedAt),
+    },
+    {
+      key: "publishedAt",
+      header: "Dipublish",
+      className: "whitespace-nowrap min-w-[140px]",
+      render: (row) => formatCmsDateTime(row.publishedAt),
     },
     {
       key: "actions",
-      header: "Actions",
-      className: "p-4",
+      header: "Aksi",
+      className: "sticky right-0 bg-background z-20 shadow-[-2px_0_4px_rgba(0,0,0,0.1)] whitespace-nowrap min-w-[70px] [-webkit-position:sticky]",
       render: (row) => (
         <DropdownMenu>
           <DropdownMenuTrigger>
@@ -554,22 +573,23 @@ const ArticlesPage = () => {
   return (
     <div className="min-w-0 max-w-full space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Articles</h1>
-          <p className="text-muted-foreground">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold sm:text-2xl">Articles</h1>
+          <p className="text-sm text-muted-foreground sm:text-base">
             Kelola artikel dan video (pencarian via API Search)
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
           <Button
             variant="outline"
+            className="w-full sm:w-auto"
             onClick={() => setIsConfirmingUpdateTags(true)}
           >
             <Plus className="h-4 w-4 mr-2" />
             Perbarui Rekomendasi Tag
           </Button>
-          <Link href={adminPanelHref("articles/new")}>
-            <Button>
+          <Link href={adminPanelHref("articles/new")} className="w-full sm:w-auto">
+            <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               New Article
             </Button>
@@ -577,11 +597,11 @@ const ArticlesPage = () => {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="rounded-lg border border-border bg-card p-3 sm:p-4 space-y-3 sm:space-y-4">
         <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Cari (judul, kutipan, tag, kategori, penulis)…"
+            placeholder="Cari (judul, kutipan, tag, channel, author)…"
             value={qDraft}
             onChange={(e) => setQDraft(e.target.value)}
             className="pl-10"
@@ -589,8 +609,15 @@ const ArticlesPage = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-          <div className="space-y-2">
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-3",
+            type === "ARTICLES"
+              ? "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+              : "sm:grid-cols-2",
+          )}
+        >
+          <div className="space-y-1.5 min-w-0">
             <Label htmlFor="filter-type">Type</Label>
             <Select
               value={type}
@@ -621,7 +648,7 @@ const ArticlesPage = () => {
 
           {type === "ARTICLES" && (
             <>
-              <div className="space-y-2">
+              <div className="space-y-1.5 min-w-0">
                 <Label htmlFor="filter-status">Status</Label>
                 <Select
                   value={status}
@@ -644,7 +671,7 @@ const ArticlesPage = () => {
                 </Select>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5 min-w-0">
                 <Label htmlFor="filter-format">Format</Label>
                 <Select
                   value={formatFilter || "__any__"}
@@ -666,8 +693,8 @@ const ArticlesPage = () => {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="filter-category">Category</Label>
+              <div className="space-y-1.5 min-w-0">
+                <Label htmlFor="filter-category">Channel</Label>
                 <Select
                   value={categorySlug || "__all__"}
                   onValueChange={(v) =>
@@ -678,10 +705,10 @@ const ArticlesPage = () => {
                   }
                 >
                   <SelectTrigger id="filter-category" className="w-full">
-                    <SelectValue placeholder="Category" />
+                    <SelectValue placeholder="Channel" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__all__">Semua kategori</SelectItem>
+                    <SelectItem value="__all__">Semua channel</SelectItem>
                     {categoriesData.map((cat) => (
                       <SelectItem
                         key={cat._id?.toString() || cat.slug}
@@ -696,18 +723,13 @@ const ArticlesPage = () => {
             </>
           )}
 
-          <div
-            className={cn(
-              "space-y-2",
-              type === "ARTICLES" && "sm:col-span-2",
-            )}
-          >
+          <div className="space-y-1.5 min-w-0">
             <Label>Tanggal tayang / dibuat</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className="w-full justify-start text-left font-normal"
+                  className="w-full justify-start text-left font-normal h-9"
                   type="button"
                 >
                   <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
@@ -715,7 +737,7 @@ const ArticlesPage = () => {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <DayPicker
+                <BrandDayPicker
                   mode="range"
                   selected={dateRange}
                   onSelect={onDateRangeSelect}
@@ -807,8 +829,9 @@ const ArticlesPage = () => {
             columns={columns}
             data={articleRows}
             loading={loading}
-            emptyText="No articles found"
+            emptyText="Artikel tidak ditemukan"
             rowKey={(row) => row._id || row.slug}
+            compact
           />
         )}
 

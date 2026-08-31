@@ -383,7 +383,21 @@ export function normalizeAdminPath(path: string): string {
   return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function isAdminNavActive(pathname: string, href: string): boolean {
   if (!href) return false;
-  return normalizeAdminPath(pathname) === normalizeAdminPath(href);
+  const path = normalizeAdminPath(pathname);
+  const target = normalizeAdminPath(href);
+  if (path === target) return true;
+
+  // Moderasi & Rilis: list + /articles/:idOrSlug/approval
+  const approvalList = normalizeAdminPath(adminPanelHref("articles/approval"));
+  if (target !== approvalList) return false;
+  const articlesBase = normalizeAdminPath(adminPanelHref("articles"));
+  return new RegExp(`^${escapeRegExp(articlesBase)}/[^/]+/approval$`).test(
+    path,
+  );
 }

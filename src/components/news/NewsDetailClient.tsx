@@ -22,24 +22,32 @@ import {
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { trackPushOpen } from "@/lib/ga-events";
 import { shouldCountArticleView } from "@/lib/articleViewAccess";
+import {
+  nextArticlePageQuery,
+  resolveArticleContentView,
+} from "@/lib/article-content-pagination";
 
 interface NewsDetailClientProps {
   article: Article;
   related: ArticleListResponse[];
   /** URL share kanonikal tanpa query page — dari server, selaras OG metadata. */
   canonicalShareUrl: string;
+  /** Dari env server `ARTICLE_CONTENT_PAGINATION` — bukan `NEXT_PUBLIC_*`. */
+  paginationEnabled: boolean;
 }
 
 const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
   article,
   related,
   canonicalShareUrl,
+  paginationEnabled,
 }) => {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const pageParam = searchParams.get("page");
-  const isShowAll = pageParam === "all";
-  const pageNum = isShowAll ? 1 : Math.max(1, parseInt(pageParam || "1") || 1);
+  const { isShowAll, pageNum } = resolveArticleContentView(
+    searchParams.get("page"),
+    paginationEnabled,
+  );
 
   const { data: currentUser } = useCurrentUser();
   const userType: "logged_in" | "guest" = currentUser ? "logged_in" : "guest";
@@ -98,14 +106,11 @@ const NewsDetailClient: React.FC<NewsDetailClientProps> = ({
   );
 
   const handlePageChange = (page: number | "all") => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (page === "all") {
-      params.set("page", "all");
-    } else {
-      if (page <= 1) params.delete("page");
-      else params.set("page", String(page));
-    }
-    const qs = params.toString();
+    const qs = nextArticlePageQuery(
+      searchParams,
+      page,
+      paginationEnabled,
+    );
     router.push(qs ? `?${qs}` : window.location.pathname, { scroll: true });
   };
   const [copied, setCopied] = useState(false);

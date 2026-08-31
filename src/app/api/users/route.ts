@@ -5,6 +5,7 @@ import { createUser } from "@/services/userService";
 import { ROLES } from "@/lib/auth-client";
 import { getUserFromRequest } from "@/lib/auth";
 import { mapUserWriteError } from "@/lib/map-user-write-error";
+import { parseCoverageAreas } from "@/lib/user-profile-fields";
 
 // POST /api/users - create user with avatar upload, password hash, email unique
 export async function POST(req: NextRequest) {
@@ -31,6 +32,10 @@ export async function POST(req: NextRequest) {
 		const role = (formData.get("role")?.toString() ||
 			"subscriber") as keyof typeof ROLES;
 		const bio = formData.get("bio")?.toString() || undefined;
+		const jobTitle = formData.get("jobTitle")?.toString() ?? "";
+		const coverageAreas = parseCoverageAreas(
+			formData.get("coverageAreas")?.toString() ?? "",
+		);
 		const teamId = formData.get("teamId")?.toString() || undefined;
 		const isActive =
 			formData.get("isActive") !== undefined
@@ -60,6 +65,8 @@ export async function POST(req: NextRequest) {
 				password,
 				role,
 				bio,
+				jobTitle,
+				coverageAreas,
 				teamId,
 				isActive,
 				avatar: avatarFile,

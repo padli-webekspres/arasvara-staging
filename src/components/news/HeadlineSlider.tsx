@@ -199,6 +199,7 @@ const HeadlineSlider = ({ articles }: HeadlineSliderProps) => {
                 article={article.article as ArticleListResponse}
                 variant="dark"
                 size="full"
+                headingLevel={3}
               />
             </div>
           </div>
@@ -211,7 +212,7 @@ const HeadlineSlider = ({ articles }: HeadlineSliderProps) => {
             variant="ghost"
             size="icon"
             aria-label="Headline sebelumnya"
-            className="absolute left-1 md:left-2 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white z-50 rounded-full h-11 w-11"
+            className="absolute left-1 md:left-2 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white z-50 rounded-lg h-8 w-8 md:h-10 md:w-10"
             onClick={goToPrev}
           >
             <ChevronLeft className="h-5 w-5" />
@@ -221,7 +222,7 @@ const HeadlineSlider = ({ articles }: HeadlineSliderProps) => {
             variant="ghost"
             size="icon"
             aria-label="Headline selanjutnya"
-            className="absolute right-1 md:right-2 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white z-50 rounded-full h-11 w-11"
+            className="absolute right-1 md:right-2 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white z-50 rounded-lg h-8 w-8 md:h-10 md:w-10"
             onClick={goToNext}
           >
             <ChevronRight className="h-5 w-5" />

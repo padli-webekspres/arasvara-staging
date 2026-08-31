@@ -5,7 +5,8 @@ import { useDropzone } from "react-dropzone";
 import { DragDropProvider } from "@dnd-kit/react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
-import { get as idbGet, set as idbSet, del as idbDel } from "idb-keyval";
+import { get as idbGet, del as idbDel } from "idb-keyval";
+import { setDraftImage, resolveDraftImage, blobFromPreviewUrl } from "@/lib/image/draftImageStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,8 +23,12 @@ import CropImageModal from "@/components/media/CropImageModal";
 import VideoFormCard from "./VideoFormCard";
 import Image from "next/image";
 import { SectionVideoItem } from "@/types/articleSection";
-import { ensureWebpFile } from "@/lib/image/ensureWebpBlob";
 import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
+import {
+  IMAGE_DROPZONE_ACCEPT,
+  IMAGE_DROPZONE_COPY,
+  isProbablyImageFile,
+} from "@/lib/image/isProbablyImageFile";
 import {
   getAdminCardGridClass,
   getCropOutputSize,
@@ -275,9 +280,7 @@ export default function VideoSocmedForm({
       if (!files.length || preparingCrop) return;
       const file = files[0];
 
-      // Kosongkan type masih diizinkan (Safari/iOS sering kirim type "");
-      // HEIC/HEIF juga lolos lewat prepareImageForCrop.
-      if (file.type && !file.type.startsWith("image/")) {
+      if (!isProbablyImageFile(file)) {
         toast.error("Hanya file gambar yang diizinkan");
         return;
       }
@@ -303,7 +306,8 @@ export default function VideoSocmedForm({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "image/*": [] },
+    accept: IMAGE_DROPZONE_ACCEPT,
+    useFsAccessApi: false,
     maxFiles: 1,
     multiple: false,
     disabled: preparingCrop || thumbnailBlob !== null,
@@ -385,7 +389,7 @@ export default function VideoSocmedForm({
         });
 
         // Save blob to IndexedDB
-        await idbSet(
+        await setDraftImage(
           getIdbKey(mode, socialPlatform, editingId),
           thumbnailBlob,
         );
@@ -413,7 +417,7 @@ export default function VideoSocmedForm({
         };
 
         // Save blob to IndexedDB
-        await idbSet(getIdbKey(mode, socialPlatform, newId), thumbnailBlob);
+        await setDraftImage(getIdbKey(mode, socialPlatform, newId), thumbnailBlob);
 
         // Video baru di urutan pertama; reindex order agar konsisten dengan array
         const updatedItems = [newItem, ...videoItems].map((item, idx) => ({
@@ -561,8 +565,9 @@ export default function VideoSocmedForm({
             item.thumbnail_url.startsWith("blob:") &&
             item._id
           ) {
-            const blob = await idbGet<Blob>(
+            const blob = await resolveDraftImage(
               getIdbKey(mode, socialPlatform, item._id),
+              await blobFromPreviewUrl(item.thumbnail_url),
             );
             if (!blob) {
               throw new Error(
@@ -574,10 +579,8 @@ export default function VideoSocmedForm({
               (item.type === "tiktok" || item.type === "instagram")
                 ? item.type
                 : socialPlatform;
-            // Normalisasi MIME/ekstensi (Safari IndexedDB sering kosongkan type)
-            const file = await ensureWebpFile(blob);
             const formData = new FormData();
-            formData.append("file", file);
+            formData.append("file", blob, "image.webp");
             const response = await api.post<{
               url: string;
               filename: string;
@@ -789,10 +792,10 @@ export default function VideoSocmedForm({
                   ) : (
                     <>
                       <p className="text-sm font-medium">
-                        Drag & drop gambar di sini atau klik untuk memilih
+                        {IMAGE_DROPZONE_COPY.primary}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        PNG, JPG, WEBP, HEIC — rasio {aspectLabel}
+                        {IMAGE_DROPZONE_COPY.secondary} — rasio {aspectLabel}
                       </p>
                     </>
                   )}

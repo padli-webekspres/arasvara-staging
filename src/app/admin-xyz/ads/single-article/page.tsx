@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { get as idbGet, del as idbDel } from "idb-keyval";
+import { del as idbDel } from "idb-keyval";
 import axios from "axios";
 import api from "@/lib/axios";
+import { resolveDraftImage } from "@/lib/image/draftImageStorage";
 import { S3_IMMUTABLE_CACHE_CONTROL } from "@/lib/s3/object-cache";
 import AdsSingleArticleForm, {
   type SingleArticleDraft,
@@ -66,8 +67,11 @@ function serverDocToSingleArticleDraft(
  * Upload blob ke S3 via presign → PUT → finalize, kembalikan banner metadata.
  * Alur identik dengan homepage ads page.
  */
-async function uploadBanner(itemId: string): Promise<AdsServerBanner> {
-  const blob = await idbGet<Blob>(idbBannerKey(itemId));
+async function uploadBanner(
+  itemId: string,
+  memoryBlob?: Blob,
+): Promise<AdsServerBanner> {
+  const blob = await resolveDraftImage(idbBannerKey(itemId), memoryBlob);
   if (!blob)
     throw new Error(`Blob tidak ditemukan di IDB untuk item ${itemId}`);
 
@@ -113,7 +117,7 @@ async function buildBulkItemsForPlacement(
       let banner: AdsServerBanner;
 
       if (item.banner.blob) {
-        banner = await uploadBanner(item._id);
+        banner = await uploadBanner(item._id, item.banner.blob);
         uploadedFileKeys.push(banner.filename);
       } else if (item.banner.serverData) {
         banner = item.banner.serverData;

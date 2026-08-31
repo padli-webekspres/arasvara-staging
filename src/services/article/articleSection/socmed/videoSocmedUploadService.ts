@@ -3,7 +3,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { ulid } from "ulid";
 import logger from "@/lib/logger";
 import { withImmutableCacheControl } from "@/lib/s3/object-cache";
-import { detectImageFormat } from "@/lib/image/detectImageFormat";
+import { assertDecodableImage } from "@/lib/image/detectImageFormat";
 import {
   getSharpThumbnailSize,
   getSocmedLayout,
@@ -34,14 +34,7 @@ export async function uploadVideoThumbnail(
     const arrayBuffer = await file.arrayBuffer();
     let buffer: Buffer = Buffer.from(arrayBuffer as ArrayBuffer);
 
-    const hasImageMime =
-      typeof file.type === "string" && file.type.startsWith("image/");
-    if (!hasImageMime) {
-      const detected = detectImageFormat(buffer);
-      if (detected !== "jpeg" && detected !== "png" && detected !== "webp") {
-        throw new Error("File harus berupa gambar");
-      }
-    }
+    assertDecodableImage(file.type, buffer);
 
     const layout = getSocmedLayout(platform);
     const { width, height } = getSharpThumbnailSize(layout);

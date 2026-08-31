@@ -2,8 +2,18 @@ import { ROLES } from "@/lib/auth-client";
 
 const AUTHOR_PREFIX = "/penulis";
 
-/** Role yang boleh punya halaman profil publik `/penulis/{slug}`. */
-export const PUBLIC_PROFILE_ROLES = [ROLES.WRITER, ROLES.EDITOR] as const;
+/** Role yang boleh punya halaman profil publik `/penulis/{slug}`. Semua role kecuali superadmin. */
+export const PUBLIC_PROFILE_ROLES = [
+  ROLES.WRITER,
+  ROLES.EDITOR,
+  ROLES.EDITOR_IN_CHIEF,
+  ROLES.ACCOUNT_EXECUTIVE,
+  ROLES.MANAGING_EDITOR,
+  ROLES.HEAD_OF,
+  ROLES.REPORTER,
+  ROLES.CONTRIBUTOR,
+  ROLES.SUBSCRIBER,
+] as const;
 
 /** Jumlah artikel pada muatan awal halaman penulis. */
 export const AUTHOR_PAGE_INITIAL_LIMIT = 14;

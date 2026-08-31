@@ -39,6 +39,7 @@ import {
   fetchConfigurationsServer,
   fetchHeadlineArticlesServer,
   fetchLatestArticlesServer,
+  footerNapFromConfigs,
 } from "@/lib/server/fetchServerSide";
 import {
   buildAbsoluteUrl,
@@ -142,28 +143,37 @@ export async function generateMetadata(): Promise<Metadata> {
  * Membantu Google menampilkan info Arasvara di panel pengetahuan (Knowledge Panel)
  * ketika seseorang mencari "arasvara" di Google.
  */
-const organizationSchema = {
-  "@context": "https://schema.org",
-  "@type": "NewsMediaOrganization",
-  name: "Arasvara",
-  alternateName: "Arasvara.id",
-  url: BASE_URL,
-  logo: {
-    "@type": "ImageObject",
-    url: buildAbsoluteUrl(SITE_LOGO.path, BASE_URL),
-    width: SITE_LOGO.width,
-    height: SITE_LOGO.height,
-  },
-  description:
-    "Arasvara adalah portal berita digital Indonesia yang menghadirkan informasi akurat, berimbang, dan terpercaya untuk generasi Milenial dan Gen Z.",
-  foundingDate: "2024",
-  inLanguage: "id",
-  sameAs: [
-    "https://www.instagram.com/arasvara",
-    "https://x.com/arasvara",
-    "https://www.facebook.com/arasvara",
-  ],
-};
+function buildOrganizationSchema(nap: {
+  address?: string;
+  phoneHref?: string;
+} | null) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "NewsMediaOrganization",
+    name: "Arasvara",
+    alternateName: "Arasvara.id",
+    url: BASE_URL,
+    logo: {
+      "@type": "ImageObject",
+      url: buildAbsoluteUrl(SITE_LOGO.path, BASE_URL),
+      width: SITE_LOGO.width,
+      height: SITE_LOGO.height,
+    },
+    description:
+      "Arasvara adalah portal berita digital Indonesia yang menghadirkan informasi akurat, berimbang, dan terpercaya untuk generasi Milenial dan Gen Z.",
+    foundingDate: "2024",
+    inLanguage: "id",
+    sameAs: [
+      "https://www.instagram.com/arasvara",
+      "https://x.com/arasvara",
+      "https://www.facebook.com/arasvara",
+    ],
+    ...(nap?.address ? { address: nap.address } : {}),
+    ...(nap?.phoneHref
+      ? { telephone: nap.phoneHref.replace(/^tel:/, "") }
+      : {}),
+  };
+}
 
 /**
  * Skema WebSite dengan SearchAction.
@@ -242,6 +252,9 @@ export default async function HomePage() {
     resolvedHeroPoster && heroPosterIsWebp
       ? buildSrcSet(resolvedHeroPoster)
       : undefined;
+  const organizationSchema = buildOrganizationSchema(
+    footerNapFromConfigs(configs),
+  );
 
   return (
     <>

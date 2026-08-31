@@ -23,6 +23,7 @@ import type { HomepageAdItem, HomepageAdsSectionRatio } from "@/types/ads";
 import Link from "next/link";
 import type { HomepageAdsSectionItem } from "@/components/ads/section/HomepageAdsSection";
 import FloatingSearchButton from "@/components/search/FloatingSearchButton";
+import ViewportOnce from "@/components/ui/ViewportOnce";
 
 /** Placeholder ringan untuk komponen below-fold agar layout tidak collapse saat lazy load */
 const carouselSectionFallback = (
@@ -210,7 +211,9 @@ export default function HomePageClient({
             <section className="bg-background py-16 lg:py-24 relative z-10 container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
               <div className="flex flex-col justify-center flex-1">
                 <TitleHomepage title="Berita Terpopuler" />
-                <PopularNewsCarousel />
+                <ViewportOnce fallback={carouselSectionFallback}>
+                  <PopularNewsCarousel />
+                </ViewportOnce>
               </div>
 
               {/* Advertisement Banner (tersembunyi - placeholder) */}
@@ -250,7 +253,7 @@ export default function HomePageClient({
                         >
                           <h2 className="text-2xl lg:text-3xl font-extrabold text-foreground group-hover:text-hijauSawah transition-colors duration-300 tracking-tight capitalize">
                             {topicName}
-                            <span className="text-hijauSawah font-semibold ml-1.5 transition-transform duration-300 group-hover:translate-x-1 inline-block">
+                            <span className="text-hijauSawah font-semibold ml-1.5 transition-transform duration-300 group-hover:translate-x-1 inline-block" aria-hidden="true">
                               &gt;
                             </span>
                           </h2>
@@ -295,7 +298,9 @@ export default function HomePageClient({
                     }
                     variant="dark"
                   />
-                  <SocmedCarousel />
+                  <ViewportOnce fallback={carouselSectionFallback}>
+                    <SocmedCarousel />
+                  </ViewportOnce>
                 </div>
               </section>
             )}
@@ -318,13 +323,27 @@ export default function HomePageClient({
                         size="large"
                         gaClickLocation="homepage_card"
                         gaPosition={1}
+                        headingLevel={3}
                       />
                     </div>
                   )}
 
-                  {/* Artikel Samping */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-1 gap-4">
-                    {/* Index 1: SecondaryNewsCard */}
+                  {/* Mobile: kartu 2–4 seragam SecondaryNewsCard */}
+                  <div className="grid grid-cols-1 gap-4 md:hidden">
+                    {[1, 2, 3].map((idx) =>
+                      featuredArticles[idx]?.article ? (
+                        <SecondaryNewsCard
+                          key={idx}
+                          article={featuredArticles[idx].article}
+                          gaClickLocation="homepage_card"
+                          gaPosition={idx + 1}
+                        />
+                      ) : null,
+                    )}
+                  </div>
+
+                  {/* md+: layout lama (Secondary + dua NewsCard) */}
+                  <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-1 gap-4">
                     {featuredArticles[1] && featuredArticles[1].article && (
                       <div className="col-span-1">
                         <SecondaryNewsCard
@@ -334,7 +353,6 @@ export default function HomePageClient({
                         />
                       </div>
                     )}
-                    {/* Index 2 & 3: NewsCard */}
                     <div className="col-span-1 md:col-span-2 lg:col-span-1 space-y-4">
                       {[2, 3].map((idx) =>
                         featuredArticles[idx] &&
@@ -361,16 +379,20 @@ export default function HomePageClient({
                   title={SectionSponsorTitle?.toString() || "Sponsored by"}
                   variant="light"
                 />
-                <SponsoredByCarousel className="mt-8" />
+                <ViewportOnce fallback={sponsorSectionFallback}>
+                  <SponsoredByCarousel className="mt-8" />
+                </ViewportOnce>
               </section>
             )}
 
             {/* ads horizontal */}
             <section className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 py-8">
-              <HomepageAdsSection
-                ratio={abovePhotographyRatio}
-                items={abovePhotographyAdsItems}
-              />
+              <ViewportOnce fallback={adsSectionFallback}>
+                <HomepageAdsSection
+                  ratio={abovePhotographyRatio}
+                  items={abovePhotographyAdsItems}
+                />
+              </ViewportOnce>
             </section>
 
             {/* Seksi Tentang Kami */}
@@ -434,14 +456,18 @@ export default function HomePageClient({
                   seeMoreLink="/search?type=ARTICLES&format=GALLERY"
                   variant="dark"
                 />
-                <FotografiCarousel />
+                <ViewportOnce fallback={carouselSectionFallback}>
+                  <FotografiCarousel />
+                </ViewportOnce>
               </div>
             </section>
 
             {/* Seksi Pilihan Editor */}
             <section className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8 py-16 lg:py-24">
               <TitleHomepage title="Pilihan Editor" variant="light" />
-              <EditorChoiceCarousel />
+              <ViewportOnce fallback={carouselSectionFallback}>
+                <EditorChoiceCarousel />
+              </ViewportOnce>
             </section>
 
             {/* Seksi YouTube */}
@@ -467,7 +493,9 @@ export default function HomePageClient({
                     }
                     variant="dark"
                   />
-                  <YoutubeCarousel />
+                  <ViewportOnce fallback={carouselSectionFallback}>
+                    <YoutubeCarousel />
+                  </ViewportOnce>
                 </div>
               </section>
             )}

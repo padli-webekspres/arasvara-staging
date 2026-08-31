@@ -9,10 +9,20 @@ export async function GET(req: NextRequest) {
     // 1. Verifikasi Autentikasi & Otorisasi Pengguna
     const user = await getUserFromRequest(req);
 
-    if (!user || user.role?.toLowerCase() !== ROLES.ADMIN.toLowerCase()) {
+    if (!user) {
       return NextResponse.json(
-        { error: "Forbidden: Hanya role Administrator yang dapat mengakses analitik ini" },
-        { status: 403 }
+        { error: "Unauthorized: Silakan login terlebih dahulu" },
+        { status: 401 },
+      );
+    }
+
+    if (user.role?.toLowerCase() !== ROLES.ADMIN.toLowerCase()) {
+      return NextResponse.json(
+        {
+          error:
+            "Forbidden: Hanya role Administrator yang dapat mengakses analitik ini",
+        },
+        { status: 403 },
       );
     }
 

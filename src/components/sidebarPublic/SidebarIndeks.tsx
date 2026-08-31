@@ -3,9 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { DayPicker } from "react-day-picker";
 import { format, isValid, parse } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import { BrandDayPicker } from "@/components/ui/BrandDayPicker";
 import { cn } from "@/lib/utils";
 import { useCategoryOptions } from "@/hooks/useCategory";
 
@@ -25,7 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import "react-day-picker/dist/style.css";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -153,7 +152,7 @@ export default function SidebarIndeks({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
-            <DayPicker
+            <BrandDayPicker
               mode="single"
               selected={selectedDate}
               onSelect={handleDateSelect}
@@ -195,6 +194,7 @@ export default function SidebarIndeks({
           >
             <span>Semua Kategori</span>
             <ChevronRight
+              aria-hidden="true"
               className={`h-4 w-4 shrink-0 text-muted-foreground ${activeCategory === "" ? "" : "mr-2"}`}
             />
           </Link>
@@ -230,6 +230,7 @@ export default function SidebarIndeks({
                 >
                   <span>{cat.label}</span>
                   <ChevronRight
+                    aria-hidden="true"
                     className={`h-4 w-4 shrink-0 text-muted-foreground ${isActive ? "" : "mr-2"}`}
                   />
                 </Link>

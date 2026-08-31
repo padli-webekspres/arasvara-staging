@@ -225,10 +225,10 @@ const GalleryContent = (props: GalleryContentProps) => {
           )}
         </Swiper>
         <div className="swiper-button-prev-custom swiper-button-custom">
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft aria-hidden="true" className="w-5 h-5" />
         </div>
         <div className="swiper-button-next-custom swiper-button-custom">
-          <ChevronRight className="w-5 h-5" />
+          <ChevronRight aria-hidden="true" className="w-5 h-5" />
         </div>
       </div>
 

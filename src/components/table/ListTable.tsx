@@ -92,15 +92,27 @@ export function ListTable<T extends object>({
   const bodyCell = compact ? bodyCellCompact : bodyCellDefault;
 
   return (
-    <div className={cn("overflow-x-auto", className)}>
+    <div className="relative">
+      <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent pointer-events-none z-10 md:hidden" />
+      <div className={cn("overflow-x-auto", className)}>
       <table className={cn("w-full border-collapse text-left", tableClassName)}>
         <thead>
           <tr className="border-b border-border bg-muted/50">
-            {columns.map((col, i) => (
-              <th key={i} className={cn(headerCell, col.className)}>
-                {col.header}
-              </th>
-            ))}
+            {columns.map((col, i) => {
+              const isSticky = col.className?.includes('sticky');
+              return (
+                <th 
+                  key={i} 
+                  className={cn(
+                    headerCell, 
+                    col.className,
+                    isSticky && 'z-30'
+                  )}
+                >
+                  {col.header}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -125,21 +137,32 @@ export function ListTable<T extends object>({
                 key={rowKey ? rowKey(row, idx) : idx}
                 className="border-b border-border hover:bg-muted/30"
               >
-                {columns.map((col, colIdx) => (
-                  <td key={colIdx} className={cn(bodyCell, col.className)}>
-                    {col.render
-                      ? col.render(row, idx)
-                      : typeof col.key === "string"
-                        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          (row as any)[col.key]
-                        : row[col.key as keyof T]}
-                  </td>
-                ))}
+                {columns.map((col, colIdx) => {
+                  const isSticky = col.className?.includes('sticky');
+                  return (
+                    <td 
+                      key={colIdx} 
+                      className={cn(
+                        bodyCell, 
+                        col.className,
+                        isSticky && 'z-20'
+                      )}
+                    >
+                      {col.render
+                        ? col.render(row, idx)
+                        : typeof col.key === "string"
+                          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            (row as any)[col.key]
+                          : row[col.key as keyof T]}
+                    </td>
+                  );
+                })}
               </tr>
             ))
           )}
         </tbody>
       </table>
+    </div>
     </div>
   );
 }

@@ -49,9 +49,10 @@ import { fetcher } from "@/lib/fetcher";
 import { DateTime } from "luxon";
 import { EditorActivity } from "@/types/analytics/editorActivity";
 import { Button } from "@/components/ui/button";
-import { DayPicker, type DateRange } from "react-day-picker";
+import { type DateRange } from "react-day-picker";
 import { endOfDay, format, isValid, parse, startOfDay } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import { BrandDayPicker } from "@/components/ui/BrandDayPicker";
 import { ADMIN_PAGINATION_WRAP } from "@/lib/admin-ui";
 import { EDITORIAL_ENTITIES } from "@/types/auditLog";
 import { formatDateTimeReadableJakarta } from "@/lib/datetime-jakarta";
@@ -465,7 +466,7 @@ export default function EditorActivityPage() {
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
-          <DayPicker
+          <BrandDayPicker
             mode="range"
             selected={dateRange}
             onSelect={onDateRangeSelect}

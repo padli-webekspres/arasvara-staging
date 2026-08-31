@@ -7,7 +7,10 @@ import {
   AdsPosition,
   type AdsCardProps,
 } from "@/types/ads";
-import { getVideoAdAspectClass } from "@/lib/socmed-video-layout";
+import {
+  adsPositionToSocmedLayout,
+  getVideoAdAspectClass,
+} from "@/lib/socmed-video-layout";
 
 export { ADS_CARD_DEFAULT_BANNER, AdsCardVariant, AdsCardSpan };
 export type { AdsCardProps } from "@/types/ads";
@@ -32,6 +35,27 @@ function aspectClass(
     return getVideoAdAspectClass(position, span);
   }
   return span === 2 ? "aspect-8/5" : "aspect-4/5";
+}
+
+function aspectDims(
+  variant: AdsCardVariant,
+  span: 1 | 2,
+  position?: AdsPosition,
+): { width: number; height: number } {
+  if (variant === AdsCardVariant.FEATURED) {
+    return { width: 16, height: 9 };
+  }
+  if (variant === AdsCardVariant.NEWS) {
+    return span === 2 ? { width: 2, height: 1 } : { width: 1, height: 1 };
+  }
+  if (variant === AdsCardVariant.VIDEO && position) {
+    const layout = adsPositionToSocmedLayout(position);
+    if (layout === "portrait") {
+      return span === 2 ? { width: 9, height: 8 } : { width: 9, height: 16 };
+    }
+    return span === 2 ? { width: 32, height: 9 } : { width: 16, height: 9 };
+  }
+  return span === 2 ? { width: 8, height: 5 } : { width: 4, height: 5 };
 }
 
 function variantShellClass(
@@ -99,6 +123,7 @@ export function AdsCard({
       <ResponsiveMediaImage
         src={bannerUrl}
         alt={alt === "Iklan" ? "" : alt}
+        {...aspectDims(variant, safeSpan, position)}
         sizes={
           variant === AdsCardVariant.FEATURED
             ? "(max-width: 768px) 90vw, (max-width: 1024px) 75vw, 60vw"

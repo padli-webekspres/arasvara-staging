@@ -19,6 +19,9 @@ export interface CropImageExportOptions {
   maxSizeMB?: number;
 }
 
+export const CROP_OUTPUT_TOO_LARGE =
+  "File hasil crop masih terlalu besar. Coba area crop lebih kecil atau gunakan gambar lain.";
+
 /**
  * Konversi koordinat pixel yang diterima dari react-image-crop (relatif terhadap
  * ukuran tampilan <img> di DOM) menjadi koordinat pixel pada gambar asli (natural size).
@@ -37,8 +40,25 @@ export function toNaturalPixelCrop(
   };
 }
 
+async function sourceBlobMime(src: string): Promise<string> {
+  try {
+    const res = await fetch(src);
+    const blob = await res.blob();
+    return blob.type || "";
+  } catch {
+    return "";
+  }
+}
+
+function cropExportMime(sourceMime: string, supportWebp: boolean): string {
+  if (supportWebp) return "image/webp";
+  const mime = sourceMime.toLowerCase();
+  if (mime.includes("png") || mime.includes("webp")) return "image/png";
+  return "image/jpeg";
+}
+
 /**
- * Render area crop ke canvas dan ekspor sebagai WebP Blob.
+ * Render area crop ke canvas dan ekspor sebagai WebP/PNG/JPEG Blob.
  * `pixelCrop` harus sudah dalam koordinat natural (full-resolution) gambar.
  * Mencoba beberapa kombinasi skala/kualitas hingga file berada di bawah `maxSizeMB`.
  */
@@ -87,9 +107,9 @@ export async function getCroppedImg(
 
         const maxSizeBytes = maxSizeMB * 1024 * 1024;
         const supportWebp = checkWebpSupport();
-        const exportMime = supportWebp ? "image/webp" : "image/jpeg";
+        const sourceMime = await sourceBlobMime(imageSrc);
+        const exportMime = cropExportMime(sourceMime, supportWebp);
 
-        // Hybrid scaling & quality configuration list
         const attempts = [
           { scale: 1.0, quality: webpQuality || 0.85 },
           { scale: 1.0, quality: 0.8 },
@@ -97,6 +117,8 @@ export async function getCroppedImg(
           { scale: 0.85, quality: 0.75 },
           { scale: 0.7, quality: 0.75 },
           { scale: 0.6, quality: 0.7 },
+          { scale: 0.5, quality: 0.6 },
+          { scale: 0.4, quality: 0.5 },
         ];
 
         let finalBlob: Blob | null = null;
@@ -134,10 +156,12 @@ export async function getCroppedImg(
           }
         }
 
-        if (finalBlob) {
-          resolve(finalBlob);
-        } else {
+        if (!finalBlob) {
           reject(new Error("Failed to create blob"));
+        } else if (finalBlob.size > maxSizeBytes) {
+          reject(new Error(CROP_OUTPUT_TOO_LARGE));
+        } else {
+          resolve(finalBlob);
         }
       } catch (err) {
         reject(err);

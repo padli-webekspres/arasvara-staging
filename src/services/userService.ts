@@ -16,6 +16,7 @@ import logger from "@/lib/logger";
 import { createAuditLog, requireAuditActor } from "@/services/auditLogService";
 import { AuditLogAction } from "@/types/auditLog";
 import { withImmutableCacheControl } from "@/lib/s3/object-cache";
+import { assertDecodableImage } from "@/lib/image/detectImageFormat";
 import {
 	buildActiveUserFilter,
 	isUserPubliclyVisible,
@@ -26,6 +27,17 @@ import {
 	assertUniqueUserName,
 	resolveUniqueUserSlug,
 } from "@/lib/user-validation.server";
+import {
+	normalizeJobTitle,
+	parseCoverageAreas,
+} from "@/lib/user-profile-fields";
+import { ArticleStatus } from "@/types/article";
+import {
+	listingContextFromArticleDoc,
+	revalidateArticlePage,
+	revalidateAuthorIdentityListings,
+	revalidateAuthorPublicPage,
+} from "@/lib/cache/revalidate-article-page";
 const S3_BUCKET_AVATAR = process.env.S3_BUCKET_AVATAR || "arasvara-avatar";
 
 async function syncArticleAuthorDenorm(
@@ -40,6 +52,70 @@ async function syncArticleAuthorDenorm(
 		$set["author.slug"] = payload.slug;
 	}
 	await db.collection("articles").updateMany({ authorId }, { $set });
+}
+
+function safeRevalidateAuthorPublicPage(
+	slug?: string | null,
+	previousSlug?: string | null,
+): void {
+	try {
+		revalidateAuthorPublicPage(slug, previousSlug);
+	} catch (err) {
+		logger.warn({ err, slug, previousSlug }, "revalidateAuthorPublicPage gagal");
+	}
+}
+
+async function flushAuthorPublishedArticles(
+	db: Db,
+	authorId: ObjectId,
+): Promise<void> {
+	try {
+		const docs = await db
+			.collection("articles")
+			.find(
+				{
+					authorId,
+					status: ArticleStatus.PUBLISHED,
+					publicPath: { $exists: true, $nin: [null, ""] },
+				},
+				{ projection: { publicPath: 1, category: 1, author: 1 } },
+			)
+			.toArray();
+
+		for (const doc of docs) {
+			const publicPath =
+				typeof doc.publicPath === "string" ? doc.publicPath.trim() : "";
+			if (!publicPath) continue;
+			try {
+				revalidateArticlePage(
+					publicPath,
+					undefined,
+					listingContextFromArticleDoc(doc),
+				);
+			} catch (err) {
+				logger.warn(
+					{ err, publicPath },
+					"revalidateArticlePage gagal setelah edit penulis",
+				);
+			}
+		}
+	} catch (err) {
+		logger.warn({ err, authorId: authorId.toString() }, "flushAuthorPublishedArticles gagal");
+	}
+}
+
+function safeRevalidateAuthorIdentityListings(
+	slug?: string | null,
+	previousSlug?: string | null,
+): void {
+	try {
+		revalidateAuthorIdentityListings(slug, previousSlug);
+	} catch (err) {
+		logger.warn(
+			{ err, slug, previousSlug },
+			"revalidateAuthorIdentityListings gagal",
+		);
+	}
 }
 
 async function assignUserIdentityFields(
@@ -143,6 +219,8 @@ function userDocAuditSnapshot(doc: Record<string, unknown>) {
 		slug: doc.slug,
 		nameNormalized: doc.nameNormalized,
 		bio: doc.bio,
+		jobTitle: doc.jobTitle,
+		coverageAreas: doc.coverageAreas,
 		isActive: doc.isActive,
 		teamId: teamIdStr,
 		hasAvatar: !!(doc.avatar && typeof doc.avatar === "object"),
@@ -153,13 +231,18 @@ function userDocAuditSnapshot(doc: Record<string, unknown>) {
 export async function uploadAvatar(
 	file: File,
 ): Promise<Omit<AvatarUser, "_id">> {
-	if (!file || !file.type?.startsWith("image/")) {
+	if (!file) {
 		throw new Error("Only image files are allowed for avatar");
 	}
 	try {
 		const sharp = (await import("sharp")).default;
 		const arrayBuffer = await file.arrayBuffer();
 		let buffer: Buffer = Buffer.from(arrayBuffer as ArrayBuffer);
+		assertDecodableImage(
+			file.type,
+			buffer,
+			"Only image files are allowed for avatar",
+		);
 		buffer = await sharp(buffer)
 			.resize(800, 800, { fit: "cover" })
 			.webp({ quality: 85 })
@@ -230,6 +313,8 @@ export async function createUser(
 		}
 
 		const now = new Date().toISOString();
+		const jobTitle = normalizeJobTitle(payload.jobTitle);
+		const coverageAreas = parseCoverageAreas(payload.coverageAreas);
 		const userDoc: Omit<User, "_id"> = {
 			email: payload.email,
 			password: hashedPassword,
@@ -244,6 +329,8 @@ export async function createUser(
 			updatedAt: now,
 			deletedAt: null,
 		};
+		if (jobTitle) userDoc.jobTitle = jobTitle;
+		if (coverageAreas.length > 0) userDoc.coverageAreas = coverageAreas;
 
 		if (payload.teamId && ObjectId.isValid(payload.teamId)) {
 			(userDoc as Record<string, unknown>).teamId = new ObjectId(
@@ -280,6 +367,9 @@ export async function createUser(
 		}
 
 		logger.info({ entityId }, "createUser selesai");
+		if (identity.slug && isPublicProfileRole(response.role)) {
+			safeRevalidateAuthorPublicPage(identity.slug);
+		}
 		return response;
 	} catch (err) {
 		logger.error({ err, email: payload.email }, "createUser gagal");
@@ -357,6 +447,9 @@ export async function softDeleteUser(
 		}
 
 		logger.info({ entityId }, "softDeleteUser selesai");
+		if (user.slug) {
+			safeRevalidateAuthorPublicPage(String(user.slug));
+		}
 		return true;
 	} catch (err) {
 		logger.error({ err, idOrEmail }, "softDeleteUser gagal");
@@ -401,6 +494,19 @@ function mapDocToUser(doc: Record<string, unknown>): User {
 			doc.bio != null && String(doc.bio).trim() !== ""
 				? String(doc.bio)
 				: undefined,
+		jobTitle: normalizeJobTitle(
+			doc.jobTitle != null ? String(doc.jobTitle) : undefined,
+		),
+		coverageAreas: (() => {
+			const parsed = parseCoverageAreas(
+				Array.isArray(doc.coverageAreas)
+					? (doc.coverageAreas as string[])
+					: typeof doc.coverageAreas === "string"
+						? doc.coverageAreas
+						: undefined,
+			);
+			return parsed.length > 0 ? parsed : undefined;
+		})(),
 		isActive: doc.isActive !== undefined ? Boolean(doc.isActive) : undefined,
 		createdAt:
 			doc.createdAt instanceof Date
@@ -656,6 +762,8 @@ export async function editUser(
 		name?: string;
 		role?: string;
 		bio?: string;
+		jobTitle?: string;
+		coverageAreas?: string | string[];
 		isActive?: boolean;
 		avatar?: File | null;
 		teamId?: string;
@@ -736,17 +844,42 @@ export async function editUser(
 		if (payload.avatar !== undefined) updateFields.avatar = avatarObj;
 
 		const updateQuery: Record<string, unknown> = { $set: { ...updateFields } };
+		const unset: Record<string, string> = {};
+
+		if (payload.jobTitle !== undefined) {
+			const nextTitle = normalizeJobTitle(payload.jobTitle);
+			if (nextTitle) {
+				(updateQuery.$set as Record<string, unknown>).jobTitle = nextTitle;
+			} else {
+				unset.jobTitle = "";
+				delete (updateQuery.$set as Record<string, unknown>).jobTitle;
+			}
+		}
+		if (payload.coverageAreas !== undefined) {
+			const nextAreas = parseCoverageAreas(payload.coverageAreas);
+			if (nextAreas.length > 0) {
+				(updateQuery.$set as Record<string, unknown>).coverageAreas =
+					nextAreas;
+			} else {
+				unset.coverageAreas = "";
+				delete (updateQuery.$set as Record<string, unknown>).coverageAreas;
+			}
+		}
+
 		if (payload.teamId !== undefined) {
 			if (payload.teamId && ObjectId.isValid(payload.teamId)) {
 				(updateQuery.$set as Record<string, unknown>).teamId = new ObjectId(
 					payload.teamId,
 				);
-				if (updateQuery.$unset) delete updateQuery.$unset;
 			} else {
-				updateQuery.$unset = { teamId: "" };
+				unset.teamId = "";
 				if ((updateQuery.$set as Record<string, unknown>).teamId)
 					delete (updateQuery.$set as Record<string, unknown>).teamId;
 			}
+		}
+
+		if (Object.keys(unset).length > 0) {
+			updateQuery.$unset = unset;
 		}
 
 		await db.collection("users").updateOne({ _id: user._id }, updateQuery);
@@ -757,11 +890,13 @@ export async function editUser(
 		const mapped = mapDocToUser(updated);
 
 		const oldSlug = user.slug ? String(user.slug) : undefined;
+		const avatarChanged = payload.avatar != null;
 		const identityChanged =
 			nameChanged ||
 			needsIdentityBackfill ||
 			mapped.name !== existingName ||
 			mapped.slug !== oldSlug;
+		const flushIdentityPages = identityChanged || avatarChanged;
 
 		if (identityChanged && mapped.slug) {
 			await syncArticleAuthorDenorm(db, user._id as ObjectId, {
@@ -785,6 +920,12 @@ export async function editUser(
 				{ err: auditErr, entityId },
 				"createAuditLog gagal setelah editUser",
 			);
+		}
+
+		safeRevalidateAuthorPublicPage(mapped.slug, oldSlug);
+		if (flushIdentityPages) {
+			safeRevalidateAuthorIdentityListings(mapped.slug, oldSlug);
+			await flushAuthorPublishedArticles(db, user._id as ObjectId);
 		}
 
 		logger.info({ entityId }, "editUser selesai");

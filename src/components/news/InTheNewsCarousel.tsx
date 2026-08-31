@@ -194,20 +194,20 @@ const InTheNewsCarousel = ({ articles }: InTheNewsCarouselProps) => {
       </div>
       {/* Arrow Navigation */}
       <button
-        className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white text-gray-800 rounded-full p-2 shadow transition disabled:opacity-40"
+        className="swiper-button-custom swiper-button-prev-custom disabled:opacity-40"
         onClick={() => emblaApi && emblaApi.scrollPrev()}
         disabled={!canScrollPrev}
         aria-label="Previous"
       >
-        <ChevronLeft className="h-6 w-6" />
+        <ChevronLeft className="h-5 w-5" />
       </button>
       <button
-        className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white text-gray-800 rounded-full p-2 shadow transition disabled:opacity-40"
+        className="swiper-button-custom swiper-button-next-custom disabled:opacity-40"
         onClick={() => emblaApi && emblaApi.scrollNext()}
         disabled={!canScrollNext}
         aria-label="Next"
       >
-        <ChevronRight className="h-6 w-6" />
+        <ChevronRight className="h-5 w-5" />
       </button>
 
       {/* scrollbar */}

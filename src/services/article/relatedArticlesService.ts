@@ -1,7 +1,11 @@
 import { Db, ObjectId } from "mongodb";
-import { ArticleListResponse } from "@/types/article";
+import { ArticleListResponse, ArticleStatus } from "@/types/article";
 import logger from "@/lib/logger";
 import { SectionArticleItem } from "@/types/articleSection";
+import {
+  listingContextFromArticleDoc,
+  revalidateArticlePage,
+} from "@/lib/cache/revalidate-article-page";
 
 /**
  * Payload untuk update related articles
@@ -316,6 +320,27 @@ export async function updateRelatedArticles(
 
     // Fetch dan return dengan populated data
     const updatedArticles = await getRelatedArticles(db, articleId.toString());
+
+    const publicPath =
+      updatedDoc?.publicPath != null ? String(updatedDoc.publicPath).trim() : "";
+    const status = updatedDoc?.status != null ? String(updatedDoc.status) : "";
+    if (
+      publicPath &&
+      (status === ArticleStatus.PUBLISHED || status === ArticleStatus.SCHEDULED)
+    ) {
+      try {
+        revalidateArticlePage(
+          publicPath,
+          undefined,
+          listingContextFromArticleDoc(updatedDoc),
+        );
+      } catch (revalidateErr) {
+        logger.warn(
+          { err: revalidateErr, articleId: articleId.toString() },
+          "revalidateArticlePage gagal setelah update related articles",
+        );
+      }
+    }
 
     return {
       articleId: articleId.toString(),

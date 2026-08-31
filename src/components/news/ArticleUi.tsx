@@ -542,7 +542,7 @@ const ArticleUi = ({
           {/* Tags */}
           {article.tags && article.tags.length > 0 && (
             <div className="mt-8 pt-8 border-t border-border">
-              <h3 className="text-sm font-semibold mb-3">Tags:</h3>
+              <p className="text-sm font-semibold mb-3">Tags:</p>
               <div className="flex flex-wrap gap-2">
                 {isPreview
                   ? article.tags.map((tag) => (

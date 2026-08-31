@@ -5,13 +5,21 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useDropzone } from "react-dropzone";
-import { get as idbGet, set as idbSet, del as idbDel } from "idb-keyval";
+import { get as idbGet, del as idbDel } from "idb-keyval";
+import { setDraftImage } from "@/lib/image/draftImageStorage";
 import { ROLES } from "@/lib/constants";
 import { toast } from "sonner";
 import api from "@/lib/axios";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { Team } from "@/types/team";
 import FormUserDialogUi from "./FormUserDialogUi";
+import { JOB_TITLE_MAX } from "@/lib/user-profile-fields";
+import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
+import {
+  IMAGE_DROPZONE_ACCEPT,
+  isProbablyImageFile,
+} from "@/lib/image/isProbablyImageFile";
+import { IMAGE_UPLOAD_TIMEOUT_MS } from "@/lib/image/uploadTimeout";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DRAFT_KEY = "draftCreateUser";
@@ -24,6 +32,8 @@ const schema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
   role: z.string().min(1, "Please select a role"),
   bio: z.string().optional(),
+  jobTitle: z.string().max(JOB_TITLE_MAX).optional(),
+  coverageAreas: z.string().optional(),
   teamId: z.string().optional(),
   isActive: z.boolean(),
 });
@@ -65,6 +75,8 @@ export default function CreateUserDialog({
       password: "",
       role: "subscriber",
       bio: "",
+      jobTitle: "",
+      coverageAreas: "",
       teamId: "",
       isActive: true,
     },
@@ -134,15 +146,32 @@ export default function CreateUserDialog({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dropzone ──────────────────────────────────────────────────────────────
-  const onDrop = useCallback((files: File[]) => {
-    if (!files.length) return;
-    setRawImageSrc(URL.createObjectURL(files[0]));
-    setCropOpen(true);
-  }, []);
+  const onDrop = useCallback(
+    async (files: File[]) => {
+      if (!files.length) return;
+      const file = files[0];
+      if (!isProbablyImageFile(file)) {
+        toast.error("Hanya file gambar yang diizinkan");
+        return;
+      }
+      try {
+        const objectUrl = await prepareImageForCrop(file);
+        if (rawImageSrc) URL.revokeObjectURL(rawImageSrc);
+        setRawImageSrc(objectUrl);
+        setCropOpen(true);
+      } catch {
+        toast.error(
+          "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
+        );
+      }
+    },
+    [rawImageSrc],
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "image/*": [] },
+    accept: IMAGE_DROPZONE_ACCEPT,
+    useFsAccessApi: false,
     maxFiles: 1,
     multiple: false,
   });
@@ -156,7 +185,7 @@ export default function CreateUserDialog({
       setRawImageSrc(null);
       setAvatarBlob(blob);
       setAvatarPreview(URL.createObjectURL(blob));
-      await idbSet(IDB_AVATAR_KEY, blob);
+      await setDraftImage(IDB_AVATAR_KEY, blob);
     },
     [avatarPreview, rawImageSrc],
   );
@@ -195,8 +224,8 @@ export default function CreateUserDialog({
       if (avatarBlob) formData.append("avatar", avatarBlob, "avatar.webp");
 
       const response = await api.post("/users", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
         validateStatus: (status: number) => status < 500, // handle 4xx as resolved
+        timeout: IMAGE_UPLOAD_TIMEOUT_MS,
       });
 
       if (response.status >= 400) {
@@ -247,6 +276,8 @@ export default function CreateUserDialog({
         password: values.password,
         role: values.role,
         bio: values.bio,
+        jobTitle: values.jobTitle,
+        coverageAreas: values.coverageAreas,
         teamId: values.teamId,
         isActive: values.isActive,
       }}

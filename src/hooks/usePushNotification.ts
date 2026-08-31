@@ -13,9 +13,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getToken, onMessage } from "firebase/messaging";
 import type { AxiosError } from "axios";
-import { getFirebaseMessaging, getFirebaseMessagingError } from "@/lib/firebase";
 import { resolveFirebaseVapidKey } from "@/lib/firebase-client-config";
 import { getPushEnvironmentIssue } from "@/lib/firebase-host";
 import api from "@/lib/axios";
@@ -116,6 +114,11 @@ function formatFcmError(err: unknown): string {
 async function requestFcmToken(
   registration: ServiceWorkerRegistration,
 ): Promise<string> {
+  const { getFirebaseMessaging, getFirebaseMessagingError } = await import(
+    "@/lib/firebase"
+  );
+  const { getToken } = await import("firebase/messaging");
+
   const messaging = getFirebaseMessaging();
   if (!messaging) {
     throw new Error(
@@ -245,25 +248,39 @@ export function usePushNotification(): UsePushNotificationReturn {
     // Hanya lakukan inisialisasi jika browser terbukti mendukung Firebase Messaging
     if (typeof window === "undefined" || !isSupportedBrowser) return;
 
-    const messaging = getFirebaseMessaging();
-    if (!messaging) return;
+    let cancelled = false;
+    let unsubscribeForeground: (() => void) | undefined;
 
-    const unsubscribe = onMessage(messaging, (payload) => {
-      // Ketika tab aktif, browser tidak otomatis menampilkan notifikasi OS.
-      // Tampilkan via Notification API secara manual jika izin sudah granted.
-      if (Notification.permission !== "granted") return;
+    void (async () => {
+      try {
+        const { getFirebaseMessaging } = await import("@/lib/firebase");
+        const { onMessage } = await import("firebase/messaging");
+        if (cancelled) return;
 
-      const title = payload.notification?.title ?? "Notifikasi Arasvara";
-      const body = payload.notification?.body ?? "";
+        const messaging = getFirebaseMessaging();
+        if (!messaging) return;
 
-      new Notification(title, {
-        body,
-        icon: "/logo-arasvara/monogram/contained-monogram-hitam-gema.png",
-      });
-    });
+        unsubscribeForeground = onMessage(messaging, (payload) => {
+          if (Notification.permission !== "granted") return;
 
-    unsubscribeFnRef.current = unsubscribe;
-    return () => unsubscribe();
+          const title = payload.notification?.title ?? "Notifikasi Arasvara";
+          const body = payload.notification?.body ?? "";
+
+          new Notification(title, {
+            body,
+            icon: "/logo-arasvara/monogram/contained-monogram-hitam-gema.png",
+          });
+        });
+        unsubscribeFnRef.current = unsubscribeForeground;
+      } catch {
+        // ponytail: FCM foreground opsional; gagal import = tidak listen.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      unsubscribeForeground?.();
+    };
   }, [isSupportedBrowser]);
 
   // ─── Subscribe ────────────────────────────────────────────────────────────

@@ -211,3 +211,52 @@ const LEGACY_SLUG_SUFFIX = /-[a-f0-9]{8}$/;
 export function hasLegacySlugSuffix(slug: string): boolean {
   return LEGACY_SLUG_SUFFIX.test(slug);
 }
+
+/**
+ * Validasi format-specific requirements untuk artikel (client & server).
+ */
+export function validateArticleForPublish(article: {
+  format: "STANDARD" | "GALLERY";
+  galleryItems?: unknown[];
+  content?: string;
+  featuredImage?: unknown;
+}): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  if (article.format === "GALLERY") {
+    if (!Array.isArray(article.galleryItems) || article.galleryItems.length === 0) {
+      errors.push("Gallery article harus memiliki minimal 1 gambar");
+    }
+  }
+  
+  // Standard content validation intentionally lenient (content bisa kosong untuk draft)
+  
+  return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Validasi artikel sebelum approval/publish (server-side enforcement).
+ */
+export function validateArticleForApproval(article: {
+  format?: "STANDARD" | "GALLERY";
+  galleryItems?: unknown[];
+  featuredImage?: unknown;
+  status?: string;
+}): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  const format = article.format || "STANDARD";
+  
+  if (format === "GALLERY") {
+    if (!Array.isArray(article.galleryItems) || article.galleryItems.length === 0) {
+      errors.push("Gallery article harus memiliki minimal 1 gambar sebelum dipublikasikan");
+    }
+  }
+  
+  // Featured image check (optional based on business rule — currently not enforced in create)
+  // Uncomment jika mau enforce:
+  // if (!article.featuredImage) {
+  //   errors.push("Featured image wajib ada sebelum dipublikasikan");
+  // }
+  
+  return { valid: errors.length === 0, errors };
+}

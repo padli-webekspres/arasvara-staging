@@ -3,7 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useDropzone } from "react-dropzone";
-import { get as idbGet, set as idbSet, del as idbDel } from "idb-keyval";
+import { get as idbGet, del as idbDel } from "idb-keyval";
+import { setDraftImage } from "@/lib/image/draftImageStorage";
 import { toast } from "sonner";
 import api from "@/lib/axios";
 import { getApiErrorMessage } from "@/lib/api-error";
@@ -11,7 +12,14 @@ import FormUserDialogUi from "./FormUserDialogUi";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 // import { ROLES } from "@/lib/constants";
 import { Team } from "@/types/team";
-import type { User } from "@/types/user";
+import { User } from "@/types/user";
+import { formatCoverageAreas, JOB_TITLE_MAX } from "@/lib/user-profile-fields";
+import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
+import {
+  IMAGE_DROPZONE_ACCEPT,
+  isProbablyImageFile,
+} from "@/lib/image/isProbablyImageFile";
+import { IMAGE_UPLOAD_TIMEOUT_MS } from "@/lib/image/uploadTimeout";
 
 const DRAFT_KEY = "draftEditUser";
 const IDB_AVATAR_KEY = "draftEditUserAvatar";
@@ -22,6 +30,8 @@ const schema = z.object({
   password: z.string().optional(),
   teamId: z.string().optional(),
   bio: z.string().optional(),
+  jobTitle: z.string().max(JOB_TITLE_MAX).optional(),
+  coverageAreas: z.string().optional(),
   isActive: z.boolean(),
 });
 type FormValues = z.infer<typeof schema>;
@@ -62,6 +72,8 @@ export default function EditUserDialog({
       password: "",
       teamId: (user.team?._id ? String(user.team._id) : ""),
       bio: user.bio || "",
+      jobTitle: user.jobTitle || "",
+      coverageAreas: formatCoverageAreas(user.coverageAreas),
       isActive: user.isActive ?? true,
     },
   });
@@ -122,15 +134,32 @@ export default function EditUserDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onDrop = useCallback((files: File[]) => {
-    if (!files.length) return;
-    setRawImageSrc(URL.createObjectURL(files[0]));
-    setCropOpen(true);
-  }, []);
+  const onDrop = useCallback(
+    async (files: File[]) => {
+      if (!files.length) return;
+      const file = files[0];
+      if (!isProbablyImageFile(file)) {
+        toast.error("Hanya file gambar yang diizinkan");
+        return;
+      }
+      try {
+        const objectUrl = await prepareImageForCrop(file);
+        if (rawImageSrc) URL.revokeObjectURL(rawImageSrc);
+        setRawImageSrc(objectUrl);
+        setCropOpen(true);
+      } catch {
+        toast.error(
+          "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
+        );
+      }
+    },
+    [rawImageSrc],
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "image/*": [] },
+    accept: IMAGE_DROPZONE_ACCEPT,
+    useFsAccessApi: false,
     maxFiles: 1,
     multiple: false,
   });
@@ -143,7 +172,7 @@ export default function EditUserDialog({
       setRawImageSrc(null);
       setAvatarBlob(blob);
       setAvatarPreview(URL.createObjectURL(blob));
-      await idbSet(IDB_AVATAR_KEY + user._id, blob);
+      await setDraftImage(IDB_AVATAR_KEY + user._id, blob);
     },
     [avatarPreview, rawImageSrc, user._id],
   );
@@ -188,8 +217,8 @@ export default function EditUserDialog({
       if (avatarBlob) formData.append("avatar", avatarBlob, "avatar.webp");
 
       const response = await api.patch(`/users/${user._id}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
         validateStatus: (status: number) => status < 500,
+        timeout: IMAGE_UPLOAD_TIMEOUT_MS,
       });
 
       if (response.status >= 400) {
@@ -241,6 +270,8 @@ export default function EditUserDialog({
         password: values.password,
         teamId: values.teamId,
         bio: values.bio,
+        jobTitle: values.jobTitle,
+        coverageAreas: values.coverageAreas,
         isActive: values.isActive,
         // Provide role for type compatibility, but not used in edit UI
         role: user.role || "subscriber",

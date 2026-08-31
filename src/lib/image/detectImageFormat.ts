@@ -54,6 +54,23 @@ export function isValidWebpBuffer(buffer: Buffer | Uint8Array): boolean {
   return detectImageFormat(buffer) === "webp";
 }
 
+/**
+ * MIME `image/*` diterima. MIME kosong (Safari/IDB) lolos jika magic bytes jpeg/png/webp.
+ */
+export function assertDecodableImage(
+  mimeType: string | undefined,
+  buffer: Buffer | Uint8Array,
+  message = "File harus berupa gambar",
+): void {
+  const hasImageMime =
+    typeof mimeType === "string" && mimeType.startsWith("image/");
+  if (hasImageMime) return;
+  const detected = detectImageFormat(buffer);
+  if (detected !== "jpeg" && detected !== "png" && detected !== "webp") {
+    throw new Error(message);
+  }
+}
+
 let isWebpSupported: boolean | null = null;
 
 /**

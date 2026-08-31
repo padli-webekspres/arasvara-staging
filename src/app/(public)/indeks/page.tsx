@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { connectToDatabase } from "@/lib/db/db";
+import { buildAbsoluteUrl, getSiteBaseUrl } from "@/lib/og-image";
 import { getIndeksArticles } from "@/services/indeksService";
 import NewsIndeksClient from "./NewsIndeksClient";
 
@@ -23,6 +24,8 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
   const searchParams = await props.searchParams;
   const category = searchParams.category || "";
   const date = searchParams.date || "";
+  const pageParam = parseInt(searchParams.page || "1", 10);
+  const page = isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
 
   let title = "Indeks Berita Terbaru";
   let desc = "Temukan seluruh arsip indeks berita terpercaya, aktual, dan terlengkap dari Arasvara. Urutkan berdasarkan kategori, rubrik, dan tanggal publikasi.";
@@ -46,9 +49,14 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
   // Bangun Canonical URL secara eksplisit
   const canonicalQuery = [
     category ? `category=${category}` : "",
-    date ? `date=${date}` : ""
+    date ? `date=${date}` : "",
+    page > 1 ? `page=${page}` : "",
   ].filter(Boolean).join("&");
-  const canonicalUrl = `/indeks${canonicalQuery ? `?${canonicalQuery}` : ""}`;
+  const baseUrl = getSiteBaseUrl();
+  const canonicalUrl = buildAbsoluteUrl(
+    `/indeks${canonicalQuery ? `?${canonicalQuery}` : ""}`,
+    baseUrl
+  );
 
   return {
     title: title,

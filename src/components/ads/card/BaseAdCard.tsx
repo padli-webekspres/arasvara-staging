@@ -58,6 +58,8 @@ export default function BaseAdCard({
         <ResponsiveMediaImage
           src={resolvedSrc}
           alt={imageAlt}
+          width={width}
+          height={height}
           draggable={false}
           className={cn(
             "absolute inset-0 h-full w-full object-cover",
@@ -81,6 +83,8 @@ export default function BaseAdCard({
       <ResponsiveMediaImage
         src={resolvedSrc}
         alt={imageAlt}
+        width={width}
+        height={height}
         draggable={false}
         className={cn(
           "absolute inset-0 h-full w-full object-cover",

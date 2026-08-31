@@ -16,7 +16,8 @@ const LogoLoader: React.FC<LogoLoaderProps> = () => {
           <Image
             src="/logo-arasvara/main-logo/main-logo-hitam-gema-w640.webp"
             alt=""
-            fill
+            width={640}
+            height={160}
             unoptimized
             className="object-contain object-left"
           />
@@ -27,7 +28,8 @@ const LogoLoader: React.FC<LogoLoaderProps> = () => {
             <Image
               src="/logo-arasvara/main-logo/main-logo-hitam-gema-w640.webp"
               alt="Arasvara Logo Loading"
-              fill
+              width={640}
+              height={160}
               unoptimized
               className="object-contain object-left"
             />

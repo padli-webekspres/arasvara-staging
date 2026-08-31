@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import {
   getCroppedImg,
   toNaturalPixelCrop,
+  CROP_OUTPUT_TOO_LARGE,
   type CropImageExportOptions,
 } from "@/lib/image/getCroppedImg";
 
@@ -48,7 +49,9 @@ function cropModalChrome(aspect: number, layout?: "portrait" | "landscape") {
   const isLandscape = layout === "landscape" || (layout == null && aspect >= 1);
   return {
     dialogClass: isLandscape ? "max-w-2xl gap-4" : "max-w-sm gap-4",
-    viewportHeight: isLandscape ? 280 : 480,
+    viewportHeight: isLandscape
+      ? "min(280px, 40dvh)"
+      : "min(480px, 55dvh)",
   };
 }
 
@@ -56,7 +59,7 @@ export default function CropImageModal({
   open,
   imageSrc,
   aspect = 4 / 5,
-  title = "Crop Image",
+  title = "Potong gambar",
   onCrop,
   onCancel,
   outputWidth,
@@ -162,10 +165,12 @@ export default function CropImageModal({
         outputHeight,
         webpQuality,
       });
-    } catch {
-      toast.error(
-        "Gagal memproses gambar hasil crop. Coba lagi atau gunakan gambar lain.",
-      );
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message === CROP_OUTPUT_TOO_LARGE
+          ? CROP_OUTPUT_TOO_LARGE
+          : "Gagal memproses gambar hasil crop. Coba lagi atau gunakan gambar lain.";
+      toast.error(message);
       setLoading(false);
       return;
     }
@@ -235,13 +240,13 @@ export default function CropImageModal({
 
         <DialogFooter>
           <Button variant="outline" onClick={onCancel} disabled={loading}>
-            Cancel
+            Batal
           </Button>
           <Button
             onClick={handleCrop}
             disabled={loading || !completedCrop || loadError || !imageReady}
           >
-            {loading ? "Processing..." : "Use This Image"}
+            {loading ? "Memproses..." : "Pakai gambar ini"}
           </Button>
         </DialogFooter>
       </DialogContent>

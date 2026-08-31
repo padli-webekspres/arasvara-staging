@@ -10,12 +10,12 @@ import { Menu, Search } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import DoubleLineBorder from "../ui/DoubleLineBorder";
-import { Drawer, DrawerTrigger } from "@/components/ui/drawer";
-import DrawerNavbar from "./DrawerNavbar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MAX_NAVBAR_CATEGORIES } from "@/components/categories/navbarOrderPayload";
 import { adminPanelHref } from "@/lib/admin-panel-path";
 import { ROLES } from "@/lib/auth-client";
+import NavbarMenuFallback from "./NavbarMenuFallback";
+import type { ComponentType } from "react";
 
 /** Bagi kategori navbar: kiri dapat slot ekstra jika jumlah ganjil. */
 function splitNavbarCategories(categories: Category[]): {
@@ -108,11 +108,29 @@ const mobileMastheadLinkClassName =
 const dashboardLinkClassName =
   "text-sm font-medium capitalize tracking-wider hover:text-hijauSawah transition-colors";
 
-const NavbarContainer = () => {
+type NavbarDrawerBundleProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  pathname: string;
+  searchValue: string;
+  onChangeInput: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onKeyDownInput: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+};
+
+const NavbarContainer = ({
+  hasAuthSession = true,
+}: {
+  hasAuthSession?: boolean;
+}) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [drawerFailed, setDrawerFailed] = useState(false);
+  const [DrawerBundle, setDrawerBundle] = useState<ComponentType<
+    NavbarDrawerBundleProps
+  > | null>(null);
+  const drawerLoadRef = useRef<Promise<void> | null>(null);
   const headerRef = useRef<HTMLElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const pathname = usePathname();
@@ -155,7 +173,37 @@ const NavbarContainer = () => {
     }
   };
 
-  const { data: user } = useCurrentUser();
+  const loadDrawerBundle = (attempt = 0): Promise<void> => {
+    if (drawerLoadRef.current) return drawerLoadRef.current;
+    drawerLoadRef.current = import("./NavbarDrawerBundle")
+      .then((mod) => {
+        setDrawerBundle(() => mod.default);
+        setDrawerFailed(false);
+      })
+      .catch(() => {
+        drawerLoadRef.current = null;
+        if (attempt < 1) return loadDrawerBundle(1);
+        setDrawerFailed(true);
+      });
+    return drawerLoadRef.current;
+  };
+
+  const openMenu = () => {
+    setIsDrawerOpen(true);
+    void loadDrawerBundle();
+  };
+
+  const menuButtonProps = {
+    onMouseEnter: () => {
+      void loadDrawerBundle();
+    },
+    onFocus: () => {
+      void loadDrawerBundle();
+    },
+    onClick: openMenu,
+  };
+
+  const { data: user } = useCurrentUser({ enabled: hasAuthSession });
   const { data: categories, isPending: isCategoriesPending } =
     useCategoriesNavbar();
 
@@ -259,17 +307,12 @@ const NavbarContainer = () => {
 
   return (
     <>
-      <Drawer
-        direction="top"
-        open={isDrawerOpen}
-        onOpenChange={setIsDrawerOpen}
+      <header
+        ref={headerRef}
+        className={`fixed top-0 left-0 right-0 z-99 pb-4 pt-3 sm:pb-5 sm:pt-4 bg-background/85 backdrop-blur-md transition-all duration-300 ease-in-out ${
+          isScrolled ? "shadow-sm border-b border-foreground/10" : ""
+        } ${isVisible ? "translate-y-0" : "-translate-y-full"}`}
       >
-        <header
-          ref={headerRef}
-          className={`fixed top-0 left-0 right-0 z-99 pb-4 pt-3 sm:pb-5 sm:pt-4 bg-background/85 backdrop-blur-md transition-all duration-300 ease-in-out ${
-            isScrolled ? "shadow-sm border-b border-foreground/10" : ""
-          } ${isVisible ? "translate-y-0" : "-translate-y-full"}`}
-        >
           {/* Desktop top bar: navigasi halaman + cari + menu */}
           <div className="container mx-auto px-4 md:px-6 lg:px-8">
             <div
@@ -328,17 +371,17 @@ const NavbarContainer = () => {
                 >
                   <Search className="h-5 w-5" aria-hidden />
                 </Button>
-                <DrawerTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    type="button"
-                    className="h-11 w-11 sm:h-10 sm:w-10 hover:bg-foreground/5 touch-manipulation"
-                    aria-label="Buka menu"
-                  >
-                    <Menu className="h-5 w-5" aria-hidden />
-                  </Button>
-                </DrawerTrigger>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  type="button"
+                  className="h-11 w-11 sm:h-10 sm:w-10 hover:bg-foreground/5 touch-manipulation"
+                  aria-label="Buka menu"
+                  aria-expanded={isDrawerOpen}
+                  {...menuButtonProps}
+                >
+                  <Menu className="h-5 w-5" aria-hidden />
+                </Button>
               </div>
             </div>
 
@@ -382,20 +425,20 @@ const NavbarContainer = () => {
                     width={220}
                     height={35}
                     unoptimized
-                    className="w-auto h-9 sm:h-10 object-contain"
+                    className="w-auto h-7 object-contain"
                   />
                 </Link>
-                <DrawerTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    type="button"
-                    className="h-11 w-11 hover:bg-foreground/5 touch-manipulation"
-                    aria-label="Buka menu"
-                  >
-                    <Menu className="h-5 w-5" aria-hidden />
-                  </Button>
-                </DrawerTrigger>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  type="button"
+                  className="h-11 w-11 hover:bg-foreground/5 touch-manipulation"
+                  aria-label="Buka menu"
+                  aria-expanded={isDrawerOpen}
+                  {...menuButtonProps}
+                >
+                  <Menu className="h-5 w-5" aria-hidden />
+                </Button>
               </div>
 
               {/* <div className="w-full max-w-full space-y-2">
@@ -509,13 +552,18 @@ const NavbarContainer = () => {
           </div>
         </header>
 
-        <DrawerNavbar
+      {DrawerBundle ? (
+        <DrawerBundle
+          open={isDrawerOpen}
+          onOpenChange={setIsDrawerOpen}
           pathname={pathname}
           searchValue={searchValue}
           onChangeInput={(e) => setSearchValue(e.target.value)}
           onKeyDownInput={handleSearchKeyDown}
         />
-      </Drawer>
+      ) : isDrawerOpen && drawerFailed ? (
+        <NavbarMenuFallback onClose={() => setIsDrawerOpen(false)} />
+      ) : null}
     </>
   );
 };

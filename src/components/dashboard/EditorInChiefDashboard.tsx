@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { useBoostedArticles, useIndexingQuota } from "@/hooks/useIndexingDashboard";
 import {
   TrendingUp,
   Eye,
@@ -16,6 +17,7 @@ import {
   Music,
   ShieldAlert,
   RefreshCw,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,6 +53,111 @@ ChartJS.register(
   Tooltip,
   Legend
 );
+
+// Quota widget component for Chief dashboard
+function BoostedArticlesQuotaChief() {
+  const { quota, loading } = useIndexingQuota();
+
+  if (loading) {
+    return (
+      <div className="text-right shrink-0">
+        <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">
+          Kuota Harian
+        </p>
+        <p className="text-sm font-extrabold text-foreground">
+          <span className="text-muted-foreground">...</span>
+        </p>
+      </div>
+    );
+  }
+
+  const used = quota?.used || 0;
+  const limit = quota?.limit || 200;
+  const percentage = quota?.percentage || 0;
+  const isWarning = percentage >= 80;
+
+  return (
+    <div className="text-right shrink-0">
+      <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">
+        Kuota Harian
+      </p>
+      <p className="text-sm font-extrabold text-foreground">
+        <span className={isWarning ? "text-amber-600" : "text-hijauSawah"}>{used}</span>
+        <span className="text-muted-foreground text-xs font-medium"> / {limit}</span>
+      </p>
+    </div>
+  );
+}
+
+// Boosted articles list component for Chief dashboard
+function BoostedArticlesListChief() {
+  const { articles, loading } = useBoostedArticles(3);
+
+  if (loading) {
+    return (
+      <div className="divide-y divide-border">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="p-3 animate-pulse">
+            <div className="space-y-1.5">
+              <div className="h-3 bg-muted rounded w-3/4"></div>
+              <div className="h-2 bg-muted rounded w-1/2"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (articles.length === 0) {
+    return (
+      <div className="p-6 text-center text-sm text-muted-foreground">
+        Belum ada artikel yang di-boost hari ini.
+      </div>
+    );
+  }
+
+  const formatRelativeTime = (date: Date) => {
+    const now = new Date();
+    const diffMs = now.getTime() - new Date(date).getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffHours < 1) return "Baru saja";
+    if (diffHours < 24) return `${diffHours} jam lalu`;
+    if (diffDays === 1) return "1 hari lalu";
+    return `${diffDays} hari lalu`;
+  };
+
+  return (
+    <div className="divide-y divide-border">
+      {articles.map((item) => (
+        <div key={item.id} className="p-3 hover:bg-muted/15 transition-all">
+          <div className="space-y-1.5">
+            <h4 className="font-bold text-foreground text-xs leading-snug line-clamp-2">
+              {item.title}
+            </h4>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <span className="font-medium text-foreground/75 truncate">{item.author}</span>
+                <span>•</span>
+                <span>{formatRelativeTime(item.boostedAt)}</span>
+              </div>
+              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${
+                item.status === "success"
+                  ? "bg-hijauSawah/10 text-hijauSawah border border-hijauSawah/20"
+                  : "bg-red-500/10 text-red-600 border border-red-500/20"
+              }`}>
+                <Zap className="h-2.5 w-2.5" />
+                {item.status === "success" ? "Boosted" : "Failed"}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 
 export default function EditorInChiefDashboard() {
   const { data: statsResponse, isLoading, error, refetch } = useChiefDashboard();
@@ -441,43 +548,41 @@ export default function EditorInChiefDashboard() {
         </Card>
       </div>
 
-      {/* Row 2: Real-time Popular Stories & Doughnut Traffic Share */}
+      {/* Row 2: Real-time Trending Stories, Artikel Boost, Traffic Share */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Widget 1: Real-time Trending & Popular Articles */}
-        <Card className="lg:col-span-2 border border-border flex flex-col h-full">
+        {/* Section 1: Real-time Trending Stories */}
+        <Card className="border border-border flex flex-col h-full">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
               <CardTitle className="text-base font-bold flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-terakota" />
-                Real-time Trending Stories
+                Real-time Trending
               </CardTitle>
               <CardDescription className="text-xs">
-                Naskah terbit dengan lonjakan pageviews tertinggi 24 jam terakhir.
+                Lonjakan pageviews tertinggi 24 jam.
               </CardDescription>
             </div>
           </CardHeader>
           <CardContent className="flex-1 p-0">
             <div className="divide-y divide-border">
-              {stats.trendingArticles.map((article, idx) => (
-                <div key={article.id} className="p-4 hover:bg-muted/15 transition-all flex items-center gap-4">
-                  <span className="text-2xl font-black text-muted-foreground/30 w-8 shrink-0 text-center">
+              {stats.trendingArticles.slice(0, 3).map((article, idx) => (
+                <div key={article.id} className="p-3 hover:bg-muted/15 transition-all flex items-center gap-3">
+                  <span className="text-xl font-black text-muted-foreground/30 w-6 shrink-0 text-center">
                     {idx + 1}
                   </span>
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <h4 className="font-bold text-foreground text-sm leading-snug line-clamp-1 hover:text-terakota transition-colors cursor-pointer">
+                  <div className="flex-1 min-w-0 space-y-0.5">
+                    <h4 className="font-bold text-foreground text-xs leading-snug line-clamp-1 hover:text-terakota transition-colors cursor-pointer">
                       {article.title}
                     </h4>
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                      <span className="font-medium text-foreground/75">{article.author}</span>
-                      <span>•</span>
-                      <span>{article.category}</span>
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span className="font-medium text-foreground/75 truncate">{article.author}</span>
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-extrabold text-foreground text-sm">
+                    <p className="font-extrabold text-foreground text-xs">
                       {article.views.toLocaleString()}
                     </p>
-                    <span className="text-[10px] text-hijauSawah font-bold">{article.trendingRate}</span>
+                    <span className="text-[9px] text-hijauSawah font-bold">{article.trendingRate}</span>
                   </div>
                 </div>
               ))}
@@ -485,35 +590,54 @@ export default function EditorInChiefDashboard() {
           </CardContent>
         </Card>
 
-        {/* Widget 2: Monthly Channel Traffic Share (Doughnut) */}
+        {/* Section 2: Artikel yang Di-Boost */}
+        <Card className="border border-border">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-500" />
+                Artikel yang Di-Boost
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Artikel dengan Google Indexing boost aktif.
+              </CardDescription>
+            </div>
+            <BoostedArticlesQuotaChief />
+          </CardHeader>
+          <CardContent className="p-0">
+            <BoostedArticlesListChief />
+          </CardContent>
+        </Card>
+
+        {/* Section 3: Monthly Channel Traffic Share (Doughnut) */}
         <Card className="border border-border flex flex-col h-full">
           <CardHeader>
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <PieChart className="h-4 w-4 text-foreground" />
-              Monthly Channel Traffic Share
+              Channel Traffic Share
             </CardTitle>
             <CardDescription className="text-xs">
-              Distribusi perolehan pageviews bulanan berdasarkan rubrikasi kanal berita.
+              Distribusi pageviews bulanan per kanal.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col justify-center space-y-6">
+          <CardContent className="flex-1 flex flex-col justify-center space-y-4">
             {/* Doughnut Chart Canvas wrapper */}
-            <div className="min-w-0 h-[160px] sm:h-[180px] w-full relative">
+            <div className="min-w-0 h-[120px] w-full relative">
               <Doughnut data={doughnutData} options={doughnutOptions} />
             </div>
 
             {/* Custom legends list below the chart */}
-            <div className="grid grid-cols-1 gap-3 pt-2 text-xs">
-              {stats.channels.map((chan) => (
-                <div key={chan.name} className="flex items-center justify-between p-2 rounded bg-muted/20 border border-border/10">
-                  <div className="flex items-center gap-2 min-w-0">
+            <div className="grid grid-cols-1 gap-2 text-xs">
+              {stats.channels.slice(0, 4).map((chan) => (
+                <div key={chan.name} className="flex items-center justify-between p-1.5 rounded bg-muted/20 border border-border/10">
+                  <div className="flex items-center gap-1.5 min-w-0">
                     <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      className="w-2 h-2 rounded-full shrink-0"
                       style={{ backgroundColor: chan.color }}
                     />
-                    <span className="font-medium text-foreground/80 truncate">{chan.name}</span>
+                    <span className="font-medium text-foreground/80 truncate text-[10px]">{chan.name}</span>
                   </div>
-                  <span className="font-bold text-foreground text-right shrink-0 ml-2">
+                  <span className="font-bold text-foreground text-right shrink-0 ml-2 text-[10px]">
                     {chan.share}%
                   </span>
                 </div>

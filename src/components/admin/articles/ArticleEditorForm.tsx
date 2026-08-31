@@ -1,5 +1,7 @@
 "use client";
 
+import type { AxiosError } from "axios";
+
 import { getMediaPreviewUrl } from "@/lib/utils";
 import { parseDatetimeLocalAsWib } from "@/lib/datetime-jakarta";
 import {
@@ -58,15 +60,16 @@ import { buildTempMediaViewUrl } from "@/lib/media/tempMedia";
 import { autosaveArticle, getArticleDraftStorageKey, persistArticleDraftSync, readArticleDraftRaw, removeArticleDraft } from "@/lib/autosave";
 import type { DraftGalleryItem } from "@/types/article";
 import CropImageModal from "@/components/media/CropImageModal";
+import {
+  IMAGE_PROCESS_TEMP_TIMEOUT_MS,
+  IMAGE_UPLOAD_TIMEOUT_MS,
+} from "@/lib/image/uploadTimeout";
 
 /** Dimensi dan kualitas crop untuk gambar unggulan (tetap). */
 const FEATURED_IMAGE_WIDTH = 1280;
 const FEATURED_IMAGE_HEIGHT = 800;
 const FEATURED_IMAGE_ASPECT = FEATURED_IMAGE_WIDTH / FEATURED_IMAGE_HEIGHT;
 const FEATURED_WEBP_QUALITY = 0.82;
-
-/** Timeout khusus presign / PUT S3 / finalize (jaringan seluler iPhone). */
-const PENDING_MEDIA_UPLOAD_TIMEOUT_MS = 60_000;
 
 /**
  * Data media yang menunggu crop di ArticleEditorForm.
@@ -139,6 +142,7 @@ interface FormState {
   /** Kosong = tidak ada editor. */
   editorId: string;
   contributorIds: string[];
+  boostIndexing?: boolean;
 }
 
 // ─── Helper: satu media temp → promote ke folder final ───────────────────────
@@ -175,7 +179,7 @@ async function promoteOneTempMedia(
           credit: meta.credit,
           watermark: meta.watermark ?? false,
         },
-        { timeout: PENDING_MEDIA_UPLOAD_TIMEOUT_MS },
+        { timeout: IMAGE_UPLOAD_TIMEOUT_MS },
       );
       const { media } = res.data;
 
@@ -254,6 +258,8 @@ export default function ArticleEditorForm({
 
   const [activeParamArticle] = useState<string | null>(paramArticle ?? null);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [initialContent, setInitialContent] = useState<string | null>(
@@ -286,6 +292,7 @@ export default function ArticleEditorForm({
     authorId: initialData?.authorId ?? "",
     editorId: initialData?.editorId ?? "",
     contributorIds: initialData?.contributorIds ?? [],
+    boostIndexing: initialData?.boostIndexing ?? false,
   });
 
   const formDataRef = useRef(formData);
@@ -481,7 +488,7 @@ export default function ArticleEditorForm({
       const res = await api.post<TempMediaUploadResult>(
         "/media/process-temp",
         formData,
-        { timeout: 120_000 },
+        { timeout: IMAGE_PROCESS_TEMP_TIMEOUT_MS },
       );
       const { tempMediaId, tempUrl, filename, size } = res.data;
 
@@ -593,6 +600,64 @@ export default function ArticleEditorForm({
       TiptapLink.configure({
         openOnClick: false,
         HTMLAttributes: { class: "text-hijauSawah underline" },
+        validate: (url) => {
+          // Allow all URLs, but customize rel attribute based on domain
+          return true;
+        },
+      }).extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            rel: {
+              default: null,
+              parseHTML: (element) => element.getAttribute('rel'),
+              renderHTML: (attributes) => {
+                const href = attributes.href;
+                if (!href) return {};
+                
+                try {
+                  const url = new URL(href, 'https://arasvara.id');
+                  const isInternal = url.hostname.toLowerCase() === 'arasvara.id';
+                  
+                  if (isInternal) {
+                    // Internal link: no nofollow
+                    return {};
+                  } else {
+                    // External link: add nofollow
+                    return { rel: 'noopener noreferrer nofollow' };
+                  }
+                } catch {
+                  // Invalid URL: treat as external
+                  return { rel: 'noopener noreferrer nofollow' };
+                }
+              },
+            },
+            target: {
+              default: null,
+              parseHTML: (element) => element.getAttribute('target'),
+              renderHTML: (attributes) => {
+                const href = attributes.href;
+                if (!href) return {};
+                
+                try {
+                  const url = new URL(href, 'https://arasvara.id');
+                  const isInternal = url.hostname.toLowerCase() === 'arasvara.id';
+                  
+                  if (isInternal) {
+                    // Internal link: same tab
+                    return {};
+                  } else {
+                    // External link: new tab
+                    return { target: '_blank' };
+                  }
+                } catch {
+                  // Invalid URL: new tab
+                  return { target: '_blank' };
+                }
+              },
+            },
+          };
+        },
       }),
       Youtube.configure({
         width: 640,
@@ -945,7 +1010,8 @@ export default function ArticleEditorForm({
       isEditing ||
       !isDraftHydrated ||
       suppressDraftPersistRef.current ||
-      isPublishing
+      isPublishing ||
+      isUploading
     ) {
       return;
     }
@@ -966,6 +1032,7 @@ export default function ArticleEditorForm({
     isEditing,
     isDraftHydrated,
     isPublishing,
+    isUploading,
     buildDraftPersistInput,
     setLastSaved,
     setAutoSaving,
@@ -1049,6 +1116,18 @@ export default function ArticleEditorForm({
        *  Digunakan oleh extractContentMediaFromEditor untuk menyusun contentMedia. */
       contentMediaMap: Map<string, { mediaId: string; url: string; filename: string }>;
     }> => {
+      setIsUploading(true);
+      
+      // Calculate total uploads for progress tracking
+      const totalUploads = 
+        (pendingFeaturedMedia ? 1 : 0) +
+        editorImageKeys.length +
+        galleryItems.filter(item => item.isPending).length;
+      
+      setUploadProgress({ current: 0, total: totalUploads });
+      let currentUpload = 0;
+      
+      try {
       const uploadedFileKeys: string[] = [];
       let resolvedFeaturedImageId: string | null = null;
       let resolvedFeaturedImageUrl: string | null = null;
@@ -1070,6 +1149,8 @@ export default function ArticleEditorForm({
         uploadedFileKeys.push(result.fileKey);
         resolvedFeaturedImageId = result.mediaId;
         resolvedFeaturedImageUrl = result.url;
+        currentUpload++;
+        setUploadProgress({ current: currentUpload, total: totalUploads });
       } else {
         const existingFeatured = resolveExistingFeaturedImageForSubmit(
           formData.featuredImage,
@@ -1126,6 +1207,9 @@ export default function ArticleEditorForm({
             url: result.url,
             filename: result.filename,
           });
+          
+          currentUpload++;
+          setUploadProgress({ current: currentUpload, total: totalUploads });
         } catch (err) {
           throw Object.assign(
             new Error(
@@ -1157,6 +1241,9 @@ export default function ArticleEditorForm({
             tempMediaId: undefined,
             isPending: undefined,
           };
+          
+          currentUpload++;
+          setUploadProgress({ current: currentUpload, total: totalUploads });
         } catch (err) {
           throw Object.assign(
             new Error(
@@ -1175,6 +1262,10 @@ export default function ArticleEditorForm({
         uploadedFileKeys,
         contentMediaMap,
       };
+      } finally {
+        setIsUploading(false);
+        setUploadProgress(null);
+      }
     },
     [
       pendingFeaturedMedia,
@@ -1192,6 +1283,7 @@ export default function ArticleEditorForm({
       const titleTrimmed = String(fdStart.title ?? "").trim();
       const categoryHex = normalizeCategoryIdForSubmit(fdStart.categoryId);
 
+
       if (!titleTrimmed) {
         toast.error("Judul wajib diisi");
         return;
@@ -1200,6 +1292,7 @@ export default function ArticleEditorForm({
         toast.error("Channel wajib dipilih");
         return;
       }
+
 
       if (!isEditing) {
         draftPersistGenerationRef.current += 1;
@@ -1224,6 +1317,16 @@ export default function ArticleEditorForm({
         if (wibDate) {
           finalScheduledAt = wibDate.toISOString();
           finalStatus = ArticleStatus.SCHEDULED;
+        }
+      }
+
+
+      // C1: Gallery validation (client-side) - prevent submit jika PUBLISHED/SCHEDULED tapi gallery kosong
+      if (format === "GALLERY" && galleryItems.length === 0) {
+        if (finalStatus === ArticleStatus.PUBLISHED || finalStatus === ArticleStatus.SCHEDULED) {
+          setIsPublishing(false);
+          toast.error("Gallery article memerlukan minimal 1 gambar sebelum dipublikasikan.");
+          return;
         }
       }
 
@@ -1271,15 +1374,37 @@ export default function ArticleEditorForm({
 
         // ── Susun payload ──────────────────────────────────────────────────
 
-        // Featured image sebagai objek ArticleMedia penuh
-        const featuredImagePayload = resolvedFeaturedImageId
-          ? {
-              mediaId: resolvedFeaturedImageId,
-              url: resolvedFeaturedImageUrl ?? "",
+        // Featured image payload: kirim full object selalu (baik upload baru atau edit attribution)
+        let featuredImagePayload: unknown = null;
+
+        if (resolvedFeaturedImageId) {
+          // Upload baru
+          featuredImagePayload = {
+            mediaId: resolvedFeaturedImageId,
+            url: resolvedFeaturedImageUrl ?? "",
+            caption: (fd.featuredImageAttribution?.caption ?? "").trim(),
+            credit: (fd.featuredImageAttribution?.credit ?? "").trim(),
+          };
+        } else if (isEditing) {
+          // Edit mode: resolve existing featured image
+          const existingFeatured = fd.featuredImage;
+          if (existingFeatured && typeof existingFeatured === "object" && "filename" in existingFeatured) {
+            // featuredImage adalah Media object
+            const media = existingFeatured as Media;
+            featuredImagePayload = {
+              mediaId: media._id,
               caption: (fd.featuredImageAttribution?.caption ?? "").trim(),
               credit: (fd.featuredImageAttribution?.credit ?? "").trim(),
-            }
-          : null;
+            };
+          } else if (typeof existingFeatured === "string" && existingFeatured.trim()) {
+            // featuredImage adalah mediaId string (backward compat)
+            featuredImagePayload = {
+              mediaId: existingFeatured.trim(),
+              caption: (fd.featuredImageAttribution?.caption ?? "").trim(),
+              credit: (fd.featuredImageAttribution?.credit ?? "").trim(),
+            };
+          }
+        }
 
         const userRemovedFeaturedImage =
           !pendingFeaturedMedia &&
@@ -1312,11 +1437,12 @@ export default function ArticleEditorForm({
               : {}),
           status: finalStatus,
           scheduledAt: finalScheduledAt,
-          format,
+          ...(isEditing ? {} : { format }), // C2: format immutable, strip saat edit
           relatedArticles: relatedArticles.map((item, index) => ({
             article_id: item.article_id ?? (item.article ? item.article._id : item._id),
             order: index,
           })),
+          boostIndexing: fd.boostIndexing ?? false,
         };
 
         if (format === "STANDARD") {
@@ -1369,11 +1495,18 @@ export default function ArticleEditorForm({
           router.replace(adminPanelHref("articles"));
         }, 1500);
       } catch (error: unknown) {
-        // Rollback: hapus file yang sudah terupload di object storage
+        // H5: Media cleanup rollback - fire-and-forget with error log
         if (uploadedFileKeys.length > 0) {
-          api
-            .post("/media/cleanup", { fileKeys: uploadedFileKeys })
-            .catch(() => {});
+          Promise.resolve().then(() =>
+            api
+              .post("/media/cleanup", { fileKeys: uploadedFileKeys })
+              .catch((cleanupErr) => {
+                console.error("Media cleanup failed:", cleanupErr, {
+                  fileKeys: uploadedFileKeys,
+                  error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+                });
+              })
+          );
         }
 
         // Ambil uploadedFileKeys dari error jika ada (dari uploadAllPendingMedia)
@@ -1383,11 +1516,25 @@ export default function ArticleEditorForm({
         if (errKeys && errKeys.length > 0 && uploadedFileKeys.length === 0) {
           api
             .post("/media/cleanup", { fileKeys: errKeys })
-            .catch(() => {});
+            .catch((cleanupErr) => {
+              console.error("Media cleanup failed (from upload error):", cleanupErr);
+            });
         }
 
         console.error("Error submitting article:", error);
-        toast.error(getApiErrorMessage(error, "Gagal menyimpan artikel"));
+        
+        // Handle 409 conflict (duplicate slug/title)
+        const axiosError = error as AxiosError;
+        console.log("Status:", axiosError?.response?.status);
+        console.log("Response data:", axiosError?.response?.data);
+        
+        if (axiosError?.response?.status === 409) {
+          const errorMsg = getApiErrorMessage(error, "Judul artikel sudah digunakan. Gunakan judul lain.");
+          console.log("409 error message:", errorMsg);
+          toast.error(errorMsg);
+        } else {
+          toast.error(getApiErrorMessage(error, "Gagal menyimpan artikel"));
+        }
       } finally {
         setIsPublishing(false);
       }
@@ -1772,6 +1919,7 @@ export default function ArticleEditorForm({
         showWriterStatusHints={Boolean(writerActions)}
         secondarySubmitLabel={secondarySubmitLabel}
         isPublishing={isPublishing}
+        uploadProgress={uploadProgress}
         formData={formData}
         setFormData={setFormData}
         handlePickerSelect={handlePickerSelect}

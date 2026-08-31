@@ -271,7 +271,7 @@ function getPublishDayOfWeek(publishedAt: Date | null | undefined): string {
  * Kirim page_view manual — dipakai GaRouteTracker untuk SPA navigation & initial load.
  *
  * Jika `window.gtag` belum siap saat dipanggil (misal karena penundaan script browser),
- * fungsi ini akan melakukan retry secara otomatis hingga 5 detik sampai `window.gtag`
+ * fungsi ini akan melakukan retry secara otomatis hingga 8 detik sampai `window.gtag`
  * terdefinisi sebelum mengirimkan event `page_view`.
  */
 export function trackPageView(opts: {
@@ -293,15 +293,14 @@ export function trackPageView(opts: {
     return false;
   };
 
-  // Coba kirim segera jika gtag sudah siap
   if (send()) return;
 
-  // Jika gtag belum siap, lakukan retry berkala hingga maks 5 detik
   let elapsed = 0;
   const intervalMs = 150;
+  const maxWaitMs = 8000;
   const timer = window.setInterval(() => {
     elapsed += intervalMs;
-    if (send() || elapsed >= 5000) {
+    if (send() || elapsed >= maxWaitMs) {
       window.clearInterval(timer);
     }
   }, intervalMs);

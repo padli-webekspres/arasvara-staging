@@ -16,6 +16,7 @@ import {
   AUTHOR_PAGE_INITIAL_LIMIT,
   AUTHOR_PAGE_LOAD_MORE_LIMIT,
 } from "@/lib/author-public-path";
+import { authorProfileSubtitle } from "@/lib/user-profile-fields";
 
 
 function buildAuthorArticlesSearchUrl(
@@ -46,6 +47,8 @@ interface AuthorClientProps {
   authorName: string;
   authorBio: string;
   authorAvatar?: User["avatar"];
+  jobTitle?: string;
+  coverageAreas?: string[];
   initialArticleCount?: number;
 }
 
@@ -55,6 +58,8 @@ export default function AuthorClient({
   authorName,
   authorBio,
   authorAvatar,
+  jobTitle,
+  coverageAreas,
   initialArticleCount,
 }: AuthorClientProps) {
 
@@ -105,6 +110,8 @@ export default function AuthorClient({
     articles.length > 0 ||
     (initialArticleCount !== undefined && initialArticleCount > 0);
 
+  const subtitle = authorProfileSubtitle(jobTitle, coverageAreas);
+
   return (
     <main className="pt-48 pb-8">
       <div className="container mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
@@ -115,9 +122,36 @@ export default function AuthorClient({
             className="mx-auto mb-4 md:mb-8 size-24"
             fallbackClassName="text-3xl"
           />
-          <h1 className="font-sans uppercase text-4xl md:text-5xl font-bold mb-4 animate-fade-in">
+          <h1 className={`font-sans uppercase text-4xl md:text-5xl font-bold animate-fade-in ${subtitle ? "mb-3" : "mb-4"}`}>
             {authorName}
           </h1>
+          {subtitle ? (
+            <p className="text-muted-foreground text-sm md:text-base mb-4 px-2">
+              {subtitle.jobTitle}
+              {subtitle.jobTitle && subtitle.coverageAreas.length > 0 ? (
+                <>
+                  {" "}
+                  <span
+                    aria-hidden="true"
+                    className="text-muted-foreground/50"
+                  >
+                    |
+                  </span>{" "}
+                </>
+              ) : null}
+              {subtitle.coverageAreas.map((area, index) => (
+                <span key={`${area}-${index}`}>
+                  {index > 0 ? (
+                    <>
+                      {" "}
+                      <span aria-hidden="true">·</span>{" "}
+                    </>
+                  ) : null}
+                  {area}
+                </span>
+              ))}
+            </p>
+          ) : null}
           <p className="text-muted-foreground max-w-2xl mx-auto text-base md:text-lg leading-relaxed px-2">
             {authorBio}
           </p>

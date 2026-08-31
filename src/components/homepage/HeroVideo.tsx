@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, type ReactNode, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { ResponsiveMediaImage } from "@/components/ui/ResponsiveMediaImage";
 
@@ -25,10 +25,11 @@ const HeroVideo = ({
 }: HeroVideoProps) => {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
-  const [videoPreload, setVideoPreload] = useState<"metadata" | "auto">(
-    "metadata",
+  const [videoPreload, setVideoPreload] = useState<"metadata" | "auto" | "none">(
+    "none",
   );
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const hasVideo = Boolean(videoUrl?.trim());
 
   useEffect(() => {
@@ -43,19 +44,33 @@ const HeroVideo = ({
     if (typeof window === "undefined" || !hasVideo) return;
 
     const mediaQuery = window.matchMedia("(min-width: 768px)");
-    const apply = () => {
-      const desktop = mediaQuery.matches;
-      setVideoPreload(desktop ? "auto" : "metadata");
-      if (desktop) {
-        setShouldLoadVideo(true);
-      }
-    };
+    const isDesktop = mediaQuery.matches;
 
-    apply();
-    mediaQuery.addEventListener("change", apply);
+    // Desktop: lazy load via IntersectionObserver (load when in/near viewport)
+    if (isDesktop && containerRef.current) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting || entry.intersectionRatio > 0) {
+              setVideoPreload("auto");
+              setShouldLoadVideo(true);
+              observer.disconnect();
+            }
+          });
+        },
+        {
+          rootMargin: "200px", // Start loading 200px before entering viewport
+          threshold: 0,
+        },
+      );
 
-    // Mobile: hanya setelah interaksi nyata (bukan idle timeout).
-    // Skip Save-Data / koneksi lambat agar tidak menghabiskan kuota.
+      observer.observe(containerRef.current);
+
+      return () => observer.disconnect();
+    }
+
+    // Mobile: load only after user interaction (scroll/touch)
+    // Skip Save-Data / slow connection to save quota
     const enableMobileVideo = () => {
       if (mediaQuery.matches) return;
       const connection = (
@@ -70,10 +85,11 @@ const HeroVideo = ({
       ) {
         return;
       }
+      setVideoPreload("metadata");
       setShouldLoadVideo(true);
     };
 
-    if (!mediaQuery.matches) {
+    if (!isDesktop) {
       let cleaned = false;
       const cleanupInteraction = () => {
         if (cleaned) return;
@@ -96,18 +112,16 @@ const HeroVideo = ({
       window.addEventListener("pointerdown", onPointer, { passive: true });
 
       return () => {
-        mediaQuery.removeEventListener("change", apply);
         cleanupInteraction();
       };
     }
 
-    return () => {
-      mediaQuery.removeEventListener("change", apply);
-    };
+    return undefined;
   }, [hasVideo]);
 
   return (
     <div
+      ref={containerRef}
       className={cn(
         "relative h-screen w-full overflow-hidden bg-black",
         className,

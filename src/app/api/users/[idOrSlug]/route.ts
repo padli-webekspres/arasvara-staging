@@ -8,6 +8,7 @@ import {
 } from "@/services/userService";
 import { getUserFromRequest } from "@/lib/auth";
 import { mapUserWriteError } from "@/lib/map-user-write-error";
+import { parseCoverageAreas } from "@/lib/user-profile-fields";
 
 export async function GET(
 	req: NextRequest,
@@ -123,6 +124,12 @@ export async function PATCH(
 		const role = (formData.get("role")?.toString() ||
 			"subscriber") as keyof typeof ROLES;
 		const bio = formData.get("bio")?.toString() || undefined;
+		const jobTitle = formData.has("jobTitle")
+			? (formData.get("jobTitle")?.toString() ?? "")
+			: undefined;
+		const coverageAreas = formData.has("coverageAreas")
+			? parseCoverageAreas(formData.get("coverageAreas")?.toString() ?? "")
+			: undefined;
 		// Ambil teamId (bisa kosong string untuk hapus tim)
 		const teamIdRaw = formData.get("teamId");
 		const teamId =
@@ -164,6 +171,8 @@ export async function PATCH(
 			!name &&
 			!role &&
 			!bio &&
+			jobTitle === undefined &&
+			coverageAreas === undefined &&
 			isActive === undefined &&
 			!avatarFile &&
 			teamId === undefined
@@ -182,6 +191,8 @@ export async function PATCH(
 				name,
 				role,
 				bio,
+				...(jobTitle !== undefined ? { jobTitle } : {}),
+				...(coverageAreas !== undefined ? { coverageAreas } : {}),
 				...(isActive !== undefined ? { isActive } : {}),
 				avatar: avatarFile,
 				teamId,

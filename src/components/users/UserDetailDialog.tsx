@@ -24,6 +24,7 @@ import {
 import { Button } from "../ui/button";
 import Link from "next/link";
 import { adminPanelHref } from "@/lib/admin-panel-path";
+import { formatCoverageAreas } from "@/lib/user-profile-fields";
 
 interface UserDetailDialogProps {
   userId: string | null;
@@ -171,7 +172,30 @@ export default function UserDetailDialog({
                 )}
               </DetailRow>
 
-              <DetailRow icon={<FileText className="h-4 w-4" />} label="Bio">
+              <DetailRow icon={<FileText className="h-4 w-4" />} label="Jabatan">
+                {data.jobTitle ? (
+                  <span className="text-foreground">{data.jobTitle}</span>
+                ) : (
+                  <span className="text-muted-foreground italic">No job title</span>
+                )}
+              </DetailRow>
+
+              <DetailRow
+                icon={<FileText className="h-4 w-4" />}
+                label="Bidang liputan"
+              >
+                {data.coverageAreas?.length ? (
+                  <span className="text-foreground">
+                    {formatCoverageAreas(data.coverageAreas)}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground italic">
+                    No coverage areas
+                  </span>
+                )}
+              </DetailRow>
+
+              <DetailRow icon={<FileText className="h-4 w-4" />} label="Team">
                 {data.team ? (
                   <span className="text-foreground">{data.team?.name}</span>
                 ) : (

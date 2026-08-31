@@ -9,6 +9,7 @@ import {
   normalizeFeaturedImage,
   featuredImageLookupStages,
 } from "./articleSectionUtils";
+import { revalidateHomepageListings } from "@/lib/cache/revalidate-article-page";
 
 type SectionArticleType = "featured" | "editor choices" | "popular" | "headline";
 
@@ -377,6 +378,15 @@ export async function upsertSectionArticlesWithType(
       logger.error(
         { err: auditErr, type },
         "createAuditLog gagal setelah upsertSectionArticlesWithType",
+      );
+    }
+
+    try {
+      revalidateHomepageListings();
+    } catch (revalidateErr) {
+      logger.warn(
+        { err: revalidateErr, type },
+        "revalidateHomepageListings gagal setelah upsert section",
       );
     }
 

@@ -79,14 +79,16 @@ interface ArticleApprovalFormProps {
   article: Article;
   userRole: string;
   onSuccess?: () => void;
+  /** True jika form dirender di sidebar (button full width) */
+  isSidebar?: boolean;
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────
-
 export default function ArticleApprovalForm({
   article,
   userRole,
   onSuccess,
+  isSidebar = false,
 }: ArticleApprovalFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -346,18 +348,19 @@ export default function ArticleApprovalForm({
   }
 
   return (
-    <div className="bg-card border border-border rounded-lg p-6 space-y-6">
-      <div className="flex md:justify-between items-start md:items-center flex-col md:flex-row gap-2">
-        <div className="w-full md:w-auto">
-          <h2 className="text-xl font-bold text-foreground">Approval</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+    <div className="bg-card border border-border rounded-lg p-4 sm:p-6 space-y-4 sm:space-y-6">
+      <div className={`flex ${isSidebar ? 'flex-col gap-2' : 'flex-col md:flex-row md:justify-between md:items-start gap-2'}`}>
+        <div className={isSidebar ? "w-full" : "w-full md:w-auto"}>
+          <h2 className="text-lg sm:text-xl font-bold text-foreground">Approval</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             Ubah status artikel dan atur jadwal publikasi
           </p>
         </div>
-        <div className="flex md:justify-end items-center gap-4 w-full md:w-auto">
+        <div className={`flex ${isSidebar ? 'flex-col' : 'flex-row'} gap-2 ${isSidebar ? 'w-full' : 'w-full md:w-auto shrink-0'}`}>
           <Button
-            className="w-auto min-w-fit"
+            className={isSidebar ? "w-full" : "w-auto"}
             variant="outline"
+            size="sm"
             onClick={() =>
               router.push(adminPanelHref(`articles/${article._id}`))
             }
@@ -365,12 +368,13 @@ export default function ArticleApprovalForm({
             Edit Artikel
           </Button>
           <Button
-            className=""
+            className={isSidebar ? "w-full" : "w-auto"}
+            size="sm"
             onClick={() =>
               router.push(adminPanelHref(`articles/${article._id}/related`))
             }
           >
-            Tambah Artikel Terkait
+            Artikel Terkait
           </Button>
         </div>
       </div>
@@ -378,7 +382,7 @@ export default function ArticleApprovalForm({
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="gap-4 grid grid-cols-1 lg:grid-cols-2 lg:gap-8"
+          className="space-y-4"
         >
           {canPick && (
             <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-4 w-full">
@@ -576,7 +580,7 @@ export default function ArticleApprovalForm({
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="lg:col-span-2"
+            className="w-full"
             size="lg"
           >
             {isSubmitting ? (

@@ -107,7 +107,10 @@ const DrawerNavbar = ({
   }, [categories]);
 
   return (
-    <DrawerContent className="z-1000 top-0 right-0 left-0 mt-0 rounded-none border-none bg-background px-4 py-6 text-foreground md:px-8 overflow-y-auto">
+    <DrawerContent
+      data-vaul-no-drag=""
+      className="z-1000 top-0 right-0 left-0 mt-0 h-[100dvh] max-h-[100dvh] rounded-none border-none bg-background px-4 py-6 text-foreground md:px-8 overflow-y-auto overscroll-contain touch-pan-y data-[vaul-drawer-direction=top]:mb-0 data-[vaul-drawer-direction=top]:max-h-[100dvh] data-[vaul-drawer-direction=top]:rounded-none"
+    >
       <DrawerTitle className="sr-only">Menu navigasi</DrawerTitle>
       <DrawerDescription className="sr-only">
         Jelajahi berdasarkan bagian, kanal, dan tautan lainnya.
@@ -189,7 +192,7 @@ const DrawerNavbar = ({
                 Kanal tidak tersedia.
               </p>
             ) : (
-              <div className="grid max-h-[40vh] grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-2 overflow-y-auto pr-1 sm:max-h-none">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-2">
                 {channelsSorted.map((cat) => (
                   <div
                     className="min-w-0 text-start"

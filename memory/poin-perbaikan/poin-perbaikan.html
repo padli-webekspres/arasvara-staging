@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poin Perbaikan Arasvara</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1in;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12pt;
+            line-height: 1.5;
+            color: black;
+            background: white;
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        h1 {
+            font-size: 16pt;
+            font-weight: bold;
+            margin-top: 0;
+            margin-bottom: 12pt;
+        }
+        
+        h2 {
+            font-size: 14pt;
+            font-weight: bold;
+            margin-top: 16pt;
+            margin-bottom: 10pt;
+        }
+        
+        h3 {
+            font-size: 12pt;
+            font-weight: bold;
+            margin-top: 10pt;
+            margin-bottom: 6pt;
+        }
+        
+        p {
+            margin: 6pt 0;
+        }
+        
+        ul {
+            margin: 4pt 0;
+            padding-left: 20pt;
+        }
+        
+        li {
+            margin: 2pt 0;
+        }
+        
+        hr {
+            border: none;
+            border-top: 1px solid #000;
+            margin: 12pt 0;
+        }
+        
+        .scope-label {
+            font-style: italic;
+            margin-top: 6pt;
+        }
+        
+        .total {
+            font-weight: bold;
+            margin: 12pt 0;
+        }
+    </style>
+</head>
+<body>
+
+<h1>POIN PERBAIKAN IN-SCOPE</h1>
+
+<h2>A. PERFORMA &amp; INFRASTRUKTUR</h2>
+
+<h3>1. JavaScript terlalu banyak (53 scripts)</h3>
+<p>Terkait: Sistem Web Aplikasi Hal 4 Poin 2 (Cache gambar, CSS, JS, file statis)</p>
+
+<h3>2. Network payload 2,63 MB (target: 1–1,5 MB)</h3>
+<p>Terkait:</p>
+<ul>
+    <li>Sistem Web Aplikasi Hal 4 Poin 2 (Integrasi CDN, image optimizer, caching)</li>
+    <li>Sistem Web Aplikasi Hal 5 Modul 5 (Upload gambar auto resize &amp; compress max 1 MB)</li>
+    <li>Kebutuhan User Hal 2 (Mobile Friendly, Upload foto Auto size 1200×800 Max 1 MB)</li>
+</ul>
+
+<h3>3. Render-blocking (3 resources)</h3>
+<p>Terkait: Sistem Web Aplikasi Hal 4 Poin 2 (Cache untuk Google Lighthouse &gt; 95)</p>
+
+<h3>4. Server response 546 ms (target: &lt;300 ms)</h3>
+<p>Terkait:</p>
+<ul>
+    <li>Sistem Web Aplikasi Hal 4 Poin 2 (Next.js SSR/SSG, CDN)</li>
+    <li>Sistem Web Aplikasi Hal 5 Modul 5 (Pre-signed URL Object Storage)</li>
+</ul>
+
+<h3>5. Cache belum optimal</h3>
+<p>Terkait: Sistem Web Aplikasi Hal 4 Poin 2 (Integrasi CDN, image optimizer, caching)</p>
+
+<h2>B. TECHNICAL SEO</h2>
+
+<h3>6. Canonical mismatch (PRIORITAS TINGGI)</h3>
+<p>Terkait:</p>
+<ul>
+    <li>Sistem Web Aplikasi Hal 6 Modul 8 (Meta tag &amp; sitemap otomatis)</li>
+    <li>Kebutuhan User Hal 3 (Situs website mudah terindeks Google)</li>
+</ul>
+
+<h3>7. 8 gambar tanpa ALT</h3>
+<p>Terkait: Sistem Web Aplikasi Hal 6 Modul 8 (Meta tag &amp; sitemap otomatis untuk SEO)</p>
+
+<h3>8. 10 gambar tanpa width/height</h3>
+<p>Terkait:</p>
+<ul>
+    <li>Sistem Web Aplikasi Hal 5 Modul 5 (Upload gambar auto resize 1200×800 px)</li>
+    <li>Kebutuhan User Hal 2 (Upload foto Auto size 1200×800 Megapixel)</li>
+</ul>
+
+<h3>9. Error 503 di media.arasvara.id / configuration.arasvara.id</h3>
+<p>Terkait:</p>
+<ul>
+    <li>Sistem Web Aplikasi Hal 4 Poin 2 (Integrasi Object Storage dan subdomain)</li>
+    <li>Sistem Web Aplikasi Hal 5 Modul 5 (Integrasi Object Storage Cloud)</li>
+</ul>
+
+<h3>10. Heading structure: H3 missing</h3>
+<p>Terkait: Sistem Web Aplikasi Hal 4 Poin 1 (Wireframe halaman utama, artikel, dashboard, CMS)</p>
+
+<h3>11. NewsArticle schema belum lengkap/optimal</h3>
+<p>Terkait: Sistem Web Aplikasi Hal 6 Modul 8 (Artikel terindeks optimal di mesin pencari)</p>
+
+<h2>C. CMS &amp; SECURITY</h2>
+
+<h3>12. Kurangi akun Super Admin</h3>
+<p>Terkait:</p>
+<ul>
+    <li>Sistem Web Aplikasi Hal 5 Modul 4 (Pembatasan hak akses per level role)</li>
+    <li>Kebutuhan User Hal 3 (CMS kategori Admin IT, Editor, Reporter + pembatasan level)</li>
+</ul>
+
+<h3>13. Aria-label button ikon di header</h3>
+<p>Terkait: Sistem Web Aplikasi Hal 4 Poin 1 (Tata letak dan elemen branding)</p>
+
+<h3>14. Responsivitas tabel di mobile</h3>
+<p>Terkait:</p>
+<ul>
+    <li>Sistem Web Aplikasi Hal 6 Modul 6 (Tampilan cepat, ringan, responsif)</li>
+    <li>Kebutuhan User Hal 2 (Mobile Friendly)</li>
+</ul>
+
+<h3>15. Character counter di meta description field</h3>
+<p>Terkait:</p>
+<ul>
+    <li>Sistem Web Aplikasi Hal 5 Modul 2 (CRUD berita, preview, auto-save)</li>
+    <li>Sistem Web Aplikasi Hal 6 Modul 8 (SEO &amp; Analitik)</li>
+    <li>Kebutuhan User Hal 2 (CMS Simple dan modern)</li>
+</ul>
+
+<h2>D. UI/UX (MINOR)</h2>
+
+<h3>16. Kontras warna link footer rendah</h3>
+<p>Terkait: Sistem Web Aplikasi Hal 4 Poin 1 (Penyesuaian warna, tata letak, font, branding)</p>
+
+<h3>17. Tombol pencarian mengambang menutupi konten mobile</h3>
+<p>Terkait:</p>
+<ul>
+    <li>Sistem Web Aplikasi Hal 4 Poin 1 (Rancangan visual &amp; navigasi)</li>
+    <li>Sistem Web Aplikasi Hal 6 Modul 6 (Mobile friendly/responsif)</li>
+    <li>Kebutuhan User Hal 2 (Mobile Friendly)</li>
+</ul>
+
+<h3>18. Heading kategori: pisahkan ikon panah dari teks</h3>
+<p>Terkait: Sistem Web Aplikasi Hal 4 Poin 1 (Wireframe dan prototipe interaktif di Figma)</p>
+
+<h2>E. MONITORING &amp; INVESTIGATION (PARTIAL)</h2>
+
+<h3>19. Backlink domain tidak dikenal</h3>
+<p class="scope-label">Developer scope:</p>
+<ul>
+    <li>Setup monitoring/audit tool untuk track backlink profile</li>
+    <li>Generate disavow file jika dibutuhkan</li>
+</ul>
+<p class="scope-label">Tim Arasvara scope:</p>
+<ul>
+    <li>Review backlink list dan tentukan mana yang spam/suspicious</li>
+    <li>Submit disavow list ke Google Search Console</li>
+</ul>
+
+<h3>20. Indexing Google lambat</h3>
+<p class="scope-label">Developer scope:</p>
+<ul>
+    <li>Verify sitemap submission &amp; robots.txt</li>
+    <li>Check crawl budget issues (server response, redirect chains)</li>
+    <li>Implement Google Indexing API jika diperlukan</li>
+    <li>Fix technical SEO barriers (canonical, speed, mobile-friendly)</li>
+</ul>
+<p class="scope-label">Tim Arasvara scope:</p>
+<ul>
+    <li>Strengthen internal linking antar artikel</li>
+    <li>Improve content quality &amp; E-E-A-T signals</li>
+    <li>Add primary source outbound links</li>
+    <li>Regular content publishing schedule</li>
+</ul>
+
+<hr>
+
+<p class="total">TOTAL IN-SCOPE: 20 poin (18 full developer + 2 partial)</p>
+
+<hr>
+
+<h1>OUT OF SCOPE (Perlu Klarifikasi Client)</h1>
+
+<h3>21. Pagination multi-halaman artikel</h3>
+<ul>
+    <li>Permintaan client untuk otomatis, tidak diubah</li>
+</ul>
+
+<h3>22. 2FA</h3>
+<ul>
+    <li>Tidak ada pembahasan kontrak</li>
+</ul>
+
+<h3>23. Revisi UI major lebih dari 1x</h3>
+<ul>
+    <li>Jika perlu re-layout author page/about us, cuma 1 kali, no major revision lagi</li>
+</ul>
+
+<hr>
+
+<h1>TIM ARASVARA (Content &amp; Editorial)</h1>
+
+<h3>24. Internal linking lemah (14 links)</h3>
+<ul>
+    <li>Editor wajib tambahkan internal link relevan antar artikel</li>
+    <li>Contoh: artikel harga emas → link ke artikel emas hari sebelumnya, cara beli emas, investasi pemula</li>
+</ul>
+
+<h3>25. 0 external links (MERAH)</h3>
+<ul>
+    <li>Wajib link ke sumber primer: Antam, BI, BPS, kementerian, perusahaan, dokumen resmi</li>
+    <li>Jangan cuma tulis ulang media lain</li>
+</ul>
+
+<h3>26. Homepage text 224 kata (kuning)</h3>
+<ul>
+    <li>Tambah deskripsi konten/intro jika perlu</li>
+</ul>
+
+<h3>27. E-E-A-T belum kuat</h3>
+<ul>
+    <li>Buat halaman author per penulis</li>
+    <li>Format: Nama, jabatan, bio singkat, link "Lihat semua artikel [Nama]"</li>
+    <li>Contoh: "Nurul Kharimah adalah reporter Arasvara yang meliput lifestyle, entertainment dan isu generasi muda"</li>
+</ul>
+
+<h3>28. Author markup di artikel</h3>
+<ul>
+    <li>Hubungkan penulis artikel dengan URL halaman profil mereka</li>
+</ul>
+
+<h3>29. Typo di judul artikel yang sudah tayang</h3>
+<ul>
+    <li>QC editorial sebelum publish</li>
+</ul>
+
+<h3>30. NAP (Name, Address, Phone) tidak ditemukan di page biasa</h3>
+<ul>
+    <li>Cantumkan di footer/contact selain About Us</li>
+</ul>
+
+</body>
+</html>

@@ -16,7 +16,7 @@ import { isValidTempMediaId } from "@/lib/media/tempMedia";
  * (featured / content / gallery) — payload artikel hanya berisi mediaId.
  *
  * Body: { tempMediaId, scope: "featured" | "content" | "gallery",
- *          caption?, credit?, watermark? }
+ *          caption?, credit?, watermark?, applyWatermark? }
  */
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
@@ -26,13 +26,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { tempMediaId, scope: scopeRaw, folder: folderRaw, caption, credit, watermark } = body as {
+    const { tempMediaId, scope: scopeRaw, folder: folderRaw, caption, credit, watermark, applyWatermark } = body as {
       tempMediaId?: unknown;
       scope?: unknown;
       folder?: unknown;
       caption?: string;
       credit?: string;
       watermark?: boolean;
+      applyWatermark?: boolean;
     };
 
     if (!isValidTempMediaId(tempMediaId)) {
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
       caption: typeof caption === "string" ? caption : undefined,
       credit: typeof credit === "string" ? credit : undefined,
       watermark: typeof watermark === "boolean" ? watermark : undefined,
+      applyWatermark: applyWatermark === true,
     });
 
     return NextResponse.json({ success: true, media }, { status: 201 });

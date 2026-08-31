@@ -7,8 +7,8 @@ import { Loader2 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import ArticleUi from "@/components/news/ArticleUi";
 import ArticleApprovalForm from "@/components/news/ArticleApprovalForm";
+import ApprovalSidebar from "@/components/news/ApprovalSidebar";
 import {
-  buildArticleUrl,
   copyToClipboard,
   formatDateReadable,
   splitContentByPageBreak,
@@ -18,15 +18,22 @@ import {
 import { Article } from "@/types/article";
 import api from "@/lib/axios";
 import { adminPanelHref } from "@/lib/admin-panel-path";
+import { useArticleContentPaginationEnabled } from "@/components/admin/ArticleContentPaginationFlag";
+import {
+  nextArticlePageQuery,
+  resolveArticleContentView,
+} from "@/lib/article-content-pagination";
 
 export default function SingleArticleApprovalPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const params = useParams();
   const { data: user } = useCurrentUser();
-  const pageParam = searchParams.get("page");
-  const isShowAll = pageParam === "all";
-  const pageNum = isShowAll ? 1 : Math.max(1, parseInt(pageParam || "1") || 1);
+  const paginationEnabled = useArticleContentPaginationEnabled();
+  const { isShowAll, pageNum } = resolveArticleContentView(
+    searchParams.get("page"),
+    paginationEnabled,
+  );
 
   const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,14 +92,11 @@ export default function SingleArticleApprovalPage() {
   const idOrSlug = params?.idOrSlug as string;
 
   const handlePageChange = (page: number | "all") => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (page === "all") {
-      params.set("page", "all");
-    } else {
-      if (page <= 1) params.delete("page");
-      else params.set("page", String(page));
-    }
-    const qs = params.toString();
+    const qs = nextArticlePageQuery(
+      searchParams,
+      page,
+      paginationEnabled,
+    );
     router.push(
       adminPanelHref(`articles/${idOrSlug}/approval/${qs ? `?${qs}` : ""}`),
       {
@@ -139,29 +143,43 @@ export default function SingleArticleApprovalPage() {
   }
 
   return (
-    <div className="min-w-0 max-w-full space-y-4 sm:space-y-6">
-      <ArticleUi
-        article={pagedArticle as Article}
-        shareUrl={shareUrl}
-        copied={copied}
-        handleCopy={handleCopy}
-        formatDateReadable={(date) =>
-          formatDateReadable(date instanceof Date ? date.toISOString() : date)
-        }
-        formatTimeReadable={(date) =>
-          formatTimeReadable(date instanceof Date ? date.toISOString() : date)
-        }
-        isPreview={true}
-        currentPage={pageNum}
-        totalPages={totalPages}
-        isShowAll={isShowAll}
-        onPageChange={handlePageChange}
-        isPageAdmin={true}
-      />
+    <div className="flex flex-col lg:flex-row lg:items-start lg:gap-8 min-w-0 max-w-full">
+      {/* Main Content - Article Preview */}
+      <div className="flex-1 min-w-0 space-y-4 sm:space-y-6">
+        <ArticleUi
+          article={pagedArticle as Article}
+          shareUrl={shareUrl}
+          copied={copied}
+          handleCopy={handleCopy}
+          formatDateReadable={(date) =>
+            formatDateReadable(date instanceof Date ? date.toISOString() : date)
+          }
+          formatTimeReadable={(date) =>
+            formatTimeReadable(date instanceof Date ? date.toISOString() : date)
+          }
+          isPreview={true}
+          currentPage={pageNum}
+          totalPages={totalPages}
+          isShowAll={isShowAll}
+          onPageChange={handlePageChange}
+          isPageAdmin={true}
+        />
 
-      {/* Approval Form */}
+        {/* Mobile/Tablet - Approval Form Below Article */}
+        <div className="lg:hidden">
+          {user && article && (
+            <ArticleApprovalForm
+              article={article}
+              userRole={user.role || ""}
+              onSuccess={fetchArticle}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Desktop Sidebar - Approval Form */}
       {user && article && (
-        <ArticleApprovalForm
+        <ApprovalSidebar
           article={article}
           userRole={user.role || ""}
           onSuccess={fetchArticle}

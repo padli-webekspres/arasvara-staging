@@ -3,8 +3,9 @@
  * Checks MIME type, file size, and file integrity
  */
 
+import { assertDecodableImage } from "@/lib/image/detectImageFormat";
+
 // ── Constants ──────────────────────────────────────────────────────────────
-const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_FILE_SIZE_MB = 10; // Frontend max file size before backend compression
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
@@ -28,11 +29,10 @@ export type FileValidationResult = FileValidationSuccess | FileValidationError;
  * @param configKey Configuration key (used to determine file type validation)
  * @returns Validation result with error message if invalid
  */
-export function validateConfigurationFile(
+export async function validateConfigurationFile(
   file: File,
   configKey: string,
-): FileValidationResult {
-  // ── Check file existence ───────────────────────────────────────────────
+): Promise<FileValidationResult> {
   if (!file) {
     return {
       isValid: false,
@@ -40,7 +40,6 @@ export function validateConfigurationFile(
     };
   }
 
-  // ── Check file size ────────────────────────────────────────────────────
   if (file.size === 0) {
     return {
       isValid: false,
@@ -56,21 +55,30 @@ export function validateConfigurationFile(
     };
   }
 
-  // ── Check MIME type based on key ───────────────────────────────────────
-  // Keys containing "bg" (background) are image files
   const isBackgroundFile = configKey.includes("bg");
 
   if (isBackgroundFile || configKey.includes("thumbnail")) {
-    // Image file validation
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    if (file.type === "image/svg+xml" || file.type === "image/svg") {
       return {
         isValid: false,
-        error: `Invalid image type: ${file.type}. Allowed types: JPEG, PNG, WebP`,
+        error: "SVG tidak diizinkan. Gunakan JPEG, PNG, atau WebP.",
+      };
+    }
+    const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    try {
+      assertDecodableImage(
+        file.type,
+        head,
+        "File harus berupa gambar (JPEG, PNG, atau WebP)",
+      );
+    } catch (err) {
+      return {
+        isValid: false,
+        error: err instanceof Error ? err.message : "File harus berupa gambar",
       };
     }
   }
 
-  // ── All validations passed ────────────────────────────────────────────
   return {
     isValid: true,
   };

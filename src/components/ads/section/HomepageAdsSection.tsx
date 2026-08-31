@@ -102,7 +102,7 @@ export default function HomepageAdsSection({
               type="button"
               variant="ghost"
               size="icon"
-              className="absolute -left-1 md:left-2 lg:left-[10%] top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-background/80 hover:bg-background shadow-sm"
+              className="absolute -left-1 md:left-2 lg:left-[10%] top-1/2 -translate-y-1/2 h-8 w-8 md:h-10 md:w-10 rounded-lg bg-background/80 hover:bg-background shadow-sm"
               onClick={goPrev}
               aria-label="Ads sebelumnya"
             >
@@ -112,7 +112,7 @@ export default function HomepageAdsSection({
               type="button"
               variant="ghost"
               size="icon"
-              className="absolute -right-1 md:right-2 lg:right-[10%] top-1/2 -translate-y-1/2 h-11 w-11 rounded-full bg-background/80 hover:bg-background shadow-sm"
+              className="absolute -right-1 md:right-2 lg:right-[10%] top-1/2 -translate-y-1/2 h-8 w-8 md:h-10 md:w-10 rounded-lg bg-background/80 hover:bg-background shadow-sm"
               onClick={goNext}
               aria-label="Ads berikutnya"
             >

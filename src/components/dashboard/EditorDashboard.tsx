@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { useBoostedArticles, useIndexingQuota } from "@/hooks/useIndexingDashboard";
 import {
   Clock,
   CheckCircle,
@@ -12,8 +13,114 @@ import {
   PieChart,
   ShieldAlert,
   RefreshCw,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+// Quota widget component
+function BoostedArticlesQuota() {
+  const { quota, loading } = useIndexingQuota();
+
+  if (loading) {
+    return (
+      <div className="text-right shrink-0">
+        <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">
+          Kuota Harian
+        </p>
+        <p className="text-sm font-extrabold text-foreground">
+          <span className="text-muted-foreground">...</span>
+        </p>
+      </div>
+    );
+  }
+
+  const used = quota?.used || 0;
+  const limit = quota?.limit || 200;
+  const percentage = quota?.percentage || 0;
+  const isWarning = percentage >= 80;
+
+  return (
+    <div className="text-right shrink-0">
+      <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">
+        Kuota Harian
+      </p>
+      <p className="text-sm font-extrabold text-foreground">
+        <span className={isWarning ? "text-amber-600" : "text-hijauSawah"}>{used}</span>
+        <span className="text-muted-foreground text-xs font-medium"> / {limit}</span>
+      </p>
+    </div>
+  );
+}
+
+// Boosted articles list component
+function BoostedArticlesList() {
+  const { articles, loading } = useBoostedArticles(3);
+
+  if (loading) {
+    return (
+      <div className="divide-y divide-border">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="p-3 animate-pulse">
+            <div className="space-y-1.5">
+              <div className="h-3 bg-muted rounded w-3/4"></div>
+              <div className="h-2 bg-muted rounded w-1/2"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (articles.length === 0) {
+    return (
+      <div className="p-6 text-center text-sm text-muted-foreground">
+        Belum ada artikel yang di-boost hari ini.
+      </div>
+    );
+  }
+
+  const formatRelativeTime = (date: Date) => {
+    const now = new Date();
+    const diffMs = now.getTime() - new Date(date).getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffHours < 1) return "Baru saja";
+    if (diffHours < 24) return `${diffHours} jam lalu`;
+    if (diffDays === 1) return "1 hari lalu";
+    return `${diffDays} hari lalu`;
+  };
+
+  return (
+    <div className="divide-y divide-border">
+      {articles.map((item) => (
+        <div key={item.id} className="p-3 hover:bg-muted/15 transition-all">
+          <div className="space-y-1.5">
+            <h4 className="font-bold text-foreground text-xs leading-snug line-clamp-2">
+              {item.title}
+            </h4>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <span className="font-medium text-foreground/75 truncate">{item.author}</span>
+                <span>•</span>
+                <span>{formatRelativeTime(item.boostedAt)}</span>
+              </div>
+              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${
+                item.status === "success"
+                  ? "bg-hijauSawah/10 text-hijauSawah border border-hijauSawah/20"
+                  : "bg-red-500/10 text-red-600 border border-red-500/20"
+              }`}>
+                <Zap className="h-2.5 w-2.5" />
+                {item.status === "success" ? "Boosted" : "Failed"}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 import {
   Card,
   CardHeader,
@@ -230,164 +337,144 @@ export default function EditorDashboard() {
         </Card>
       </div>
 
-      {/* Row 2: Urgent Pending Queue & Calendar Backlog */}
+      {/* Row 2: Urgent Pending Queue, Artikel Boost, Editorial Calendar & Category */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Kolom Kiri & Tengah: Urgent Pending Review Queue (2/3 width) */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="border border-border">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-bold flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-terakota" />
-                  Urgent Pending Review Queue
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Naskah masuk dari penulis yang mengantre untuk disunting dan disetujui terbit.
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y divide-border">
-                {stats.pendingQueue.length > 0 ? (
-                  stats.pendingQueue.map((item) => (
-                    <div key={item.id} className="p-4 hover:bg-muted/15 transition-all">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-1.5 flex-1 min-w-0">
-                          <h4 className="font-bold text-foreground text-sm leading-snug line-clamp-1 hover:text-terakota transition-colors cursor-pointer">
-                            {item.title}
-                          </h4>
-                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                            <span className="font-medium text-foreground/75">{item.author}</span>
-                            <span>•</span>
-                            <span>{item.category}</span>
-                            <span>•</span>
-                            <span>Kirim: {item.submittedTime}</span>
-                          </div>
+        {/* Section 1: Urgent Pending Review Queue */}
+        <Card className="border border-border">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-terakota" />
+                Urgent Pending Review
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Naskah mengantre untuk disunting.
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border">
+              {stats.pendingQueue.length > 0 ? (
+                stats.pendingQueue.slice(0, 3).map((item) => (
+                  <div key={item.id} className="p-3 hover:bg-muted/15 transition-all">
+                    <div className="space-y-1.5">
+                      <h4 className="font-bold text-foreground text-xs leading-snug line-clamp-1 hover:text-terakota transition-colors cursor-pointer">
+                        {item.title}
+                      </h4>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                          <span className="font-medium text-foreground/75 truncate">{item.author}</span>
                         </div>
-                        <div className="flex flex-col items-end shrink-0">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border uppercase shrink-0 ${item.statusColor}`}
-                          >
-                            Tunggu: {item.waitTime}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs font-semibold p-1 hover:text-terakota mt-1"
-                          >
-                            Sunting <ArrowRight className="h-3 w-3 ml-0.5" />
-                          </Button>
-                        </div>
+                        <span
+                          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase shrink-0 ${item.statusColor}`}
+                        >
+                          {item.waitTime}
+                        </span>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="p-8 text-center text-xs text-muted-foreground">
-                    Tidak ada naskah yang mengantre di meja sunting saat ini.
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+                ))
+              ) : (
+                <div className="p-6 text-center text-xs text-muted-foreground">
+                  Tidak ada naskah mengantre.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Kolom Kanan: Backlog & Category Stats */}
+        {/* Section 2: Artikel yang Di-Boost */}
+        <Card className="border border-border">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-500" />
+                Artikel yang Di-Boost
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Artikel dengan Google Indexing boost aktif.
+              </CardDescription>
+            </div>
+            <BoostedArticlesQuota />
+          </CardHeader>
+          <CardContent className="p-0">
+            <BoostedArticlesList />
+          </CardContent>
+        </Card>
+
+        {/* Section 3: Editorial Calendar & Category Stats (Stack vertical) */}
         <div className="space-y-6">
           {/* Widget 1: Editorial Calendar Backlog */}
           <Card className="border border-border">
             <CardHeader>
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-foreground" />
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <Calendar className="h-3.5 w-3.5 text-foreground" />
                 24-Hour Editorial Calendar
               </CardTitle>
-              <CardDescription className="text-xs">
-                Daftar naskah terjadwal yang rilis otomatis hari ini.
-              </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-border">
                 {stats.calendarBacklog.length > 0 ? (
-                  stats.calendarBacklog.map((item) => (
-                    <div key={item.id} className="p-4 space-y-1">
+                  stats.calendarBacklog.slice(0, 2).map((item) => (
+                    <div key={item.id} className="p-3 space-y-1">
                       <div className="flex items-start justify-between gap-2">
                         <h4 className="font-bold text-foreground text-xs leading-snug line-clamp-1">
                           {item.title}
                         </h4>
-                        <span className="text-[10px] text-muted-foreground font-semibold shrink-0">
+                        <span className="text-[9px] text-muted-foreground font-semibold shrink-0">
                           {item.scheduledTime}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                        <span>{item.author} • {item.category}</span>
-                        <span
-                          className={`font-bold ${
-                            item.format === "GALLERY" ? "text-terakota" : "text-hijauSawah"
-                          }`}
-                        >
-                          {item.format}
                         </span>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="p-8 text-center text-xs text-muted-foreground">
-                    Tidak ada artikel terjadwal rilis hari ini.
+                  <div className="p-6 text-center text-xs text-muted-foreground">
+                    Tidak ada artikel terjadwal hari ini.
                   </div>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Widget 2: Kategori yang Saya Sunting (Pie/Doughnut Chart) */}
+          {/* Widget 2: Kategori yang Saya Sunting (Compact) */}
           <Card className="border border-border">
             <CardHeader>
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <PieChart className="h-4 w-4 text-terakota" />
-                Kategori yang Saya Sunting
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <PieChart className="h-3.5 w-3.5 text-terakota" />
+                Kategori Suntingan
               </CardTitle>
-              <CardDescription className="text-xs">
-                Distribusi persentase topik rubrikasi artikel yang telah disunting dan diterbitkan oleh Anda.
-              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Doughnut Wrapper */}
-              <div className="h-[120px] sm:h-[150px] w-full relative min-w-0">
+            <CardContent className="space-y-3">
+              <div className="h-[100px] w-full relative min-w-0">
                 {stats.editedChannels.length > 0 ? (
                   <Doughnut data={doughnutData} options={doughnutOptions} />
                 ) : (
                   <div className="h-full flex items-center justify-center text-xs text-muted-foreground border border-dashed rounded-md">
-                    Belum ada topik disunting
+                    Belum ada data
                   </div>
                 )}
               </div>
-
-              {/* Legends List */}
-              <div className="space-y-2 pt-1 text-xs">
-                {stats.editedChannels.length > 0 ? (
-                  stats.editedChannels.map((chan) => (
-                    <div key={chan.name} className="flex items-center justify-between p-1.5 rounded bg-muted/20 border border-border/10">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: chan.color }}
-                        />
-                        <span className="font-medium text-foreground/80 truncate">{chan.name}</span>
-                      </div>
-                      <span className="font-bold text-foreground shrink-0 ml-2">
-                        {chan.count} Art ({chan.pct}%)
-                      </span>
+              <div className="space-y-1 text-xs">
+                {stats.editedChannels.slice(0, 3).map((chan) => (
+                  <div key={chan.name} className="flex items-center justify-between p-1 rounded bg-muted/20">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: chan.color }}
+                      />
+                      <span className="font-medium text-foreground/80 truncate text-[10px]">{chan.name}</span>
                     </div>
-                  ))
-                ) : (
-                  <div className="text-center text-xs text-muted-foreground">
-                    Belum ada data distribusi topik suntingan.
+                    <span className="font-bold text-foreground shrink-0 ml-2 text-[10px]">
+                      {chan.count}
+                    </span>
                   </div>
-                )}
+                ))}
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
+
     </div>
   );
 }

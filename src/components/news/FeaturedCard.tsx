@@ -28,6 +28,8 @@ const FeaturedCard = ({ article }: FeaturedCardProps) => {
               <ResponsiveMediaImage
                 src={src}
                 alt=""
+                width={4}
+                height={3}
                 className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105 rounded-lg"
                 sizes="(max-width: 768px) 50vw, 25vw"
               />

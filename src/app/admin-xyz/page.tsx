@@ -292,7 +292,7 @@ export default function UnifiedAdminDashboard() {
                 Atur platform, sponsor, sosmed, & profil portal.
               </p>
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-hijauSawah transition-colors shrink-0 ml-2" />
+            <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-hijauSawah transition-colors shrink-0 ml-2" aria-hidden="true" />
           </div>
         </Link>
 
@@ -306,7 +306,7 @@ export default function UnifiedAdminDashboard() {
                 Tinjau SLA review, antrean, & throughput harian.
               </p>
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground/80 transition-colors shrink-0 ml-2" />
+            <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground/80 transition-colors shrink-0 ml-2" aria-hidden="true" />
           </div>
         </Link>
       </div>

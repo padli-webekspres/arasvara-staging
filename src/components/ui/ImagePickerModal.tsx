@@ -391,7 +391,7 @@ export default function ImagePickerModal({
       <Dialog open={open} onOpenChange={handlePickerOpenChange}>
         <DialogContent
           className="max-w-2xl w-full md:max-w-3xl flex flex-col overflow-hidden"
-          style={{ maxHeight: "90vh" }}
+          style={{ maxHeight: "90dvh" }}
           onPointerDownOutside={preventOutsideDismissWhileNested}
           onInteractOutside={preventOutsideDismissWhileNested}
           onFocusOutside={preventOutsideDismissWhileNested}

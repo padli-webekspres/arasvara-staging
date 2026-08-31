@@ -1,6 +1,7 @@
 import { connectToDatabase } from "@/lib/db/db";
 import { ArticleStatus } from "@/types/article";
 import { buildActiveUserFilter } from "@/lib/user-validation";
+import { PUBLIC_PROFILE_ROLES } from "@/lib/author-public-path";
 import {
 	SitemapArticle,
 	SitemapAuthor,
@@ -106,7 +107,7 @@ export async function getSitemapAuthors(): Promise<SitemapAuthor[]> {
 				$match: {
 					slug: { $exists: true, $nin: [null, ""] },
 					isActive: { $ne: false },
-					role: { $in: ["writer", "editor"] },
+					role: { $in: Array.from(PUBLIC_PROFILE_ROLES) },
 					...buildActiveUserFilter(),
 				},
 			},

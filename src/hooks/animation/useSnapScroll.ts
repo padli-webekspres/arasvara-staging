@@ -1,30 +1,28 @@
-import { useRef } from "react";
-import { useGSAP } from "@gsap/react";
+import { useEffect, useRef } from "react";
 
 /**
- * Generic GSAP snap scroll hook.
- * GSAP/ScrollTrigger di-load dinamis dan dinonaktifkan di mobile /
- * prefers-reduced-motion agar tidak memicu long task + forced reflow.
+ * GSAP snap scroll — plugin di-import dinamis, dilewati di mobile /
+ * prefers-reduced-motion. Import gagal = scroll biasa (bukan CSS snap baru).
  */
 export function useSnapScroll() {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  useGSAP(
-    () => {
-      if (!containerRef.current) return;
-      if (typeof window === "undefined") return;
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof window === "undefined") return;
 
-      const prefersReducedMotion = window.matchMedia(
-        "(prefers-reduced-motion: reduce)",
-      ).matches;
-      const isMobile = window.matchMedia("(max-width: 767px)").matches;
-      if (prefersReducedMotion || isMobile) return;
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    if (prefersReducedMotion || isMobile) return;
 
-      let killed = false;
-      let st: { kill: () => void } | null = null;
-      let cancelDeferred: (() => void) | undefined;
+    let killed = false;
+    let st: { kill: () => void } | null = null;
+    let cancelDeferred: (() => void) | undefined;
 
-      const setup = async () => {
+    const setup = async () => {
+      try {
         const [{ gsap }, { ScrollTrigger }] = await Promise.all([
           import("gsap"),
           import("gsap/ScrollTrigger"),
@@ -51,28 +49,29 @@ export function useSnapScroll() {
             ease: "power1.out",
           },
         });
-      };
-
-      if (typeof window.requestIdleCallback === "function") {
-        const idle = window.requestIdleCallback(() => {
-          void setup();
-        });
-        cancelDeferred = () => window.cancelIdleCallback(idle);
-      } else {
-        const timeout = setTimeout(() => {
-          void setup();
-        }, 1200);
-        cancelDeferred = () => clearTimeout(timeout);
+      } catch {
+        // ponytail: snap opsional; gagal unduh GSAP = scroll native.
       }
+    };
 
-      return () => {
-        killed = true;
-        cancelDeferred?.();
-        st?.kill();
-      };
-    },
-    { scope: containerRef },
-  );
+    if (typeof window.requestIdleCallback === "function") {
+      const idle = window.requestIdleCallback(() => {
+        void setup();
+      });
+      cancelDeferred = () => window.cancelIdleCallback(idle);
+    } else {
+      const timeout = window.setTimeout(() => {
+        void setup();
+      }, 1200);
+      cancelDeferred = () => window.clearTimeout(timeout);
+    }
+
+    return () => {
+      killed = true;
+      cancelDeferred?.();
+      st?.kill();
+    };
+  }, []);
 
   return containerRef;
 }

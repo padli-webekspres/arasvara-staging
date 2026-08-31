@@ -99,6 +99,8 @@ const SponsoredByCarousel: React.FC<SponsoredByCarouselProps> = ({
               <ResponsiveMediaImage
                 src={logo.image_url}
                 alt={logo.name}
+                width={1}
+                height={1}
                 loading="lazy"
                 className="absolute inset-0 h-full w-full object-cover grayscale transition-all duration-300 group-hover:grayscale-0 group-hover:scale-110 group-hover:-rotate-2"
                 sizes="(max-width: 640px) 25vw, (max-width: 768px) 18vw, (max-width: 1024px) 12vw, 9vw"
@@ -120,6 +122,8 @@ const SponsoredByCarousel: React.FC<SponsoredByCarouselProps> = ({
                 <ResponsiveMediaImage
                   src={logo.image_url}
                   alt={logo.name}
+                  width={1}
+                  height={1}
                   loading="lazy"
                   className="absolute inset-0 h-full w-full object-cover bg-amber-200 grayscale transition-all duration-300 group-hover:grayscale-0 group-hover:scale-110 group-hover:rotate-2"
                   sizes="(max-width: 640px) 25vw, (max-width: 768px) 18vw, (max-width: 1024px) 12vw, 9vw"

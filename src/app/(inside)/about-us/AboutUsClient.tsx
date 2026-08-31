@@ -18,7 +18,7 @@ interface AboutUsClientProps {
 
 export default function AboutUsClient({ data }: AboutUsClientProps) {
   // Satu zona snap: Hero · About Us · Visi & Misi.
-  // Area di bawahnya (Redaksi, CTA, Quotes, Kontak, Alamat, Footer) bebas di-scroll.
+  // Area di bawahnya (Redaksi, CTA, Quotes, Alamat, Footer) bebas di-scroll.
   const zone1Ref = useSnapScroll();
 
   // Normalize misi: jika ada baris baru, jadikan list item; jika tidak, jadikan paragraf biasa
@@ -28,14 +28,6 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
 
   // Tentukan apakah ada data redaksi untuk ditampilkan
   const hasRedaksi = data.redaksiPositions && data.redaksiPositions.length > 0;
-
-  // Tentukan apakah ada data kontak untuk ditampilkan
-  const hasContact =
-    data.email ||
-    data.phone ||
-    data.instagramLink ||
-    data.facebookLink ||
-    data.twitterLink;
 
   return (
     <div>
@@ -318,96 +310,7 @@ export default function AboutUsClient({ data }: AboutUsClientProps) {
           </section>
         )}
 
-        {/* ── FREE SCROLL: Kontak · Alamat · Footer ────────────────────── */}
-
-        {hasContact && (
-          <section className="relative overflow-hidden flex items-center py-24">
-            <Image
-              src="https://images.unsplash.com/photo-1515378791036-0648a3ef77b2"
-              fill
-              unoptimized
-              className="absolute inset-0 w-full h-full object-cover object-center z-0"
-              alt="Arasvara Background"
-              priority
-            />
-            <div className="absolute inset-0 bg-black/50 z-10" />
-            <div
-              aria-hidden
-              className="absolute inset-x-0 top-0 h-64 z-10 pointer-events-none"
-              style={{
-                backgroundImage:
-                  "linear-gradient(to bottom, var(--foreground) 0%, color-mix(in oklch, var(--foreground) 60%, transparent) 40%, transparent 100%)",
-              }}
-            />
-
-            <div className="container xl:max-w-6xl relative z-20 mx-auto w-full min-w-0 px-4 md:px-6 lg:px-8">
-              <div className="rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md shadow-lg p-6">
-                <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white text-center mb-4">
-                  {data.titleMeetUs || "Meet us"}
-                </h2>
-                {data.descMeetUs && (
-                  <p className="text-base md:text-lg leading-relaxed text-white/75 mb-6 md:mb-8 text-center">
-                    {data.descMeetUs}
-                  </p>
-                )}
-                {!data.descMeetUs && (
-                  <p className="text-base md:text-lg leading-relaxed text-white/75 mb-6 md:mb-8 text-center">
-                    Kami sangat terbuka terhadap kritik, saran, maupun potensi
-                    kerja sama. Silakan hubungi atau kunjungi kantor kami pada
-                    jam kerja operasional:
-                  </p>
-                )}
-
-                <DividerHorizontal variant="light" />
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {data.email && (
-                    <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
-                      <p className="text-sm md:text-base uppercase tracking-widest text-white/80 mb-4">
-                        Email
-                      </p>
-                      <Link
-                        href={`mailto:${data.email}`}
-                        className="text-lg md:text-xl font-bold text-white hover:underline"
-                      >
-                        {data.email}
-                      </Link>
-                    </div>
-                  )}
-                  {data.phone && (
-                    <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
-                      <p className="text-sm md:text-base uppercase tracking-widest text-white/80 mb-4">
-                        Telepon
-                      </p>
-                      <p className="text-lg md:text-xl font-bold text-white">
-                        {data.phone}
-                      </p>
-                    </div>
-                  )}
-                  {data.fax && (
-                    <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
-                      <p className="text-sm md:text-base uppercase tracking-widest text-white/80 mb-4">
-                        Fax
-                      </p>
-                      <p className="text-lg md:text-xl font-bold text-white">
-                        {data.fax}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div
-              aria-hidden
-              className="absolute inset-x-0 bottom-0 h-64 z-10 pointer-events-none"
-              style={{
-                backgroundImage:
-                  "linear-gradient(to bottom, transparent 0%, color-mix(in oklch, var(--foreground) 60%, transparent) 60%, var(--foreground) 100%)",
-              }}
-            />
-          </section>
-        )}
+        {/* ── FREE SCROLL: Alamat · Footer ─────────────────────────────── */}
 
         {/* Alamat */}
         {data.address && (

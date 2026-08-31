@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db/db";
-import { getArticleRevalidateSeconds } from "@/lib/cache/article-cache-config";
 import { isValidArticlePublicPath } from "@/lib/article-public-path";
 import { splitContentByPageBreak } from "@/lib/utils";
 import {
@@ -52,14 +51,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       { article, related, totalPages },
-      {
-        headers:
-          !req.headers.get("cookie")?.includes("access_token")
-            ? {
-                "Cache-Control": `s-maxage=${getArticleRevalidateSeconds()}, stale-while-revalidate=600`,
-              }
-            : undefined,
-      },
     );
   } catch (error) {
     return NextResponse.json(

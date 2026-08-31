@@ -39,8 +39,8 @@ delete process.env.S3_MAX_SOCKETS;
 console.log("\nCache — artikel detail");
 delete process.env.ARTICLE_PAGE_REVALIDATE_SECONDS;
 assert(
-  getArticleRevalidateSeconds() === 3600,
-  "getArticleRevalidateSeconds default 3600",
+  getArticleRevalidateSeconds() === 300,
+  "getArticleRevalidateSeconds default 300",
 );
 process.env.ARTICLE_PAGE_REVALIDATE_SECONDS = "600";
 assert(

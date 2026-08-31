@@ -2,12 +2,11 @@
 import React from "react";
 import parse from "html-react-parser";
 import { Tweet } from "react-tweet";
-import {
-  InstagramEmbed,
-  FacebookEmbed,
-  TikTokEmbed,
-} from "react-social-media-embed";
+import { InstagramEmbed } from "react-social-media-embed";
 import ReadAlso from "./ReadAlso";
+import FacebookSocialEmbed from "./FacebookSocialEmbed";
+import TikTokSocialEmbed from "./TikTokSocialEmbed";
+import { decodeEmbedAttributeUrl } from "@/lib/social-embed-url";
 
 type Platform = "twitter" | "instagram" | "facebook" | "tiktok";
 interface PlatformConfig {
@@ -31,13 +30,13 @@ const platformMap: Record<Platform, PlatformConfig> = {
     fallback: "Instagram post tidak ditemukan",
   },
   facebook: {
-    Component: FacebookEmbed,
-    getId: (url: string) => url,
+    Component: FacebookSocialEmbed,
+    getId: (url: string) => decodeEmbedAttributeUrl(url),
     fallback: "Facebook post tidak ditemukan",
   },
   tiktok: {
-    Component: TikTokEmbed,
-    getId: (url: string) => url,
+    Component: TikTokSocialEmbed,
+    getId: (url: string) => decodeEmbedAttributeUrl(url),
     fallback: "TikTok post tidak ditemukan",
   },
 };
@@ -91,7 +90,7 @@ export default function ArticleContent({
         domNode.attribs["data-social-embed"] === "true"
       ) {
         const platform = domNode.attribs["data-platform"] as Platform;
-        const url = domNode.attribs["data-url"];
+        const url = decodeEmbedAttributeUrl(domNode.attribs["data-url"]);
         const config = platformMap[platform];
         if (!config) return null;
 

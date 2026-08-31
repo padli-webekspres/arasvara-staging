@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
           const fileObject = file as File;
 
           // ── Validate file before adding to map ──────────────────────
-          const validation = validateConfigurationFile(fileObject, config.key);
+          const validation = await validateConfigurationFile(fileObject, config.key);
           if (!validation.isValid) {
             logger.warn(
               { key: config.key, error: validation.error },
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
       const thumbnailFileObject = thumbnailFile as File;
 
       // Validate thumbnail file
-      const thumbValidation = validateConfigurationFile(
+      const thumbValidation = await validateConfigurationFile(
         thumbnailFileObject,
         "hero_video_config_thumbnail",
       );

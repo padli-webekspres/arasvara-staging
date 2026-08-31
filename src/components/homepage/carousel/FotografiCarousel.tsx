@@ -62,6 +62,8 @@ const FotografiCard = ({ article }: FotografiCardProps) => {
               <ResponsiveMediaImage
                 src={imageUrl}
                 alt=""
+                width={4}
+                height={5}
                 className="absolute inset-0 h-full w-full object-cover rounded-2xl"
                 sizes="(max-width: 640px) 50vw, (max-width: 900px) 33vw, 25vw"
                 onError={() => setImageFailed(true)}
@@ -77,7 +79,7 @@ const FotografiCard = ({ article }: FotografiCardProps) => {
             <span className="text-base lg:text-lg font-medium lg:font-semibold text-white drop-shadow-sm mb-1">
               {categoryLabel}
             </span>
-            <span className="text-xl lg:text-2xl font-bold text-white drop-shadow-md">
+            <span className="text-base lg:text-2xl font-bold text-white drop-shadow-md">
               {truncateTitle(article.title, 40)}
             </span>
             {authorLabel ? (

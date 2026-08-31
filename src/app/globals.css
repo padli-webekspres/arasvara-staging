@@ -352,13 +352,31 @@
     @apply text-xl font-semibold mt-6 mb-3;
   }
 
+  .prose-arasvara h4 {
+    @apply text-lg font-semibold mt-6 mb-3;
+  }
+
+  .prose-arasvara h5 {
+    @apply text-base font-semibold mt-6 mb-3;
+  }
+
+  .prose-arasvara h6 {
+    @apply text-sm font-semibold mt-6 mb-3;
+  }
+
   /* Hindari <strong>/<b> membuat heading terlalu tebal */
   .prose-arasvara h1 strong,
   .prose-arasvara h2 strong,
   .prose-arasvara h3 strong,
+  .prose-arasvara h4 strong,
+  .prose-arasvara h5 strong,
+  .prose-arasvara h6 strong,
   .prose-arasvara h1 b,
   .prose-arasvara h2 b,
-  .prose-arasvara h3 b {
+  .prose-arasvara h3 b,
+  .prose-arasvara h4 b,
+  .prose-arasvara h5 b,
+  .prose-arasvara h6 b {
     font-weight: inherit;
   }
 
@@ -432,9 +450,9 @@
     @apply border border-border/40 rounded-lg p-1;
   }
 
-  /* Custom Swiper Navigation */
+  /* Custom Swiper Navigation — rounded-lg, 32px mobile / 40px desktop */
   .swiper-button-custom {
-    @apply absolute top-1/2 -translate-y-1/2 z-10 min-w-11 min-h-11 bg-white/80 hover:bg-white dark:bg-black/50 dark:hover:bg-black/80 text-primary dark:text-white rounded-lg shadow-md transition-all duration-300 flex items-center justify-center cursor-pointer;
+    @apply absolute top-1/2 -translate-y-1/2 z-10 h-8 w-8 md:h-10 md:w-10 bg-white/80 hover:bg-white dark:bg-black/50 dark:hover:bg-black/80 text-primary dark:text-white rounded-lg shadow-md transition-all duration-300 flex items-center justify-center cursor-pointer;
   }
 
   .swiper-button-custom.swiper-button-disabled {
@@ -503,4 +521,127 @@ body {
      Jika hanya sebagian halaman, abaikan kode di blok ini dan gunakan Solusi 1 */
   /* scrollbar-width: none; */
   /* -ms-overflow-style: none; */
+}
+
+/* DayPicker v9 — jangan @import style.css lewat Tailwind (grid/table hari jadi pecah). */
+.rdp-root {
+  --rdp-accent-color: #445f24 !important;
+  --rdp-accent-background-color: color-mix(in srgb, #445f24 18%, transparent) !important;
+  --rdp-today-color: #445f24 !important;
+}
+
+.rdp-root .rdp-month_grid {
+  display: table !important;
+  width: max-content;
+  border-collapse: collapse;
+}
+
+.rdp-root .rdp-weekdays,
+.rdp-root .rdp-week {
+  display: table-row !important;
+}
+
+.rdp-root .rdp-weeks {
+  display: table-row-group !important;
+}
+
+.rdp-root .rdp-weekday,
+.rdp-root .rdp-day {
+  display: table-cell !important;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.rdp-root .rdp-weekday {
+  width: var(--rdp-day-width, 44px);
+}
+
+.rdp-root .rdp-chevron {
+  fill: #445f24 !important;
+}
+
+.rdp-root .rdp-today:not(.rdp-outside),
+.rdp-root .rdp-today:not(.rdp-outside) .rdp-day_button {
+  color: #445f24 !important;
+}
+
+.rdp-root .rdp-selected {
+  font-weight: inherit;
+  font-size: inherit;
+}
+
+.rdp-root .rdp-range_start .rdp-day_button,
+.rdp-root .rdp-range_end .rdp-day_button,
+.rdp-root .rdp-selected:not(.rdp-range_middle):not(.rdp-range_start):not(.rdp-range_end) .rdp-day_button {
+  background-color: #445f24 !important;
+  color: #fff !important;
+  border-color: #445f24 !important;
+  font-weight: inherit;
+}
+
+.rdp-root .rdp-range_middle {
+  background-color: rgba(68, 95, 36, 0.18) !important;
+}
+
+.rdp-root .rdp-range_middle .rdp-day_button {
+  background-color: transparent !important;
+  color: inherit !important;
+  border-color: transparent !important;
+}
+
+.rdp-root .rdp-range_middle.rdp-today:not(.rdp-outside),
+.rdp-root .rdp-range_middle.rdp-today:not(.rdp-outside) .rdp-day_button {
+  color: #445f24 !important;
+}
+
+.rdp-root .rdp-day_button:hover:not(:disabled):not([aria-disabled="true"]) {
+  background-color: color-mix(in srgb, #445f24 15%, transparent);
+}
+
+.rdp-root .rdp-day_button:focus-visible {
+  outline: 2px solid #445f24;
+  outline-offset: 2px;
+}
+
+.rdp-root .rdp-button_next:hover,
+.rdp-root .rdp-button_previous:hover {
+  background-color: color-mix(in srgb, #445f24 15%, transparent);
+  border-radius: 0.5rem;
+}
+
+.rdp-root .rdp-button_next:focus-visible,
+.rdp-root .rdp-button_previous:focus-visible {
+  outline: 2px solid #445f24;
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+.rdp-root .rdp-dropdown:focus-visible ~ .rdp-caption_label {
+  outline: 2px solid #445f24;
+}
+
+/*
+  ::selection di dalam @layer diabaikan browser (kembali ke biru default).
+  Warna hex wajib: beberapa mesin tidak menerapkan oklch pada ::selection.
+*/
+::selection,
+*::selection {
+  background: #445f24 !important;
+  background-color: #445f24 !important;
+  color: #fff !important;
+}
+
+::-moz-selection,
+*::-moz-selection {
+  background: #445f24 !important;
+  background-color: #445f24 !important;
+  color: #fff !important;
+}
+
+/* react-image-crop v11 default ~12px — perbesar hit target di layar sentuh. */
+@media (pointer: coarse) {
+  .ReactCrop__drag-handle {
+    width: 44px;
+    height: 44px;
+  }
 }

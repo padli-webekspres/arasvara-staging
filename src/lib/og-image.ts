@@ -121,6 +121,8 @@ export function buildArticleOpenGraphImages(
       secureUrl: url,
       alt,
       ...(type ? { type } : {}),
+      width: 1280,
+      height: 800,
     },
   ];
 }

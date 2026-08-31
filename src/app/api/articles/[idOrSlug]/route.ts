@@ -21,9 +21,9 @@ import {
   getRelatedArticles,
 } from "@/services/article/getArticleService";
 import { hasPermission } from "@/lib/auth-client";
-import { getArticleRevalidateSeconds } from "@/lib/cache/article-cache-config";
 import { splitContentByPageBreak } from "@/lib/utils";
 import { mapArticleWriteError } from "@/lib/map-article-write-error";
+import logger from "@/lib/logger";
 
 type Context = { params: Promise<{ idOrSlug: string }> };
 
@@ -104,15 +104,6 @@ export async function GET(req: NextRequest, context: Context) {
     }
     return NextResponse.json(
       { article, related, totalPages },
-      {
-        headers:
-          article.status === "PUBLISHED" &&
-          !req.headers.get("cookie")?.includes("access_token")
-            ? {
-                "Cache-Control": `s-maxage=${getArticleRevalidateSeconds()}, stale-while-revalidate=600`,
-              }
-            : undefined,
-      },
     );
   } catch (error) {
     return NextResponse.json(
@@ -159,6 +150,7 @@ export async function PATCH(req: NextRequest, context: Context) {
     return NextResponse.json({ article });
 
   } catch (error: unknown) {
+    logger.error({ err: error }, "Error updating article");
     const { status, body } = mapArticleWriteError(error);
     return NextResponse.json(body, { status });
   }

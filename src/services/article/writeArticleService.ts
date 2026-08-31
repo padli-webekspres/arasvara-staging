@@ -16,20 +16,21 @@ import {
   createAuditLog,
 } from "@/services/auditLogService";
 import {
-  toMongoObjectId,
-  mapTagsToObjects,
-  generateArticleSlug,
-  mapDocToArticle,
-  buildRevisionEntry,
-} from "@/lib/helper-article";
-import {
   assertUniqueArticleSlug,
   assertUniqueArticleTitle,
   isPlaceholderArticleTitle,
   normalizeArticleTitle,
   resolveArticleSlug,
   titleNormalizedForStorage,
+  validateArticleForApproval,
 } from "@/lib/article-validation";
+import {
+  toMongoObjectId,
+  mapTagsToObjects,
+  generateArticleSlug,
+  mapDocToArticle,
+  buildRevisionEntry,
+} from "@/lib/helper-article";
 import { resolveArticleDenormFields } from "@/lib/article-denorm";
 import {
   createBulkNotifications,
@@ -42,6 +43,7 @@ import { adminPanelHref } from "@/lib/admin-panel-path";
 import { ROLES } from "@/lib/auth-client";
 import { AuditLogAction, AuditLogEntity } from "@/types/auditLog";
 import { resolveAttributionMongoUpdates, safeRevalidateArticlePublicPage } from "@/services/article/coreWriteArticleService";
+import { listingContextFromArticleDocs } from "@/lib/cache/revalidate-article-page";
 import {
   recomputeArticlePublicPath,
   recomputeArticlePublicPathFromUpdates,
@@ -347,6 +349,7 @@ export async function publishScheduledArticles(
         safeRevalidateArticlePublicPage(
           pathFields.publicPath,
           pathFields.previousPublicPath,
+          listingContextFromArticleDocs(article),
         );
       }
     } catch (pathErr) {
@@ -860,7 +863,20 @@ export async function approveArticleStatus(
       );
     }
 
-    assertApprovalScheduledDateValid(payload);
+
+    // H1: Approval format validation - enforce format-specific requirements
+    const validationResult = validateArticleForApproval({
+      format: article.format as "STANDARD" | "GALLERY" | undefined,
+      galleryItems: article.galleryItems,
+      featuredImage: article.featuredImage,
+      status: payload.status,
+    });
+    if (!validationResult.valid) {
+      throw Object.assign(
+        new Error(validationResult.errors.join(", ")),
+        { status: 400 }
+      );
+    }
 
     const actorOid = approvalUserToObjectId(user);
     const baseApprovalUpdates = buildApprovalStatusUpdates(
@@ -964,6 +980,7 @@ export async function approveArticleStatus(
       safeRevalidateArticlePublicPage(
         updated.publicPath ? String(updated.publicPath) : null,
         pathFields.previousPublicPath,
+        listingContextFromArticleDocs(updated, article),
       );
     }
 

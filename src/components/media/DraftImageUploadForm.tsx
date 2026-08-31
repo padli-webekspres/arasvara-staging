@@ -19,6 +19,11 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
+import {
+  IMAGE_DROPZONE_ACCEPT,
+  IMAGE_DROPZONE_COPY,
+} from "@/lib/image/isProbablyImageFile";
+import { IMAGE_PROCESS_TEMP_TIMEOUT_MS } from "@/lib/image/uploadTimeout";
 import api from "@/lib/axios";
 import type { PendingMedia, TempMediaUploadResult } from "@/types/media";
 import Image from "next/image";
@@ -149,7 +154,8 @@ export default function DraftImageUploadForm({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "image/*": [] },
+    accept: IMAGE_DROPZONE_ACCEPT,
+    useFsAccessApi: false,
     maxFiles: 1,
     // Hanya aktif di fase 1 saat belum ada blob crop / sedang prepare
     disabled: croppedBlob !== null || preparingCrop,
@@ -160,7 +166,6 @@ export default function DraftImageUploadForm({
   const onSubmitMetadata = async (values: MetadataFormValues) => {
     if (!croppedBlob) return;
 
-    console.time("DraftImageUploadForm.onSubmitMetadata total");
     setProcessing(true);
     try {
       // Kirim hasil crop ke server — server decode & kompres ke WebP
@@ -174,7 +179,7 @@ export default function DraftImageUploadForm({
         formData,
         {
           // Upload + pemrosesan server bisa lebih lama di jaringan seluler
-          timeout: 120_000,
+          timeout: IMAGE_PROCESS_TEMP_TIMEOUT_MS,
         },
       );
       const { tempMediaId, tempUrl, filename, size } = res.data;
@@ -200,9 +205,7 @@ export default function DraftImageUploadForm({
       }
 
       onMediaReady(pendingMedia);
-      console.timeEnd("DraftImageUploadForm.onSubmitMetadata total");
     } catch (err) {
-      console.timeEnd("DraftImageUploadForm.onSubmitMetadata total");
       const message =
         err instanceof Error ? err.message : "Gagal memproses gambar";
       toast.error(message);
@@ -235,12 +238,12 @@ export default function DraftImageUploadForm({
                 ? "Menyiapkan gambar…"
                 : isDragActive
                   ? "Lepaskan gambar di sini…"
-                  : "Seret & lepas gambar"}
+                  : IMAGE_DROPZONE_COPY.primary}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               {preparingCrop
                 ? "Mohon tunggu sebentar"
-                : "atau klik untuk memilih dari komputer"}
+                : IMAGE_DROPZONE_COPY.secondary}
             </p>
           </div>
           <p className="text-xs text-muted-foreground">

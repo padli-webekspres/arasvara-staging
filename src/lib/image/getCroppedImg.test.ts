@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { toNaturalPixelCrop } from "@/lib/image/getCroppedImg";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  toNaturalPixelCrop,
+  getCroppedImg,
+  CROP_OUTPUT_TOO_LARGE,
+} from "@/lib/image/getCroppedImg";
 
 /** Buat objek minimal yang memenuhi interface yang dibutuhkan toNaturalPixelCrop. */
 function makeImg(
@@ -44,5 +48,86 @@ describe("toNaturalPixelCrop", () => {
     const img = makeImg(1200, 1500, 320, 400);
     const result = toNaturalPixelCrop(img, { x: 16, y: 20, width: 288, height: 360 });
     expect(result).toEqual({ x: 60, y: 75, width: 1080, height: 1350 });
+  });
+});
+
+describe("getCroppedImg", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function stubCropDom(blobByteLength: number, sourceMime = "image/jpeg") {
+    const toBlob = vi.fn((cb: BlobCallback) => {
+      cb(new Blob([new Uint8Array(blobByteLength)], { type: sourceMime }));
+    });
+    vi.stubGlobal("document", {
+      createElement: (tag: string) => {
+        if (tag === "canvas") {
+          return {
+            width: 0,
+            height: 0,
+            getContext: () => ({ drawImage: vi.fn() }),
+            toBlob,
+          };
+        }
+        throw new Error(`Unexpected element: ${tag}`);
+      },
+    });
+    class FakeImage {
+      width = 200;
+      height = 200;
+      naturalWidth = 200;
+      naturalHeight = 200;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      crossOrigin = "";
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    vi.stubGlobal("Image", FakeImage);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        blob: async () => new Blob(["x"], { type: sourceMime }),
+      }),
+    );
+    return { toBlob };
+  }
+
+  it("me-reject jika blob tetap di atas maxSizeMB", async () => {
+    stubCropDom(2 * 1024 * 1024);
+    await expect(
+      getCroppedImg(
+        "blob:http://localhost/img",
+        { x: 0, y: 0, width: 100, height: 100 },
+        { outputWidth: 800, outputHeight: 800, maxSizeMB: 0.78 },
+      ),
+    ).rejects.toThrow(CROP_OUTPUT_TOO_LARGE);
+  });
+
+  it("resolve jika blob di bawah batas", async () => {
+    stubCropDom(100);
+    const blob = await getCroppedImg(
+      "blob:http://localhost/img",
+      { x: 0, y: 0, width: 100, height: 100 },
+      { outputWidth: 80, outputHeight: 80, maxSizeMB: 0.78 },
+    );
+    expect(blob.size).toBe(100);
+  });
+
+  it("sumber PNG tanpa WebP canvas diekspor PNG", async () => {
+    const { toBlob } = stubCropDom(50, "image/png");
+    await getCroppedImg(
+      "blob:http://localhost/img",
+      { x: 0, y: 0, width: 100, height: 100 },
+      { outputWidth: 80, outputHeight: 80, maxSizeMB: 0.78 },
+    );
+    expect(toBlob).toHaveBeenCalledWith(
+      expect.any(Function),
+      "image/png",
+      expect.any(Number),
+    );
   });
 });

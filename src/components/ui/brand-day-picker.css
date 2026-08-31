@@ -1,0 +1,66 @@
+/* Dimuat SETELAH react-day-picker/style.css — jangan pindah ke globals.css (Tailwind merusak grid hari). */
+.rdp-root {
+  --rdp-accent-color: #445f24 !important;
+  --rdp-accent-background-color: rgba(68, 95, 36, 0.18) !important;
+  --rdp-today-color: #445f24 !important;
+}
+
+.rdp-root .rdp-chevron,
+.rdp-root .rdp-chevron * {
+  fill: #445f24 !important;
+}
+
+.rdp-root .rdp-today:not(.rdp-outside),
+.rdp-root .rdp-today:not(.rdp-outside) .rdp-day_button {
+  color: #445f24 !important;
+}
+
+/* Selected: jangan bold / jangan membesar. */
+.rdp-root .rdp-selected {
+  font-weight: inherit;
+  font-size: inherit;
+}
+
+/* Ujung range + selected tunggal: lingkaran hijau, teks putih. */
+.rdp-root .rdp-range_start .rdp-day_button,
+.rdp-root .rdp-range_end .rdp-day_button,
+.rdp-root .rdp-selected:not(.rdp-range_middle):not(.rdp-range_start):not(.rdp-range_end) .rdp-day_button {
+  background-color: #445f24 !important;
+  color: #fff !important;
+  border-color: #445f24 !important;
+  font-weight: inherit;
+}
+
+/* Tengah range: hijau transparan, teks hitam. */
+.rdp-root .rdp-range_middle {
+  background-color: rgba(68, 95, 36, 0.18) !important;
+}
+
+.rdp-root .rdp-range_middle .rdp-day_button {
+  background-color: transparent !important;
+  color: inherit !important;
+  border-color: transparent !important;
+}
+
+/* Hari ini di tengah range tetap hijau sawah (bukan putih). */
+.rdp-root .rdp-range_middle.rdp-today:not(.rdp-outside),
+.rdp-root .rdp-range_middle.rdp-today:not(.rdp-outside) .rdp-day_button {
+  color: #445f24 !important;
+}
+
+.rdp-root .rdp-day_button:hover:not(:disabled):not([aria-disabled="true"]) {
+  background-color: rgba(68, 95, 36, 0.15);
+}
+
+.rdp-root .rdp-day_button:focus-visible,
+.rdp-root .rdp-button_next:focus-visible,
+.rdp-root .rdp-button_previous:focus-visible {
+  outline: 2px solid #445f24;
+  outline-offset: 2px;
+}
+
+.rdp-root .rdp-button_next:hover,
+.rdp-root .rdp-button_previous:hover {
+  background-color: rgba(68, 95, 36, 0.15);
+  border-radius: 0.5rem;
+}

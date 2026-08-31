@@ -28,11 +28,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DayPicker, DateRange } from "react-day-picker";
+import { type DateRange } from "react-day-picker";
 import { format, isValid } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { ArrowUp, Calendar as CalendarIcon, ChevronsUpDown } from "lucide-react";
-import "react-day-picker/dist/style.css";
+import { BrandDayPicker } from "@/components/ui/BrandDayPicker";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -333,7 +333,7 @@ export default function SidebarSearch({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <DayPicker
+                  <BrandDayPicker
                     mode="range"
                     selected={dateRange}
                     onSelect={setDateRange}

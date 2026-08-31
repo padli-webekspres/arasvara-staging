@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -34,6 +34,7 @@ import {
 } from "@/lib/configuration/indexeddb-config";
 import { extractVideoThumbnail } from "@/lib/configuration/video-thumbnail";
 import { prepareImageForCrop } from "@/lib/image/prepareImageForCrop";
+import { IMAGE_UPLOAD_TIMEOUT_MS } from "@/lib/image/uploadTimeout";
 import {
   CreateConfigurationPayload,
   Configuration,
@@ -63,6 +64,10 @@ async function normalizeConfigImageFile(file: File): Promise<File> {
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
+}
+
+function revokeBlobUrl(url: string | null | undefined) {
+  if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
 }
 
 // ── Form validation schema ────────────────────────────────────────────────
@@ -127,6 +132,48 @@ const ConfigurationPage = () => {
   const [loadingCategories, setLoadingCategories] = useState(true);
   // Ambil bucket dari env
   const bucket = process.env.NEXT_PUBLIC_S3_BUCKET_CONFIGURATION || "";
+  const previewUrlsRef = useRef({
+    heroPoster: null as string | null,
+    fotografi: null as string | null,
+    youtube: null as string | null,
+    socmed: null as string | null,
+  });
+
+  const setPreviewSlot = useCallback(
+    (
+      slot: keyof typeof previewUrlsRef.current,
+      blob: Blob,
+      setter: (url: string | null) => void,
+    ) => {
+      revokeBlobUrl(previewUrlsRef.current[slot]);
+      const url = URL.createObjectURL(blob);
+      previewUrlsRef.current[slot] = url;
+      setter(url);
+    },
+    [],
+  );
+
+  const clearPreviewSlot = useCallback(
+    (
+      slot: keyof typeof previewUrlsRef.current,
+      setter: (url: string | null) => void,
+    ) => {
+      revokeBlobUrl(previewUrlsRef.current[slot]);
+      previewUrlsRef.current[slot] = null;
+      setter(null);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      const urls = previewUrlsRef.current;
+      revokeBlobUrl(urls.heroPoster);
+      revokeBlobUrl(urls.fotografi);
+      revokeBlobUrl(urls.youtube);
+      revokeBlobUrl(urls.socmed);
+    };
+  }, []);
 
   // --- DropZone Handlers (must be after state declarations) ---
   const handleHeroVideoPosterBgAccepted = useCallback(async (file: File) => {
@@ -134,11 +181,7 @@ const ConfigurationPage = () => {
       const normalized = await normalizeConfigImageFile(file);
       setHeroVideoPosterBgFile(normalized);
       setIsHeroVideoPosterBgDirty(true);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setHeroVideoPosterBgPreview(ev.target?.result as string);
-      };
-      reader.readAsDataURL(normalized);
+      setPreviewSlot("heroPoster", normalized, setHeroVideoPosterBgPreview);
       await saveVideoToIndexedDB(
         "hero_video_poster_bg",
         normalized,
@@ -149,24 +192,20 @@ const ConfigurationPage = () => {
         "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
       );
     }
-  }, []);
+  }, [setPreviewSlot]);
 
   const handleHeroVideoPosterBgRemove = useCallback(async () => {
     setHeroVideoPosterBgFile(null);
-    setHeroVideoPosterBgPreview(null);
+    clearPreviewSlot("heroPoster", setHeroVideoPosterBgPreview);
     setIsHeroVideoPosterBgDirty(true);
     await removeVideoFromIndexedDB("hero_video_poster_bg");
-  }, []);
+  }, [clearPreviewSlot]);
   const handleFotografiAccepted = useCallback(async (file: File) => {
     try {
       const normalized = await normalizeConfigImageFile(file);
       setFotografiBgFile(normalized);
       setIsFotografiBgDirty(true);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setFotografiBgPreview(ev.target?.result as string);
-      };
-      reader.readAsDataURL(normalized);
+      setPreviewSlot("fotografi", normalized, setFotografiBgPreview);
       await saveVideoToIndexedDB(
         "fotografi_section_bg",
         normalized,
@@ -177,25 +216,21 @@ const ConfigurationPage = () => {
         "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
       );
     }
-  }, []);
+  }, [setPreviewSlot]);
 
   const handleFotografiRemove = useCallback(async () => {
     setFotografiBgFile(null);
-    setFotografiBgPreview(null);
+    clearPreviewSlot("fotografi", setFotografiBgPreview);
     setIsFotografiBgDirty(true);
     await removeVideoFromIndexedDB("fotografi_section_bg");
-  }, []);
+  }, [clearPreviewSlot]);
 
   const handleYoutubeAccepted = useCallback(async (file: File) => {
     try {
       const normalized = await normalizeConfigImageFile(file);
       setYoutubeBgFile(normalized);
       setIsYoutubeBgDirty(true);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setYoutubeBgPreview(ev.target?.result as string);
-      };
-      reader.readAsDataURL(normalized);
+      setPreviewSlot("youtube", normalized, setYoutubeBgPreview);
       await saveVideoToIndexedDB(
         "youtube_section_bg",
         normalized,
@@ -206,25 +241,21 @@ const ConfigurationPage = () => {
         "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
       );
     }
-  }, []);
+  }, [setPreviewSlot]);
 
   const handleYoutubeRemove = useCallback(async () => {
     setYoutubeBgFile(null);
-    setYoutubeBgPreview(null);
+    clearPreviewSlot("youtube", setYoutubeBgPreview);
     setIsYoutubeBgDirty(true);
     await removeVideoFromIndexedDB("youtube_section_bg");
-  }, []);
+  }, [clearPreviewSlot]);
 
   const handleSocmedAccepted = useCallback(async (file: File) => {
     try {
       const normalized = await normalizeConfigImageFile(file);
       setSocmedBgFile(normalized);
       setIsSocmedBgDirty(true);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setSocmedBgPreview(ev.target?.result as string);
-      };
-      reader.readAsDataURL(normalized);
+      setPreviewSlot("socmed", normalized, setSocmedBgPreview);
       await saveVideoToIndexedDB(
         "socmed_section_bg",
         normalized,
@@ -235,14 +266,14 @@ const ConfigurationPage = () => {
         "Gambar tidak dapat dimuat. Coba lagi atau gunakan format JPEG/PNG/WebP.",
       );
     }
-  }, []);
+  }, [setPreviewSlot]);
 
   const handleSocmedRemove = useCallback(async () => {
     setSocmedBgFile(null);
-    setSocmedBgPreview(null);
+    clearPreviewSlot("socmed", setSocmedBgPreview);
     setIsSocmedBgDirty(true);
     await removeVideoFromIndexedDB("socmed_section_bg");
-  }, []);
+  }, [clearPreviewSlot]);
   // State untuk menyimpan konfigurasi lama
   // const [oldConfigurations, setOldConfigurations] = useState<Configuration[]>(
   const [oldConfigurations, setOldConfigurations] = useState<Configuration[]>(
@@ -489,7 +520,15 @@ const ConfigurationPage = () => {
         return null;
       };
 
-      // seed previews from saved configuration
+      // seed previews from saved configuration (http URL, bukan blob)
+      revokeBlobUrl(previewUrlsRef.current.heroPoster);
+      revokeBlobUrl(previewUrlsRef.current.fotografi);
+      revokeBlobUrl(previewUrlsRef.current.youtube);
+      revokeBlobUrl(previewUrlsRef.current.socmed);
+      previewUrlsRef.current.heroPoster = null;
+      previewUrlsRef.current.fotografi = null;
+      previewUrlsRef.current.youtube = null;
+      previewUrlsRef.current.socmed = null;
       setHeroVideoPosterBgPreview(getFileConfigUrl("hero_video_poster_bg"));
       setFotografiBgPreview(getFileConfigUrl("fotografi_section_bg"));
       setYoutubeBgPreview(getFileConfigUrl("youtube_section_bg"));
@@ -529,11 +568,7 @@ const ConfigurationPage = () => {
               type: stored.mimeType,
             }),
           );
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            setHeroVideoPosterBgPreview(ev.target?.result as string);
-          };
-          reader.readAsDataURL(stored.file);
+          setPreviewSlot("heroPoster", stored.file, setHeroVideoPosterBgPreview);
         }
       } catch {}
 
@@ -546,11 +581,7 @@ const ConfigurationPage = () => {
               type: stored.mimeType,
             }),
           );
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            setFotografiBgPreview(ev.target?.result as string);
-          };
-          reader.readAsDataURL(stored.file);
+          setPreviewSlot("fotografi", stored.file, setFotografiBgPreview);
         }
       } catch {}
 
@@ -563,11 +594,7 @@ const ConfigurationPage = () => {
               type: stored.mimeType,
             }),
           );
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            setYoutubeBgPreview(ev.target?.result as string);
-          };
-          reader.readAsDataURL(stored.file);
+          setPreviewSlot("youtube", stored.file, setYoutubeBgPreview);
         }
       } catch {}
 
@@ -580,17 +607,13 @@ const ConfigurationPage = () => {
               type: stored.mimeType,
             }),
           );
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            setSocmedBgPreview(ev.target?.result as string);
-          };
-          reader.readAsDataURL(stored.file);
+          setPreviewSlot("socmed", stored.file, setSocmedBgPreview);
         }
       } catch {}
     };
 
     loadIndexedDBFiles();
-  }, [fetchConfigurationData]);
+  }, [fetchConfigurationData, setPreviewSlot]);
 
   // ── Auto-extract thumbnail saat video dipilih ────────────────────────────
   useEffect(() => {
@@ -1024,8 +1047,8 @@ const ConfigurationPage = () => {
       // Send to API using axios
       try {
         const response = await api.post("/configuration", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
           validateStatus: (status: number) => status < 500,
+          timeout: IMAGE_UPLOAD_TIMEOUT_MS,
         });
         console.log("response from API:", response.data);
       } catch (err) {

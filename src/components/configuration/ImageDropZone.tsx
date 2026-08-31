@@ -2,6 +2,10 @@ import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 import React from "react";
 import { useDropzone } from "react-dropzone";
+import {
+  IMAGE_DROPZONE_ACCEPT,
+  IMAGE_DROPZONE_COPY,
+} from "@/lib/image/isProbablyImageFile";
 
 interface ImageDropZoneProps {
   onFileAccepted: (file: File) => void;
@@ -31,7 +35,8 @@ const ImageDropZone: React.FC<ImageDropZoneProps> = ({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "image/*": [] },
+    accept: IMAGE_DROPZONE_ACCEPT,
+    useFsAccessApi: false,
     multiple: false,
     disabled,
   });
@@ -51,7 +56,7 @@ const ImageDropZone: React.FC<ImageDropZoneProps> = ({
             type="button"
             onClick={onRemove}
             className="absolute right-2 top-2 rounded-full bg-background/80 p-1 hover:bg-background"
-            aria-label="Remove video"
+            aria-label="Hapus gambar"
           >
             <X className="h-4 w-4 text-foreground" />
           </button>
@@ -67,10 +72,13 @@ const ImageDropZone: React.FC<ImageDropZoneProps> = ({
         >
           <input {...getInputProps()} />
           <span className="text-sm text-muted-foreground">
-            Drag & drop or click to select image
+            {IMAGE_DROPZONE_COPY.primary}
           </span>
           <span className="text-xs text-muted-foreground mt-1">
-            Supported: JPG, PNG, WebP, SVG, etc.
+            {IMAGE_DROPZONE_COPY.secondary}
+          </span>
+          <span className="text-xs text-muted-foreground mt-1">
+            {IMAGE_DROPZONE_COPY.formats}
           </span>
         </div>
       )}

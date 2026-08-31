@@ -80,6 +80,8 @@ const VideoCarouselItem: React.FC<VideoCarouselItemProps> = ({
             <ResponsiveMediaImage
               src={thumbnailUrl}
               alt=""
+              width={layout === "portrait" ? 9 : span === 2 ? 32 : 16}
+              height={layout === "portrait" ? (span === 2 ? 8 : 16) : 9}
               className="absolute inset-0 h-full w-full object-cover"
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 28vw"
               onError={() => setImageFailed(true)}

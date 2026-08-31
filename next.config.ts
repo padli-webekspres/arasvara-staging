@@ -146,6 +146,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   /** Izinkan akses dev dari LAN (host dari NEXT_PUBLIC_BASE_URL). */
   allowedDevOrigins,
+  experimental: {
+    optimizePackageImports: ["lucide-react", "radix-ui"],
+  },
   images: {
     remotePatterns,
     /** Dev: izinkan next/image fetch dari MinIO LAN (192.168.x.x). Prod CDN publik tidak perlu ini. */
